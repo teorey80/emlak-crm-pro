@@ -3,7 +3,7 @@ export const config = {
     maxDuration: 60,
 };
 
-const GEMINI_API_KEY = "AIzaSyCBmKMylhAdzl3X5otJrAb1XZn3f8EweDs";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
 // Helper to always return JSON
 function jsonResponse(data: any, status: number = 200) {
