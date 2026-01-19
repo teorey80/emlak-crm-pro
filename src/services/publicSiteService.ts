@@ -13,10 +13,41 @@ export interface PublicSiteData {
 
 // Memory cache to prevent repeated Supabase calls
 const siteCache = new Map<string, { data: PublicSiteData | null; timestamp: number }>();
-const CACHE_TTL = 600000; // 10 minute cache for public sites (better performance)
+const CACHE_TTL = 600000; // 10 minute memory cache
+const LOCAL_STORAGE_KEY = 'emlak_site';
+const LOCAL_STORAGE_TTL = 3600000; // 1 hour localStorage cache
 
 // Warm-up flag to prevent multiple warm-ups
 let isWarmedUp = false;
+
+/**
+ * Get cached data from localStorage (survives page refresh)
+ */
+function getLocalStorageCache(domain: string): PublicSiteData | null {
+    try {
+        const cached = localStorage.getItem(`${LOCAL_STORAGE_KEY}_${domain}`);
+        if (cached) {
+            const { data, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < LOCAL_STORAGE_TTL) {
+                return data;
+            }
+            localStorage.removeItem(`${LOCAL_STORAGE_KEY}_${domain}`);
+        }
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+/**
+ * Save data to localStorage cache
+ */
+function setLocalStorageCache(domain: string, data: PublicSiteData): void {
+    try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_${domain}`, JSON.stringify({
+            data,
+            timestamp: Date.now()
+        }));
+    } catch (e) { /* ignore - storage full */ }
+}
 
 /**
  * Pre-warm Supabase connection for faster first query
@@ -61,14 +92,23 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         return null;
     }
 
-    // Check cache first
+    // 1. Check memory cache first (fastest)
     const cached = siteCache.get(cleanDomain);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        console.log('[PublicSite] Cache hit:', cleanDomain);
+        console.log('[PublicSite] Memory cache hit:', cleanDomain);
         return cached.data;
     }
 
-    console.log('[PublicSite] Fetching:', cleanDomain);
+    // 2. Check localStorage cache (survives refresh)
+    const localCached = getLocalStorageCache(cleanDomain);
+    if (localCached) {
+        console.log('[PublicSite] LocalStorage cache hit:', cleanDomain);
+        // Also set in memory for faster subsequent access
+        siteCache.set(cleanDomain, { data: localCached, timestamp: Date.now() });
+        return localCached;
+    }
+
+    console.log('[PublicSite] Fetching from DB:', cleanDomain);
 
     try {
         // PARALLEL QUERIES: Fetch profiles and offices at the same time
@@ -116,8 +156,9 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                             ownerName: profile.full_name
                         };
 
-                        // Cache result
+                        // Cache result in memory and localStorage
                         siteCache.set(cleanDomain, { data: result, timestamp: Date.now() });
+                        setLocalStorageCache(cleanDomain, result);
                         return result;
                     }
                 }
@@ -181,8 +222,9 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                             officeName: office.name
                         };
 
-                        // Cache result
+                        // Cache result in memory and localStorage
                         siteCache.set(cleanDomain, { data: result, timestamp: Date.now() });
+                        setLocalStorageCache(cleanDomain, result);
                         return result;
                     }
                 }
