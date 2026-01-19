@@ -25,8 +25,11 @@ import Register from './pages/Register';
 import Team from './pages/Team';
 import PublicSite from './pages/PublicSite';
 import { DataProvider, useData } from './context/DataContext';
-import { getSiteByDomain, PublicSiteData } from './services/publicSiteService';
+import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
 import { keepSupabaseAlive } from './services/keepAliveService';
+
+// Start warming up Supabase immediately when script loads
+warmupSupabase();
 
 const Layout: React.FC = () => {
   return (
@@ -55,28 +58,48 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Loading Screen Component with warm-up animation
+// Loading Screen Component - Shows skeleton of the public site
 const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Yükleniyor...' }) => {
-  const [dots, setDots] = useState('');
-
-  useEffect(() => {
-    // Animate dots
-    const interval = setInterval(() => {
-      setDots(d => d.length >= 3 ? '' : d + '.');
-    }, 400);
-
-    // Pre-warm Supabase connection in background
-    keepSupabaseAlive().then(result => {
-      console.log(`[LoadingScreen] DB warm-up: ${result.latency}ms`);
-    });
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-      <p className="text-slate-600 font-medium">{message}{dots}</p>
+    <div className="min-h-screen bg-white">
+      {/* Skeleton Header */}
+      <header className="bg-white border-b border-gray-100 py-5">
+        <div className="container mx-auto px-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="w-32 h-6 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="hidden md:flex items-center gap-6">
+            <div className="w-16 h-4 bg-gray-100 rounded animate-pulse"></div>
+            <div className="w-16 h-4 bg-gray-100 rounded animate-pulse"></div>
+            <div className="w-20 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
+          </div>
+        </div>
+      </header>
+
+      {/* Skeleton Hero */}
+      <div className="relative h-[400px] bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white/80 font-medium text-lg">{message}</p>
+        </div>
+      </div>
+
+      {/* Skeleton Content */}
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="h-48 bg-gray-200 animate-pulse"></div>
+              <div className="p-4 space-y-3">
+                <div className="w-3/4 h-5 bg-gray-200 rounded animate-pulse"></div>
+                <div className="w-1/2 h-4 bg-gray-100 rounded animate-pulse"></div>
+                <div className="w-1/3 h-6 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

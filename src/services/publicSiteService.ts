@@ -13,7 +13,26 @@ export interface PublicSiteData {
 
 // Memory cache to prevent repeated Supabase calls
 const siteCache = new Map<string, { data: PublicSiteData | null; timestamp: number }>();
-const CACHE_TTL = 300000; // 5 minute cache for public sites (better performance)
+const CACHE_TTL = 600000; // 10 minute cache for public sites (better performance)
+
+// Warm-up flag to prevent multiple warm-ups
+let isWarmedUp = false;
+
+/**
+ * Pre-warm Supabase connection for faster first query
+ */
+export async function warmupSupabase(): Promise<void> {
+    if (isWarmedUp) return;
+    isWarmedUp = true;
+
+    try {
+        // Simple ping query to wake up Supabase
+        await supabase.from('profiles').select('id').limit(1).maybeSingle();
+        console.log('[PublicSite] Supabase warmed up');
+    } catch (e) {
+        console.log('[PublicSite] Warm-up error (ignored):', e);
+    }
+}
 
 // Skip patterns for non-public domains
 const SKIP_PATTERNS = [
@@ -52,16 +71,22 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
     console.log('[PublicSite] Fetching:', cleanDomain);
 
     try {
-        // SINGLE QUERY: Get all active site configs
-        const { data: profiles, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, full_name, site_config')
-            .not('site_config', 'is', null)
-            .limit(50);
+        // PARALLEL QUERIES: Fetch profiles and offices at the same time
+        const [profilesResult, officesResult] = await Promise.all([
+            supabase
+                .from('profiles')
+                .select('id, full_name, site_config')
+                .not('site_config', 'is', null)
+                .limit(50),
+            supabase
+                .from('offices')
+                .select('id, name, site_config')
+                .not('site_config', 'is', null)
+                .limit(50)
+        ]);
 
-        if (profileError) {
-            console.error('[PublicSite] Profile query error:', profileError);
-        }
+        const profiles = profilesResult.data;
+        const offices = officesResult.data;
 
         // Check profiles for domain match
         if (profiles) {
@@ -97,17 +122,6 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                     }
                 }
             }
-        }
-
-        // Check offices
-        const { data: offices, error: officeError } = await supabase
-            .from('offices')
-            .select('id, name, site_config')
-            .not('site_config', 'is', null)
-            .limit(50);
-
-        if (officeError) {
-            console.error('[PublicSite] Office query error:', officeError);
         }
 
         if (offices) {
