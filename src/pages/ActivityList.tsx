@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, MapPin, Phone, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Plus, Search, MapPin, PhoneIncoming, PhoneOutgoing, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 // Helper functions moved outside to prevent ReferenceError/TDZ issues
 const getActivityIcon = (type: string) => {
     switch (type) {
         case 'Yer Gösterimi': return <MapPin className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
-        case 'Telefon Görüşmesi': return <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+        case 'Gelen Arama': return <PhoneIncoming className="w-4 h-4 text-green-600 dark:text-green-400" />;
+        case 'Giden Arama': return <PhoneOutgoing className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
         case 'Ofis Toplantısı': return <Briefcase className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />;
         default: return <Clock className="w-4 h-4 text-gray-600 dark:text-slate-400" />;
     }
@@ -79,7 +80,8 @@ const ActivityList: React.FC = () => {
                     >
                         <option>Tümü</option>
                         <option>Yer Gösterimi</option>
-                        <option>Telefon Görüşmesi</option>
+                        <option>Gelen Arama</option>
+                        <option>Giden Arama</option>
                         <option>Ofis Toplantısı</option>
                     </select>
                 </div>

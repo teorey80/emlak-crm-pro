@@ -147,7 +147,8 @@ const ActivityForm: React.FC = () => {
                                 onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                             >
                                 <option>Yer Gösterimi</option>
-                                <option>Telefon Görüşmesi</option>
+                                <option>Gelen Arama</option>
+                                <option>Giden Arama</option>
                                 <option>Ofis Toplantısı</option>
                                 <option>Tapu İşlemi</option>
                                 <option>Diğer</option>

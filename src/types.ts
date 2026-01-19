@@ -140,7 +140,7 @@ export interface Interaction {
 
 export interface Activity {
   id: string;
-  type: 'Yer Gösterimi' | 'Telefon Görüşmesi' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Diğer';
+  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Diğer';
   customerId: string;
   customerName: string;
   propertyId?: string;
