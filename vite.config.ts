@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, 'src'),
       }
     },
     build: {
@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
             'vendor-supabase': ['@supabase/supabase-js'],
             'vendor-ui': ['lucide-react'],
             // Public site is loaded separately for custom domain visitors
-            'public-site': ['./pages/PublicSite.tsx'],
+            'public-site': ['./src/pages/PublicSite.tsx'],
           }
         }
       }
