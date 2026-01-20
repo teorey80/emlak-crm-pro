@@ -157,6 +157,16 @@ const CRMApp: React.FC = () => {
 // Helper function to check if domain should skip public site check
 const shouldSkipPublicSiteCheck = (hostname: string): boolean => {
   const cleanDomain = hostname.replace(/^www\./, '').toLowerCase().trim();
+
+  // Main CRM domains - always skip public site check
+  const crmDomains = [
+    'ademaslan.com'  // Main CRM domain
+  ];
+
+  if (crmDomains.includes(cleanDomain)) {
+    return true;
+  }
+
   const skipPatterns = [
     'localhost',
     '127.0.0.1',
