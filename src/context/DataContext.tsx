@@ -163,10 +163,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Fetch all data from Supabase on mount
+  // Fetch all data from Supabase when session is available
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (session) {
+      fetchData();
+    }
+  }, [session]);
 
   const fetchData = async () => {
     setLoading(true);
