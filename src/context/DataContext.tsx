@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office } from '../types';
+import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 import { Session } from '@supabase/supabase-js';
@@ -13,6 +13,7 @@ interface DataContextType {
   sites: Site[];
   activities: Activity[];
   requests: Request[];
+  sales: Sale[];
   teamMembers: UserProfile[]; // NEW: To resolve agent names
   webConfig: WebSiteConfig;
   userProfile: UserProfile;
@@ -28,6 +29,7 @@ interface DataContextType {
   updateActivity: (activity: Activity) => Promise<void>;
   addRequest: (request: Request) => Promise<void>;
   updateRequest: (request: Request) => Promise<void>;
+  addSale: (sale: Sale) => Promise<void>;
   updateWebConfig: (config: Partial<WebSiteConfig>, target?: 'personal' | 'office') => Promise<void>;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   deleteProperty: (id: string) => Promise<void>;
@@ -46,6 +48,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [sites, setSites] = useState<Site[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
 
   // Web Config is kept in LocalStorage for simplicity as it's browser-specific preference for the builder
@@ -151,12 +154,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     try {
       // Fetch in parallel
-      const [propsRes, custRes, sitesRes, actRes, reqRes, teamRes] = await Promise.all([
+      const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
         supabase.from('properties').select('*').order('created_at', { ascending: false }),
         supabase.from('customers').select('*').order('created_at', { ascending: false }),
         supabase.from('sites').select('*'),
         supabase.from('activities').select('*'),
         supabase.from('requests').select('*'),
+        supabase.from('sales').select('*').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
@@ -165,6 +169,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (sitesRes.data) setSites(sitesRes.data);
       if (actRes.data) setActivities(actRes.data);
       if (reqRes.data) setRequests(reqRes.data);
+      if (salesRes.data) setSales(salesRes.data);
 
       if (teamRes.data) {
         setTeamMembers(teamRes.data.map((p: any) => ({
@@ -316,6 +321,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const addSale = async (sale: Sale) => {
+    // Transform camelCase to snake_case for DB
+    const saleForDB = {
+      id: sale.id,
+      property_id: sale.propertyId,
+      user_id: session?.user.id,
+      office_id: userProfile.officeId,
+      sale_price: sale.salePrice,
+      sale_date: sale.saleDate,
+      buyer_id: sale.buyerId,
+      buyer_name: sale.buyerName,
+      commission_rate: sale.commissionRate,
+      commission_amount: sale.commissionAmount,
+      expenses: sale.expenses,
+      total_expenses: sale.totalExpenses,
+      office_share_rate: sale.officeShareRate,
+      consultant_share_rate: sale.consultantShareRate,
+      office_share_amount: sale.officeShareAmount,
+      consultant_share_amount: sale.consultantShareAmount,
+      net_profit: sale.netProfit,
+      notes: sale.notes
+    };
+
+    // Optimistic update
+    setSales((prev) => [sale, ...prev]);
+
+    const { error } = await supabase.from('sales').insert([saleForDB]);
+    if (error) {
+      console.error('Error adding sale:', error);
+      // Rollback on error
+      setSales((prev) => prev.filter(s => s.id !== sale.id));
+      throw error;
+    }
+  };
+
   const updateWebConfig = async (config: Partial<WebSiteConfig>, target: 'personal' | 'office' = 'personal') => {
     const newConfig = { ...webConfig, ...config };
     setWebConfig(newConfig);
@@ -392,10 +432,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <DataContext.Provider value={{
       session, signOut,
-      properties, customers, sites, activities, requests, teamMembers, webConfig, userProfile, office, loading,
+      properties, customers, sites, activities, requests, sales, teamMembers, webConfig, userProfile, office, loading,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,
-      updateWebConfig, updateUserProfile
+      addSale, updateWebConfig, updateUserProfile
     }}>
       {children}
     </DataContext.Provider>

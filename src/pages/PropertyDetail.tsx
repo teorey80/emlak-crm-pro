@@ -8,7 +8,7 @@ import { Sale } from '../types';
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty } = useData();
+    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale } = useData();
     const property = properties.find(p => p.id === id);
     const [showSaleForm, setShowSaleForm] = useState(false);
 
@@ -317,17 +317,24 @@ const PropertyDetail: React.FC = () => {
                     property={property}
                     onClose={() => setShowSaleForm(false)}
                     onSave={async (sale: Sale) => {
-                        // Update property status to Satıldı
-                        await updateProperty({
-                            ...property,
-                            listingStatus: 'Satıldı',
-                            soldDate: sale.saleDate
-                        });
-                        // TODO: Save sale to sales table
-                        console.log('Sale saved:', sale);
-                        setShowSaleForm(false);
-                        alert('Satış başarıyla kaydedildi!');
-                        navigate('/properties');
+                        try {
+                            // Save sale to database
+                            await addSale(sale);
+
+                            // Update property status to Satıldı
+                            await updateProperty({
+                                ...property,
+                                listingStatus: 'Satıldı',
+                                soldDate: sale.saleDate
+                            });
+
+                            setShowSaleForm(false);
+                            alert('Satış başarıyla kaydedildi!');
+                            navigate('/properties');
+                        } catch (error) {
+                            console.error('Satış kaydetme hatası:', error);
+                            alert('Satış kaydedilemedi. Lütfen tekrar deneyin.');
+                        }
                     }}
                 />
             )}
