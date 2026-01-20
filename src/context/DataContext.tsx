@@ -5,6 +5,8 @@ import { supabase } from '../services/supabaseClient';
 
 import { Session } from '@supabase/supabase-js';
 
+const PAGE_SIZE = 50;
+
 interface DataContextType {
   session: Session | null;
   signOut: () => Promise<void>;
@@ -14,11 +16,17 @@ interface DataContextType {
   activities: Activity[];
   requests: Request[];
   sales: Sale[];
-  teamMembers: UserProfile[]; // NEW: To resolve agent names
+  teamMembers: UserProfile[];
   webConfig: WebSiteConfig;
   userProfile: UserProfile;
   office: Office | null;
   loading: boolean;
+  // Pagination states
+  hasMoreProperties: boolean;
+  hasMoreCustomers: boolean;
+  hasMoreActivities: boolean;
+  loadingMore: boolean;
+  // CRUD operations
   addProperty: (property: Property) => Promise<void>;
   updateProperty: (property: Property) => Promise<void>;
   addCustomer: (customer: Customer) => Promise<void>;
@@ -36,6 +44,10 @@ interface DataContextType {
   deleteCustomer: (id: string) => Promise<void>;
   deleteActivity: (id: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
+  // Pagination functions
+  loadMoreProperties: () => Promise<void>;
+  loadMoreCustomers: () => Promise<void>;
+  loadMoreActivities: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -50,6 +62,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [requests, setRequests] = useState<Request[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+
+  // Pagination states
+  const [hasMoreProperties, setHasMoreProperties] = useState(true);
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
+  const [hasMoreActivities, setHasMoreActivities] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Web Config is kept in LocalStorage for simplicity as it's browser-specific preference for the builder
 
@@ -153,21 +171,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch in parallel
+      // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
-        supabase.from('properties').select('*').order('created_at', { ascending: false }),
-        supabase.from('customers').select('*').order('created_at', { ascending: false }),
+        supabase.from('properties').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
+        supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('sites').select('*'),
-        supabase.from('activities').select('*'),
+        supabase.from('activities').select('*').order('date', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('requests').select('*'),
         supabase.from('sales').select('*').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
-      if (propsRes.data) setProperties(propsRes.data);
-      if (custRes.data) setCustomers(custRes.data);
+      if (propsRes.data) {
+        setProperties(propsRes.data);
+        setHasMoreProperties(propsRes.data.length === PAGE_SIZE);
+      }
+      if (custRes.data) {
+        setCustomers(custRes.data);
+        setHasMoreCustomers(custRes.data.length === PAGE_SIZE);
+      }
       if (sitesRes.data) setSites(sitesRes.data);
-      if (actRes.data) setActivities(actRes.data);
+      if (actRes.data) {
+        setActivities(actRes.data);
+        setHasMoreActivities(actRes.data.length === PAGE_SIZE);
+      }
       if (reqRes.data) setRequests(reqRes.data);
       if (salesRes.data) setSales(salesRes.data);
 
@@ -429,13 +456,79 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // --- Pagination Functions ---
+  const loadMoreProperties = async () => {
+    if (!hasMoreProperties || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await supabase
+        .from('properties')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(properties.length, properties.length + PAGE_SIZE - 1);
+
+      if (data) {
+        setProperties(prev => [...prev, ...data]);
+        setHasMoreProperties(data.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Error loading more properties:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreCustomers = async () => {
+    if (!hasMoreCustomers || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(customers.length, customers.length + PAGE_SIZE - 1);
+
+      if (data) {
+        setCustomers(prev => [...prev, ...data]);
+        setHasMoreCustomers(data.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Error loading more customers:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreActivities = async () => {
+    if (!hasMoreActivities || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await supabase
+        .from('activities')
+        .select('*')
+        .order('date', { ascending: false })
+        .range(activities.length, activities.length + PAGE_SIZE - 1);
+
+      if (data) {
+        setActivities(prev => [...prev, ...data]);
+        setHasMoreActivities(data.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Error loading more activities:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   return (
     <DataContext.Provider value={{
       session, signOut,
       properties, customers, sites, activities, requests, sales, teamMembers, webConfig, userProfile, office, loading,
+      hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,
-      addSale, updateWebConfig, updateUserProfile
+      addSale, updateWebConfig, updateUserProfile,
+      loadMoreProperties, loadMoreCustomers, loadMoreActivities
     }}>
       {children}
     </DataContext.Provider>

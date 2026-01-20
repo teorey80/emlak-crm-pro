@@ -4,7 +4,7 @@ import { Plus, Search, Filter, ArrowUpDown, X } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 const PropertyList: React.FC = () => {
-    const { properties, session, userProfile, teamMembers } = useData();
+    const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore } = useData();
 
     // Filter States
     const [searchTerm, setSearchTerm] = useState('');
@@ -294,12 +294,30 @@ const PropertyList: React.FC = () => {
                 </div>
 
                 {filteredAndSortedProperties.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 flex justify-between items-center text-sm text-gray-500 dark:text-slate-400">
-                        <button className="flex items-center hover:text-slate-800 dark:hover:text-slate-200">← Önceki</button>
-                        <div className="flex gap-2">
-                            <span className="w-6 h-6 flex items-center justify-center rounded bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-[#1193d4] font-bold shadow-sm">1</span>
-                        </div>
-                        <button className="flex items-center hover:text-slate-800 dark:hover:text-slate-200">Sonraki →</button>
+                    <div className="p-4 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 flex justify-center items-center">
+                        {hasMoreProperties ? (
+                            <button
+                                onClick={loadMoreProperties}
+                                disabled={loadingMore}
+                                className="px-6 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {loadingMore ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        Yükleniyor...
+                                    </>
+                                ) : (
+                                    'Daha Fazla Yükle'
+                                )}
+                            </button>
+                        ) : (
+                            <span className="text-sm text-gray-500 dark:text-slate-400">
+                                Tüm ilanlar yüklendi ({properties.length} ilan)
+                            </span>
+                        )}
                     </div>
                 )}
             </div>

@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
 
 const CustomerList: React.FC = () => {
-    const { customers, deleteCustomer } = useData();
+    const { customers, deleteCustomer, hasMoreCustomers, loadMoreCustomers, loadingMore } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
 
@@ -124,6 +124,35 @@ const CustomerList: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+
+                {/* Load More Button */}
+                {filteredCustomers.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 flex justify-center items-center">
+                        {hasMoreCustomers ? (
+                            <button
+                                onClick={loadMoreCustomers}
+                                disabled={loadingMore}
+                                className="px-6 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {loadingMore ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        Yükleniyor...
+                                    </>
+                                ) : (
+                                    'Daha Fazla Yükle'
+                                )}
+                            </button>
+                        ) : (
+                            <span className="text-sm text-gray-500 dark:text-slate-400">
+                                Tüm müşteriler yüklendi ({customers.length} müşteri)
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
