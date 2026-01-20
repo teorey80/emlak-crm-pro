@@ -167,6 +167,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (session) {
       fetchData();
+    } else {
+      // No session - stop loading so login screen can show
+      setLoading(false);
     }
   }, [session]);
 
