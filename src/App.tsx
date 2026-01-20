@@ -155,22 +155,14 @@ const CRMApp: React.FC = () => {
 };
 
 // Helper function to check if domain should skip public site check
+// Only Vercel/localhost domains skip - custom domains check for public sites
 const shouldSkipPublicSiteCheck = (hostname: string): boolean => {
   const cleanDomain = hostname.replace(/^www\./, '').toLowerCase().trim();
-
-  // Main CRM domains - always skip public site check
-  const crmDomains = [
-    'ademaslan.com'  // Main CRM domain
-  ];
-
-  if (crmDomains.includes(cleanDomain)) {
-    return true;
-  }
 
   const skipPatterns = [
     'localhost',
     '127.0.0.1',
-    'vercel.app',
+    'vercel.app',   // CRM panel accessed via Vercel URLs
     'vercel.com',
     'netlify.app',
     'netlify.com',
