@@ -195,6 +195,12 @@ export interface UserProfile {
   officeId?: string;
   role?: 'broker' | 'consultant' | 'staff';
   siteConfig?: WebSiteConfig;
+  // Monthly targets
+  monthlyTargets?: {
+    salesTarget?: number;      // Aylık satış hedefi (adet)
+    revenueTarget?: number;    // Aylık ciro hedefi (TL)
+    commissionTarget?: number; // Aylık komisyon hedefi (TL)
+  };
 }
 
 export interface Office {

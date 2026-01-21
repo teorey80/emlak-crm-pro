@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Bell, X, Sparkles, CheckCircle } from 'lucide-react';
+import { Bell, X, Sparkles, CheckCircle, Users } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { findMatches, MatchResult } from '../services/matchingService';
 import { useNavigate } from 'react-router-dom';
 
 const NotificationBell: React.FC = () => {
-  const { properties, requests } = useData();
+  const { properties, requests, teamMembers } = useData();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedMatches, setDismissedMatches] = useState<string[]>(() => {
@@ -14,10 +14,10 @@ const NotificationBell: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Calculate matches
+  // Calculate matches with team member info for cross-consultant display
   const allMatches = useMemo(() => {
-    return findMatches(properties, requests);
-  }, [properties, requests]);
+    return findMatches(properties, requests, teamMembers);
+  }, [properties, requests, teamMembers]);
 
   // Filter out dismissed matches
   const activeMatches = useMemo(() => {
@@ -111,16 +111,29 @@ const NotificationBell: React.FC = () => {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1" onClick={() => handleMatchClick(match)}>
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-2 py-0.5 rounded-full">
-                              %{match.score} Eşleşme
+                              %{match.score} Eslesme
                             </span>
+                            {match.isCrossConsultant && (
+                              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                Capraz
+                              </span>
+                            )}
                           </div>
-                          <p className="font-medium text-slate-800 dark:text-white text-sm">
-                            {match.request.customerName}
-                          </p>
+                          {match.isCrossConsultant && match.requestOwnerName && match.propertyOwnerName ? (
+                            <p className="font-medium text-slate-800 dark:text-white text-sm">
+                              <span className="text-blue-600 dark:text-blue-400">{match.requestOwnerName}</span>'in alicisi{' '}
+                              <span className="text-emerald-600 dark:text-emerald-400">{match.propertyOwnerName}</span>'nin portfoyuyle eslesti!
+                            </p>
+                          ) : (
+                            <p className="font-medium text-slate-800 dark:text-white text-sm">
+                              {match.request.customerName}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                            {match.request.type} arıyor (Max {match.request.maxPrice?.toLocaleString('tr-TR')} TL)
+                            {match.request.type} ariyor (Max {match.request.maxPrice?.toLocaleString('tr-TR')} TL)
                           </p>
                           <div className="flex items-center gap-1 mt-2 text-xs text-green-600 dark:text-green-400">
                             <CheckCircle className="w-3 h-3" />

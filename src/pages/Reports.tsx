@@ -1,9 +1,73 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Reports: React.FC = () => {
-  const { properties, customers, activities } = useData();
+  const { properties, customers, activities, sales, teamMembers } = useData();
+  const [viewMode, setViewMode] = useState<'overview' | 'commission'>('overview');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // Parse selected month
+  const monthRange = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    const monthName = firstDay.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+    return { firstDay, lastDay, monthName, year, month };
+  }, [selectedMonth]);
+
+  // Calculate monthly commission stats
+  const commissionStats = useMemo(() => {
+    const { firstDay, lastDay } = monthRange;
+
+    const monthlySales = sales?.filter(s => {
+      const saleDate = new Date(s.saleDate || s.sale_date || '');
+      return saleDate >= firstDay && saleDate <= lastDay;
+    }) || [];
+
+    const totalCommission = monthlySales.reduce((sum, s) => sum + (s.commissionAmount || s.commission_amount || 0), 0);
+    const totalOfficeShare = monthlySales.reduce((sum, s) => sum + (s.officeShareAmount || s.office_share_amount || 0), 0);
+    const totalConsultantShare = monthlySales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
+    const totalExpenses = monthlySales.reduce((sum, s) => sum + (s.totalExpenses || s.total_expenses || 0), 0);
+    const totalRevenue = monthlySales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+
+    // Per consultant breakdown
+    const consultantBreakdown = teamMembers.map(member => {
+      const memberSales = monthlySales.filter(s =>
+        s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id
+      );
+      const commission = memberSales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
+      const saleCount = memberSales.length;
+      const revenue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+
+      return {
+        ...member,
+        commission,
+        saleCount,
+        revenue
+      };
+    }).sort((a, b) => b.commission - a.commission);
+
+    return {
+      monthlySales,
+      totalCommission,
+      totalOfficeShare,
+      totalConsultantShare,
+      totalExpenses,
+      totalRevenue,
+      saleCount: monthlySales.length,
+      consultantBreakdown
+    };
+  }, [sales, teamMembers, monthRange]);
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const newDate = new Date(year, month - 1 + (direction === 'next' ? 1 : -1), 1);
+    setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+  };
 
   // Calculate Stats
   const totalPortfolioValue = properties.reduce((acc, curr) => acc + curr.price, 0);
@@ -26,8 +90,185 @@ const Reports: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Performans Raporları</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Performans Raporlari</h2>
 
+        {/* View Mode Toggle */}
+        <div className="bg-gray-100 dark:bg-slate-700 rounded-lg p-1 flex">
+          <button
+            onClick={() => setViewMode('overview')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              viewMode === 'overview'
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            Genel Bakis
+          </button>
+          <button
+            onClick={() => setViewMode('commission')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              viewMode === 'commission'
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            Komisyon Raporu
+          </button>
+        </div>
+      </div>
+
+      {/* Commission Report View */}
+      {viewMode === 'commission' && (
+        <div className="space-y-6">
+          {/* Month Selector */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => navigateMonth('prev')}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              </button>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#1193d4]" />
+                <span className="text-lg font-bold text-slate-800 dark:text-white capitalize">{monthRange.monthName}</span>
+              </div>
+              <button
+                onClick={() => navigateMonth('next')}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Commission Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <DollarSign className="w-6 h-6 opacity-80" />
+                <span className="text-sm opacity-90">Toplam Komisyon</span>
+              </div>
+              <p className="text-2xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} TL</p>
+              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} satis</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <Wallet className="w-6 h-6 opacity-80" />
+                <span className="text-sm opacity-90">Ofis Payi</span>
+              </div>
+              <p className="text-2xl font-bold">{commissionStats.totalOfficeShare.toLocaleString('tr-TR')} TL</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <Users className="w-6 h-6 opacity-80" />
+                <span className="text-sm opacity-90">Danismanlara Odenen</span>
+              </div>
+              <p className="text-2xl font-bold">{commissionStats.totalConsultantShare.toLocaleString('tr-TR')} TL</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <TrendingUp className="w-6 h-6 opacity-80" />
+                <span className="text-sm opacity-90">Toplam Ciro</span>
+              </div>
+              <p className="text-2xl font-bold">{(commissionStats.totalRevenue / 1000000).toFixed(1)}M TL</p>
+            </div>
+          </div>
+
+          {/* Consultant Breakdown */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-slate-800 dark:to-slate-800">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                Danisman Bazinda Komisyon Dagilimi
+              </h3>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {commissionStats.consultantBreakdown.map((consultant, index) => (
+                <div key={consultant.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
+                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                      'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <img src={consultant.avatar} alt={consultant.name} className="w-10 h-10 rounded-full object-cover" />
+                    <div>
+                      <p className="font-semibold text-slate-800 dark:text-white">{consultant.name}</p>
+                      <p className="text-xs text-slate-500">{consultant.saleCount} satis</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600 dark:text-green-400">{consultant.commission.toLocaleString('tr-TR')} TL</p>
+                    <p className="text-xs text-slate-400">Ciro: {(consultant.revenue / 1000000).toFixed(1)}M</p>
+                  </div>
+                </div>
+              ))}
+              {commissionStats.consultantBreakdown.length === 0 && (
+                <div className="p-8 text-center text-slate-400">
+                  Bu ay henuz satis yapilmamis.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Sales */}
+          {commissionStats.monthlySales.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+                <h3 className="font-bold text-slate-800 dark:text-white">Bu Ayin Satislari</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-slate-700/50">
+                    <tr>
+                      <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tarih</th>
+                      <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Portfoy</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Satis Bedeli</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Komisyon</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danisman</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                    {commissionStats.monthlySales.map(sale => (
+                      <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                        <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
+                          {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
+                        </td>
+                        <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">{sale.propertyTitle || '-'}</td>
+                        <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
+                          {(sale.salePrice || sale.sale_price || 0).toLocaleString('tr-TR')} TL
+                        </td>
+                        <td className="p-3 text-sm text-right font-medium text-blue-600 dark:text-blue-400">
+                          {(sale.commissionAmount || sale.commission_amount || 0).toLocaleString('tr-TR')} TL
+                        </td>
+                        <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
+                          {(sale.officeShareAmount || sale.office_share_amount || 0).toLocaleString('tr-TR')} TL
+                        </td>
+                        <td className="p-3 text-sm text-right font-medium text-green-600 dark:text-green-400">
+                          {(sale.consultantShareAmount || sale.consultant_share_amount || 0).toLocaleString('tr-TR')} TL
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Overview View */}
+      {viewMode === 'overview' && (
+      <>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors">
@@ -129,6 +370,8 @@ const Reports: React.FC = () => {
                </div>
           </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

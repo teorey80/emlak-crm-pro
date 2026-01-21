@@ -1,24 +1,38 @@
-import { Property, Request } from '../types';
+import { Property, Request, UserProfile } from '../types';
 
 export interface MatchResult {
     request: Request;
     property: Property;
     score: number;
     reasons: string[];
+    // Cross-consultant info
+    requestOwnerName?: string;
+    propertyOwnerName?: string;
+    isCrossConsultant?: boolean;
 }
 
-export const findMatches = (properties: Property[], requests: Request[]): MatchResult[] => {
+export const findMatches = (
+    properties: Property[],
+    requests: Request[],
+    teamMembers?: UserProfile[]
+): MatchResult[] => {
     const matches: MatchResult[] = [];
+
+    // Create a lookup map for team member names
+    const memberNameMap = new Map<string, string>();
+    if (teamMembers) {
+        teamMembers.forEach(m => {
+            memberNameMap.set(m.id, m.name);
+        });
+    }
 
     requests.forEach(request => {
         // Skip if request is not Active
         if (request.status !== 'Aktif') return;
 
         properties.forEach(property => {
-            // Only consider properties that are available? 
-            // Property doesn't have an Active/Passive status in types.ts explicitly shown in the L9 snippet (it has status: Satilik/Kiralik).
-            // But usually we should filter out sold ones. L28 usageStatus? 
-            // Let's assume all fetched properties are candidates for now.
+            // Skip sold/rented properties
+            if (property.listingStatus === 'Satıldı' || property.listingStatus === 'Kiralandı') return;
 
             const reasons: string[] = [];
             let score = 0;
@@ -66,11 +80,25 @@ export const findMatches = (properties: Property[], requests: Request[]): MatchR
             }
 
             if (isMatch) {
+                // Determine if this is a cross-consultant match
+                const requestOwnerId = request.user_id;
+                const propertyOwnerId = property.user_id;
+                const isCrossConsultant = !!(requestOwnerId && propertyOwnerId && requestOwnerId !== propertyOwnerId);
+
+                // Add bonus score for cross-consultant matches (encourages collaboration)
+                if (isCrossConsultant) {
+                    score += 5;
+                    reasons.push('Çapraz Danışman Eşleşmesi');
+                }
+
                 matches.push({
                     request,
                     property,
                     score,
-                    reasons
+                    reasons,
+                    requestOwnerName: requestOwnerId ? memberNameMap.get(requestOwnerId) : undefined,
+                    propertyOwnerName: propertyOwnerId ? memberNameMap.get(propertyOwnerId) : undefined,
+                    isCrossConsultant
                 });
             }
         });

@@ -3,13 +3,17 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
 import { UserProfile } from '../types';
-import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity } from 'lucide-react';
+import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar } from 'lucide-react';
 
 interface TeamMemberWithStats extends UserProfile {
     propertyCount: number;
     activityCount: number;
     saleCount: number;
     totalSalesValue: number;
+    // Monthly stats
+    monthlySaleCount: number;
+    monthlyCommission: number;
+    monthlyRevenue: number;
 }
 
 const Team: React.FC = () => {
@@ -17,7 +21,21 @@ const Team: React.FC = () => {
     const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [viewMode, setViewMode] = useState<'grid' | 'performance'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'performance' | 'targets'>('grid');
+    const [editingTarget, setEditingTarget] = useState<string | null>(null);
+    const [targetValues, setTargetValues] = useState<{salesTarget: number; revenueTarget: number; commissionTarget: number}>({
+        salesTarget: 3,
+        revenueTarget: 5000000,
+        commissionTarget: 150000
+    });
+
+    // Get current month range
+    const currentMonthRange = useMemo(() => {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return { firstDay, lastDay, monthName: now.toLocaleString('tr-TR', { month: 'long', year: 'numeric' }) };
+    }, []);
 
     useEffect(() => {
         fetchTeam();
@@ -56,24 +74,38 @@ const Team: React.FC = () => {
 
     // Calculate performance stats for each team member
     const teamWithStats: TeamMemberWithStats[] = useMemo(() => {
+        const { firstDay, lastDay } = currentMonthRange;
+
         return teamMembers.map(member => {
             const memberProperties = properties.filter(p => p.user_id === member.id);
             const memberActivities = activities.filter(a => {
                 // Try to match by activity's assigned user if available
                 return memberProperties.some(p => p.id === a.propertyId);
             });
-            const memberSales = sales?.filter(s => s.consultantId === member.id) || [];
-            const totalSalesValue = memberSales.reduce((sum, s) => sum + (s.salePrice || 0), 0);
+            const memberSales = sales?.filter(s => s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id) || [];
+            const totalSalesValue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+
+            // Monthly calculations
+            const monthlySales = memberSales.filter(s => {
+                const saleDate = new Date(s.saleDate || s.sale_date || '');
+                return saleDate >= firstDay && saleDate <= lastDay;
+            });
+            const monthlySaleCount = monthlySales.length;
+            const monthlyRevenue = monthlySales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+            const monthlyCommission = monthlySales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
 
             return {
                 ...member,
                 propertyCount: memberProperties.length,
                 activityCount: memberActivities.length,
                 saleCount: memberSales.length,
-                totalSalesValue
+                totalSalesValue,
+                monthlySaleCount,
+                monthlyCommission,
+                monthlyRevenue
             };
         });
-    }, [teamMembers, properties, activities, sales]);
+    }, [teamMembers, properties, activities, sales, currentMonthRange]);
 
     const filteredTeam = teamWithStats.filter(member =>
         member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -155,6 +187,16 @@ const Team: React.FC = () => {
                             }`}
                         >
                             Performans
+                        </button>
+                        <button
+                            onClick={() => setViewMode('targets')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                viewMode === 'targets'
+                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                            }`}
+                        >
+                            Hedefler
                         </button>
                     </div>
                     {userProfile.role === 'broker' && (
@@ -259,6 +301,115 @@ const Team: React.FC = () => {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Targets View */}
+            {viewMode === 'targets' && (
+                <div className="space-y-6">
+                    {/* Month Header */}
+                    <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-6 text-white">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Calendar className="w-6 h-6" />
+                            <h2 className="text-xl font-bold">{currentMonthRange.monthName}</h2>
+                        </div>
+                        <p className="text-emerald-100 text-sm">Aylik hedef takibi ve ilerleme durumu</p>
+                    </div>
+
+                    {/* Team Targets */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {rankedTeam.map((member) => {
+                            const salesTarget = member.monthlyTargets?.salesTarget || targetValues.salesTarget;
+                            const revenueTarget = member.monthlyTargets?.revenueTarget || targetValues.revenueTarget;
+                            const commissionTarget = member.monthlyTargets?.commissionTarget || targetValues.commissionTarget;
+
+                            const salesProgress = Math.min((member.monthlySaleCount / salesTarget) * 100, 100);
+                            const revenueProgress = Math.min((member.monthlyRevenue / revenueTarget) * 100, 100);
+                            const commissionProgress = Math.min((member.monthlyCommission / commissionTarget) * 100, 100);
+
+                            return (
+                                <div key={member.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+                                    {/* Member Header */}
+                                    <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full object-cover" />
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 dark:text-white">{member.name}</h3>
+                                                <p className="text-xs text-slate-500">{member.title}</p>
+                                            </div>
+                                        </div>
+                                        {salesProgress >= 100 && revenueProgress >= 50 && (
+                                            <div className="flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-3 py-1 rounded-full">
+                                                <Award className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                                                <span className="text-xs font-bold text-yellow-700 dark:text-yellow-400">Hedef Asildi!</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Progress Bars */}
+                                    <div className="p-4 space-y-4">
+                                        {/* Sales Target */}
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Satis Hedefi</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {member.monthlySaleCount} / {salesTarget}
+                                                </span>
+                                            </div>
+                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${salesProgress >= 100 ? 'bg-green-500' : salesProgress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                    style={{ width: `${salesProgress}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">%{salesProgress.toFixed(0)} tamamlandi</p>
+                                        </div>
+
+                                        {/* Revenue Target */}
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Ciro Hedefi</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {(member.monthlyRevenue / 1000000).toFixed(1)}M / {(revenueTarget / 1000000).toFixed(1)}M TL
+                                                </span>
+                                            </div>
+                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${revenueProgress >= 100 ? 'bg-green-500' : revenueProgress >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
+                                                    style={{ width: `${revenueProgress}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">%{revenueProgress.toFixed(0)} tamamlandi</p>
+                                        </div>
+
+                                        {/* Commission Target */}
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Komisyon Hedefi</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {member.monthlyCommission.toLocaleString('tr-TR')} / {commissionTarget.toLocaleString('tr-TR')} TL
+                                                </span>
+                                            </div>
+                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${commissionProgress >= 100 ? 'bg-green-500' : commissionProgress >= 50 ? 'bg-purple-500' : 'bg-red-400'}`}
+                                                    style={{ width: `${commissionProgress}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">%{commissionProgress.toFixed(0)} tamamlandi</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {rankedTeam.length === 0 && (
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-12 text-center border border-gray-200 dark:border-slate-700">
+                            <Target className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
+                            <p className="text-slate-500">Henuz ekip uyesi bulunmuyor.</p>
+                        </div>
+                    )}
                 </div>
             )}
 

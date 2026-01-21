@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, DollarSign, Calculator, Users } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft } from 'lucide-react';
 import { Property, Sale, SaleExpense, Customer } from '../types';
 import { useData } from '../context/DataContext';
 
@@ -11,16 +11,24 @@ interface SaleFormProps {
 
 const EXPENSE_TYPES = [
     'Reklam',
-    'Ulaşım',
-    'Tapu Masrafı',
+    'Ulasim',
+    'Tapu Masrafi',
     'Ekspertiz',
-    'Komisyon Paylaşımı',
+    'Komisyon Paylasimi',
     'Personel Primi',
-    'Diğer'
+    'Diger'
 ];
 
 const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
-    const { customers, session, userProfile } = useData();
+    const { customers, session, userProfile, teamMembers } = useData();
+
+    // Detect if this is a cross-consultant sale (property owner != selling consultant)
+    const propertyOwner = useMemo(() => {
+        if (!property.user_id) return null;
+        return teamMembers.find(m => m.id === property.user_id);
+    }, [property.user_id, teamMembers]);
+
+    const isCrossConsultant = propertyOwner && propertyOwner.id !== session?.user?.id;
     const [formData, setFormData] = useState({
         salePrice: property.price || 0,
         saleDate: new Date().toISOString().split('T')[0],
@@ -31,6 +39,9 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
         commissionRate: 3, // Default 3%
         officeShareRate: 50, // Default 50%
         notes: '',
+        // Cross-commission fields
+        enableCrossCommission: isCrossConsultant || false,
+        propertyOwnerShareRate: 30, // Property owner gets 30% of consultant share by default
     });
 
     const [expenses, setExpenses] = useState<SaleExpense[]>([]);
@@ -43,7 +54,14 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
     const netProfit = commissionAmount - totalExpenses;
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
     const consultantShareRate = 100 - formData.officeShareRate;
-    const consultantShareAmount = netProfit - officeShareAmount;
+    const totalConsultantShare = netProfit - officeShareAmount;
+
+    // Cross-commission calculation
+    const propertyOwnerShareAmount = formData.enableCrossCommission
+        ? (totalConsultantShare * formData.propertyOwnerShareRate) / 100
+        : 0;
+    const sellingConsultantShareAmount = totalConsultantShare - propertyOwnerShareAmount;
+    const consultantShareAmount = formData.enableCrossCommission ? sellingConsultantShareAmount : totalConsultantShare;
 
     // Add expense
     const addExpense = () => {
@@ -272,10 +290,67 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                         )}
                     </div>
 
+                    {/* Cross-Commission Section */}
+                    {isCrossConsultant && propertyOwner && (
+                        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-violet-800 dark:text-violet-300 flex items-center gap-2">
+                                    <ArrowRightLeft className="w-5 h-5" />
+                                    Capraz Komisyon
+                                </h3>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.enableCrossCommission}
+                                        onChange={e => setFormData({ ...formData, enableCrossCommission: e.target.checked })}
+                                        className="w-4 h-4 text-violet-600 rounded"
+                                    />
+                                    <span className="text-sm text-violet-700 dark:text-violet-300">Aktif</span>
+                                </label>
+                            </div>
+
+                            <div className="bg-violet-100 dark:bg-violet-800/30 rounded-lg p-3 mb-3">
+                                <div className="flex items-center gap-3">
+                                    <img src={propertyOwner.avatar} alt={propertyOwner.name} className="w-10 h-10 rounded-full" />
+                                    <div>
+                                        <p className="text-sm text-violet-600 dark:text-violet-400">Portfoy Sahibi</p>
+                                        <p className="font-semibold text-violet-800 dark:text-violet-200">{propertyOwner.name}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {formData.enableCrossCommission && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
+                                            Portfoy Sahibi Payi (%)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            className="w-full rounded-lg border-violet-300 dark:border-violet-700 bg-white dark:bg-slate-800 border p-2 text-gray-900 dark:text-white"
+                                            value={formData.propertyOwnerShareRate}
+                                            onChange={e => setFormData({ ...formData, propertyOwnerShareRate: parseInt(e.target.value) || 0 })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
+                                            Portfoy Sahibine
+                                        </label>
+                                        <div className="bg-violet-200 dark:bg-violet-700/50 rounded-lg p-2 text-center font-bold text-violet-800 dark:text-violet-200">
+                                            {propertyOwnerShareAmount.toLocaleString('tr-TR')} TL
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Revenue Sharing */}
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
                         <h3 className="font-semibold text-green-800 dark:text-green-300 mb-3">
-                            📊 Gelir Paylaşımı
+                            Gelir Paylasimi
                         </h3>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -311,14 +386,22 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                                 <span className="font-semibold text-gray-800 dark:text-white">Net Kâr</span>
                                 <span className="font-bold text-green-600">{netProfit.toLocaleString('tr-TR')} ₺</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 dark:border-slate-700">
+                            <div className={`grid ${formData.enableCrossCommission ? 'grid-cols-3' : 'grid-cols-2'} gap-4 pt-2 border-t border-gray-100 dark:border-slate-700`}>
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">Ofise Kalan</div>
-                                    <div className="font-bold text-blue-600">{officeShareAmount.toLocaleString('tr-TR')} ₺</div>
+                                    <div className="font-bold text-blue-600">{officeShareAmount.toLocaleString('tr-TR')} TL</div>
                                 </div>
+                                {formData.enableCrossCommission && propertyOwner && (
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 dark:text-slate-400">{propertyOwner.name}</div>
+                                        <div className="font-bold text-violet-600">{propertyOwnerShareAmount.toLocaleString('tr-TR')} TL</div>
+                                    </div>
+                                )}
                                 <div className="text-center">
-                                    <div className="text-xs text-gray-500 dark:text-slate-400">Danışmana Kalan</div>
-                                    <div className="font-bold text-purple-600">{consultantShareAmount.toLocaleString('tr-TR')} ₺</div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400">
+                                        {formData.enableCrossCommission ? 'Satici Danismana' : 'Danismana Kalan'}
+                                    </div>
+                                    <div className="font-bold text-purple-600">{consultantShareAmount.toLocaleString('tr-TR')} TL</div>
                                 </div>
                             </div>
                         </div>
