@@ -277,3 +277,37 @@ export interface Sale {
   // Joined data
   propertyTitle?: string;
 }
+
+// Document Management
+export interface Document {
+  id: string;
+  entityType: 'property' | 'customer' | 'sale';
+  entityId: string;
+  documentType: string;
+  fileName: string;
+  fileId: string; // Google Drive file ID
+  mimeType: string;
+  webViewLink: string;
+  webContentLink?: string;
+  thumbnailLink?: string;
+  fileSize?: number;
+  uploadedBy: string;
+  uploadedByName?: string;
+  createdAt: string;
+  notes?: string;
+  // DB fields
+  entity_type?: string;
+  entity_id?: string;
+  document_type?: string;
+  file_name?: string;
+  file_id?: string;
+  mime_type?: string;
+  web_view_link?: string;
+  web_content_link?: string;
+  thumbnail_link?: string;
+  file_size?: number;
+  uploaded_by?: string;
+  uploaded_by_name?: string;
+  created_at?: string;
+  office_id?: string;
+}

@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Briefcase, Building2, Calendar, CheckCircle, Clock, Dog, Edit, Home, Info, Mail, MapPin, MessageSquare, MoreHorizontal, Phone, PlusCircle, Trash2, User, XCircle } from 'lucide-react';
 import AddToCalendarButton from '../components/AddToCalendarButton';
+import DocumentManager from '../components/DocumentManager';
 import { useData } from '../context/DataContext';
 
 const CustomerDetail: React.FC = () => {
@@ -222,6 +223,13 @@ const CustomerDetail: React.FC = () => {
                             </ol>
                         )}
                     </div>
+
+                    {/* Documents Section */}
+                    <DocumentManager
+                        entityType="customer"
+                        entityId={customer.id}
+                        entityName={customer.name}
+                    />
                 </div>
 
                 {/* Profile Sidebar Right Column */}

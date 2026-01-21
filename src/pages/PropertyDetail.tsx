@@ -4,6 +4,7 @@ import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Cloc
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
+import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
 
 const PropertyDetail: React.FC = () => {
@@ -226,6 +227,15 @@ const PropertyDetail: React.FC = () => {
                             </li>
                         </ol>
                     </div>
+
+                    {/* Documents Section */}
+                    {isOwner && (
+                        <DocumentManager
+                            entityType="property"
+                            entityId={property.id}
+                            entityName={property.title}
+                        />
+                    )}
                 </div>
 
                 {/* Actions Sidebar Right Column */}
