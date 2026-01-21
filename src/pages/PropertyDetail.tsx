@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
 import { Sale } from '../types';
@@ -329,11 +330,11 @@ const PropertyDetail: React.FC = () => {
                             });
 
                             setShowSaleForm(false);
-                            alert('Satış başarıyla kaydedildi!');
+                            toast.success('Satış başarıyla kaydedildi!');
                             navigate('/properties');
                         } catch (error) {
                             console.error('Satış kaydetme hatası:', error);
-                            alert('Satış kaydedilemedi. Lütfen tekrar deneyin.');
+                            toast.error('Satış kaydedilemedi. Lütfen tekrar deneyin.');
                         }
                     }}
                 />

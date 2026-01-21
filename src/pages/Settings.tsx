@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
 
@@ -39,7 +40,7 @@ const Settings: React.FC = () => {
     const downloadCSV = (data: any[], filename: string) => {
         try {
             if (data.length === 0) {
-                alert("Dışa aktarılacak veri bulunamadı.");
+                toast.error("Dışa aktarılacak veri bulunamadı.");
                 return;
             }
             const csvData = convertToCSV(data);
@@ -164,7 +165,7 @@ const Settings: React.FC = () => {
                                                     setExportStatus(null);
                                                 } catch (error: any) {
                                                     console.error('Upload Error:', error);
-                                                    alert('Yükleme başarısız: ' + error.message);
+                                                    toast.error('Yükleme başarısız: ' + error.message);
                                                     setExportStatus(null);
                                                 }
                                             }}
@@ -264,11 +265,11 @@ const Settings: React.FC = () => {
                                             role: 'broker'
                                         });
 
-                                        alert("Ofisiniz başarıyla oluşturuldu! Artık yönetici panelindesiniz.");
+                                        toast.success("Ofisiniz başarıyla oluşturuldu!");
                                         window.location.reload(); // Refresh to ensure all contexts reload
                                     } catch (err: any) {
                                         console.error(err);
-                                        alert("Hata: " + err.message);
+                                        toast.error("Hata: " + err.message);
                                     }
                                 }}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/30"

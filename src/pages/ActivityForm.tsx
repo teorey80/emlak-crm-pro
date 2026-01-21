@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Activity, Customer } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
@@ -50,7 +51,7 @@ const ActivityForm: React.FC = () => {
 
             recognition.start();
         } else {
-            alert('Tarayıcınız sesli girişi desteklemiyor. Lütfen Chrome kullanın.');
+            toast.error('Tarayıcınız sesli girişi desteklemiyor. Lütfen Chrome kullanın.');
         }
     };
 
@@ -94,13 +95,15 @@ const ActivityForm: React.FC = () => {
         try {
             if (id) {
                 await updateActivity(activityData);
+                toast.success('Aktivite güncellendi!');
             } else {
                 await addActivity(activityData);
+                toast.success('Aktivite eklendi!');
             }
             navigate('/activities');
         } catch (error) {
             console.error(error);
-            alert('İşlem başarısız oldu.');
+            toast.error('İşlem başarısız oldu.');
         }
     };
 

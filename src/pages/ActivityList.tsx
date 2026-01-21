@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, MapPin, PhoneIncoming, PhoneOutgoing, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 
 // Helper functions moved outside to prevent ReferenceError/TDZ issues
@@ -32,9 +33,10 @@ const ActivityList: React.FC = () => {
         if (window.confirm('Bu aktiviteyi silmek istediğinize emin misiniz?')) {
             try {
                 await deleteActivity(id);
+                toast.success("Aktivite silindi.");
             } catch (error) {
                 console.error("Silme hatası:", error);
-                alert("Silinemedi.");
+                toast.error("Silinemedi.");
             }
         }
     };

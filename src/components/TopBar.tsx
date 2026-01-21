@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import NotificationBell from './NotificationBell';
 
 const TopBar: React.FC<{ title: string }> = ({ title }) => {
   const { userProfile, activities, requests } = useData();
@@ -115,6 +116,9 @@ const TopBar: React.FC<{ title: string }> = ({ title }) => {
             </>
           )}
         </div>
+
+        {/* Smart Matching Notifications */}
+        <NotificationBell />
 
         <Link to="/settings">
           <img

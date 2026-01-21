@@ -223,6 +223,10 @@ export interface Sale {
   property_id?: string; // DB field
   userId?: string;
   user_id?: string; // DB field
+  consultantId?: string; // Who made the sale
+  consultant_id?: string; // DB field
+  consultantName?: string;
+  consultant_name?: string; // DB field
   officeId?: string;
   office_id?: string; // DB field
   createdAt?: string;

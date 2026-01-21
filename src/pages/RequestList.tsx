@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, MapPin } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 
 const RequestList: React.FC = () => {
@@ -11,9 +12,10 @@ const RequestList: React.FC = () => {
         if (window.confirm('Bu talebi silmek istediğinize emin misiniz?')) {
             try {
                 await deleteRequest(id);
+                toast.success("Talep silindi.");
             } catch (error) {
                 console.error("Silme hatası:", error);
-                alert("Silinemedi.");
+                toast.error("Silinemedi.");
             }
         }
     };

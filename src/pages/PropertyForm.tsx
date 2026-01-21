@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ImagePlus, Trash2, MapPin, Globe, Store, Wand2, Loader2, Link, FileText, UserPlus, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Property, Customer } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -261,7 +262,7 @@ const PropertyForm: React.FC = () => {
         district: data.location?.split(',')[0]?.trim() || prev.district
       }));
 
-      alert('İlan bilgileri yapay zeka ile dolduruldu! Lütfen kontrol edin.');
+      toast.success('İlan bilgileri yapay zeka ile dolduruldu! Lütfen kontrol edin.');
 
     } catch (err: any) {
       console.error(err);
@@ -324,12 +325,12 @@ const PropertyForm: React.FC = () => {
     if (isAddingOwner) return; // Prevent double clicks
 
     if (!session?.user?.id) {
-      alert('Lütfen önce oturum açın.');
+      toast.error('Lütfen önce oturum açın.');
       return;
     }
 
     if (!newOwnerName.trim() || !newOwnerPhone.trim()) {
-      alert('Lütfen ad ve telefon giriniz.');
+      toast.error('Lütfen ad ve telefon giriniz.');
       return;
     }
 
@@ -360,10 +361,10 @@ const PropertyForm: React.FC = () => {
       setShowOwnerModal(false);
       setNewOwnerName('');
       setNewOwnerPhone('');
-      alert('Yeni mal sahibi başarıyla eklendi ve seçildi.');
+      toast.success('Yeni mal sahibi başarıyla eklendi ve seçildi.');
     } catch (error: any) {
       console.error('Error adding owner:', error);
-      alert('Hata: ' + (error.message || 'Mal sahibi eklenirken bir hata oluştu.'));
+      toast.error('Hata: ' + (error.message || 'Mal sahibi eklenirken bir hata oluştu.'));
     } finally {
       setIsAddingOwner(false);
     }
@@ -462,7 +463,7 @@ const PropertyForm: React.FC = () => {
 
     } catch (error) {
       console.error('Batch upload error:', error);
-      alert('Resimler yüklenirken bir hata oluştu.');
+      toast.error('Resimler yüklenirken bir hata oluştu.');
     } finally {
       setUploadingImages(false);
       // Reset input
@@ -483,11 +484,11 @@ const PropertyForm: React.FC = () => {
     if (window.confirm('Bu ilanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
       try {
         await deleteProperty(id);
-        alert('İlan silindi.');
+        toast.success('İlan silindi.');
         navigate('/properties');
       } catch (error) {
         console.error('Silme hatası:', error);
-        alert('Silme işlemi başarısız oldu.');
+        toast.error('Silme işlemi başarısız oldu.');
       }
     }
   };
@@ -496,7 +497,7 @@ const PropertyForm: React.FC = () => {
     e.preventDefault();
 
     if (!session?.user?.id) {
-      alert('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
+      toast.error('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.');
       return;
     }
 
@@ -573,7 +574,7 @@ const PropertyForm: React.FC = () => {
       if (id) {
         // Edit Mode
         await updateProperty(property);
-        alert('İlan güncellendi!');
+        toast.success('İlan güncellendi!');
       } else {
         // Add Mode
         await addProperty(property);
@@ -593,13 +594,13 @@ const PropertyForm: React.FC = () => {
           });
         }
 
-        alert('İlan eklendi!');
+        toast.success('İlan eklendi!');
       }
 
       navigate('/properties');
     } catch (error: any) {
       console.error('Property Save Error:', error);
-      alert('İşlem başarısız oldu: ' + (error.message || 'Bilinmeyen hata'));
+      toast.error('İşlem başarısız oldu: ' + (error.message || 'Bilinmeyen hata'));
     }
   };
 

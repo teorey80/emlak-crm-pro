@@ -20,12 +20,14 @@ const EXPENSE_TYPES = [
 ];
 
 const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
-    const { customers } = useData();
+    const { customers, session, userProfile } = useData();
     const [formData, setFormData] = useState({
         salePrice: property.price || 0,
         saleDate: new Date().toISOString().split('T')[0],
         buyerId: '',
         buyerName: '',
+        consultantId: session?.user?.id || '',
+        consultantName: userProfile?.name || '',
         commissionRate: 3, // Default 3%
         officeShareRate: 50, // Default 50%
         notes: '',
@@ -81,6 +83,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
         const sale: Sale = {
             id: Date.now().toString(),
             propertyId: property.id,
+            consultantId: formData.consultantId,
+            consultantName: formData.consultantName,
             salePrice: formData.salePrice,
             saleDate: formData.saleDate,
             buyerId: formData.buyerId,

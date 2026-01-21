@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
@@ -107,7 +108,32 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Yükleniyor.
 // CRM Application Component
 const CRMApp: React.FC = () => {
   return (
-    <Router>
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            style: {
+              background: '#10b981',
+              color: '#fff',
+            },
+          },
+          error: {
+            duration: 5000,
+            style: {
+              background: '#ef4444',
+              color: '#fff',
+            },
+          },
+        }}
+      />
+      <Router>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -151,6 +177,7 @@ const CRMApp: React.FC = () => {
         </Route>
       </Routes>
     </Router>
+    </>
   );
 };
 

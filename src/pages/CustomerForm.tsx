@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Customer } from '../types';
+import { isValidPhoneNumber, isValidEmail, formatPhoneNumber } from '../utils/validation';
 
 const CustomerForm: React.FC = () => {
     const navigate = useNavigate();
@@ -26,6 +28,8 @@ const CustomerForm: React.FC = () => {
         maritalStatus: undefined,
     });
 
+    const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
+
     useEffect(() => {
         if (id) {
             const customer = customers.find(c => c.id === id);
@@ -35,8 +39,39 @@ const CustomerForm: React.FC = () => {
         }
     }, [id, customers]);
 
+    const validateForm = (): boolean => {
+        const newErrors: { phone?: string; email?: string } = {};
+
+        if (formData.phone && !isValidPhoneNumber(formData.phone)) {
+            newErrors.phone = 'Geçerli bir telefon numarası giriniz (5XX XXX XX XX)';
+        }
+
+        if (formData.email && !isValidEmail(formData.email)) {
+            newErrors.email = 'Geçerli bir e-posta adresi giriniz';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handlePhoneChange = (value: string) => {
+        setFormData({ ...formData, phone: value });
+        if (errors.phone) setErrors({ ...errors, phone: undefined });
+    };
+
+    const handleEmailChange = (value: string) => {
+        setFormData({ ...formData, email: value });
+        if (errors.email) setErrors({ ...errors, email: undefined });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateForm()) {
+            toast.error('Lütfen form hatalarını düzeltin');
+            return;
+        }
+
         const customer: Customer = {
             id: id || Date.now().toString(),
             createdAt: formData.createdAt || new Date().toISOString().split('T')[0],
@@ -62,13 +97,15 @@ const CustomerForm: React.FC = () => {
         try {
             if (id) {
                 await updateCustomer(customer);
+                toast.success('Müşteri bilgileri güncellendi!');
             } else {
                 await addCustomer(customer);
+                toast.success('Yeni müşteri eklendi!');
             }
             navigate('/customers');
         } catch (error: any) {
             console.error('Error saving customer:', error);
-            alert('Müşteri kaydedilirken bir hata oluştu: ' + (error.message || 'Bilinmeyen hata'));
+            toast.error('Müşteri kaydedilirken bir hata oluştu: ' + (error.message || 'Bilinmeyen hata'));
         }
     };
 
@@ -96,25 +133,27 @@ const CustomerForm: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Telefon Numarası</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Telefon Numarasi</label>
                                 <input
                                     type="tel"
                                     placeholder="Örn: 555 123 4567"
-                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                    className={`w-full rounded-lg bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4] ${errors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
                                     value={formData.phone}
-                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                    onChange={e => handlePhoneChange(e.target.value)}
                                     required
                                 />
+                                {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
                             </div>
                             <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">E-posta Adresi (İsteğe Bağlı)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">E-posta Adresi (Istege Bagli)</label>
                                 <input
                                     type="email"
                                     placeholder="Örn: ahmet.yilmaz@ornek.com"
-                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                    className={`w-full rounded-lg bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4] ${errors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
                                     value={formData.email}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                    onChange={e => handleEmailChange(e.target.value)}
                                 />
+                                {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
                             </div>
                         </div>
                     </fieldset>

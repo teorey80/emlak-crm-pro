@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { ArrowLeft, UserPlus } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Request } from '../types';
 
@@ -55,7 +56,7 @@ const RequestForm: React.FC = () => {
         // Allow submitting even if maxPrice isn't set, or set logic as needed. Removed strict block for better UX if desired, or keep it.
         // User asked for formatting fix, assuming stricter validation is fine but let's just warn.
         if (!formData.customerId || !formData.maxPrice) {
-            alert("Lütfen müşteri ve bütçe bilgilerini giriniz.");
+            toast.error("Lütfen müşteri ve bütçe bilgilerini giriniz.");
             return;
         }
 
@@ -84,13 +85,15 @@ const RequestForm: React.FC = () => {
         try {
             if (id) {
                 await updateRequest(requestData);
+                toast.success('Talep güncellendi!');
             } else {
                 await addRequest(requestData);
+                toast.success('Yeni talep eklendi!');
             }
             navigate('/requests');
         } catch (error) {
             console.error(error);
-            alert('Talep kaydedilirken bir hata oluştu.');
+            toast.error('Talep kaydedilirken bir hata oluştu.');
         }
     };
 

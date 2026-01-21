@@ -1,13 +1,81 @@
-import React, { useState } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, Users, Home as HomeIcon, Check, X } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { findMatches } from '../services/matchingService';
 
 const Dashboard: React.FC = () => {
-  const { customers, properties, activities, requests } = useData();
+  const { customers, properties, activities, requests, sales } = useData();
   const navigate = useNavigate();
+
+  // Calculate real statistics
+  const stats = useMemo(() => {
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    // Recent requests (last 7 days)
+    const recentRequests = requests.filter(r => {
+      if (!r.date) return false;
+      const reqDate = new Date(r.date);
+      return reqDate >= sevenDaysAgo;
+    }).length;
+
+    // Active customers
+    const activeCustomers = customers.filter(c => c.status === 'Aktif').length;
+
+    // Previous month active customers for trend
+    const previousMonthCustomers = customers.filter(c => {
+      if (!c.createdAt) return false;
+      const created = new Date(c.createdAt);
+      return created >= sixtyDaysAgo && created < thirtyDaysAgo;
+    }).length;
+
+    const currentMonthCustomers = customers.filter(c => {
+      if (!c.createdAt) return false;
+      const created = new Date(c.createdAt);
+      return created >= thirtyDaysAgo;
+    }).length;
+
+    const customerTrend = previousMonthCustomers > 0
+      ? Math.round(((currentMonthCustomers - previousMonthCustomers) / previousMonthCustomers) * 100)
+      : currentMonthCustomers > 0 ? 100 : 0;
+
+    // Sales this month
+    const monthlySales = sales?.filter(s => {
+      if (!s.saleDate) return false;
+      const saleDate = new Date(s.saleDate);
+      return saleDate >= thirtyDaysAgo;
+    }) || [];
+
+    const totalMonthlySalesValue = monthlySales.reduce((sum, s) => sum + (s.salePrice || 0), 0);
+
+    // Properties for sale
+    const forSaleProperties = properties.filter(p => p.listingStatus !== 'Satıldı' && p.listingStatus !== 'Kiralandı').length;
+
+    // Total portfolio value
+    const totalPortfolioValue = properties.reduce((acc, curr) => acc + curr.price, 0);
+
+    // Completed activities this week
+    const completedActivities = activities.filter(a => {
+      if (!a.date) return false;
+      const actDate = new Date(a.date);
+      return actDate >= sevenDaysAgo && (a.status === 'Tamamlandı' || a.status === 'Olumlu');
+    }).length;
+
+    return {
+      recentRequests,
+      activeCustomers,
+      customerTrend,
+      totalPortfolioValue,
+      forSaleProperties,
+      monthlySalesCount: monthlySales.length,
+      totalMonthlySalesValue,
+      completedActivities
+    };
+  }, [customers, properties, activities, requests, sales]);
 
   // Calculate Matches
   const smartMatches = React.useMemo(() => {
@@ -65,14 +133,6 @@ const Dashboard: React.FC = () => {
       .slice(0, 6);
   }, [activities, requests]);
 
-  // DEBUG: Get Today's string for display
-  const debugToday = (() => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  })();
   const [aiInput, setAiInput] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -88,87 +148,84 @@ const Dashboard: React.FC = () => {
     setIsThinking(false);
   };
 
-  const totalPortfolioValue = properties.reduce((acc, curr) => acc + curr.price, 0);
-
-  // Mock matching criteria data
-  const matchingCriteria = [
-    { label: 'Fiyat Aralığı', matched: true },
-    { label: 'Konum (Şişli)', matched: true },
-    { label: 'Oda Sayısı (3+1)', matched: true },
-    { label: 'Bina Yaşı (<10)', matched: true },
-    { label: 'Site İçerisinde', matched: false },
-  ];
-
   return (
     <div className="space-y-6">
-      {/* DEBUG PANEL - REMOVE AFTER FIX */}
-      <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r shadow-sm">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <Users className="h-5 w-5 text-red-400" aria-hidden="true" />
-          </div>
-          <div className="ml-3">
-            <h3 className="text-xs font-bold text-red-800 uppercase">Geliştirici Debug Modu</h3>
-            <div className="mt-1 text-xs text-red-700">
-              <p>Sistem Tarihi (Local): <strong>{debugToday}</strong></p>
-              <p>Toplam Talep Sayısı: <strong>{requests.length}</strong> (Gelen Veri)</p>
-              <p>Son 3 Request Tarihleri:</p>
-              <ul className="list-disc pl-5 mt-1">
-                {requests.slice(0, 3).map(r => (
-                  <li key={r.id}>{r.customerName}: <strong>{r.date}</strong> (Eşleşiyor mu? {r.date && r.date.startsWith(debugToday) ? 'EVET' : 'HAYIR'})</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-colors">
+      {/* Stats Row - Clickable Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Aktif Müşteri */}
+        <div
+          onClick={() => navigate('/customers')}
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 hover:scale-[1.02]"
+        >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aktif Müşteri Sayısı</p>
-              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{customers.filter(c => c.status === 'Aktif').length}</h3>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aktif Müşteri</p>
+              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{stats.activeCustomers}</h3>
             </div>
             <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
               <Users className="w-6 h-6" />
             </div>
           </div>
-          <div className="flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            <span>Bu ay %12 artış</span>
+          <div className={`flex items-center text-xs font-medium ${stats.customerTrend >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {stats.customerTrend >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+            <span>Bu ay %{Math.abs(stats.customerTrend)} {stats.customerTrend >= 0 ? 'artış' : 'azalış'}</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-colors">
+        {/* Portföy İlanları */}
+        <div
+          onClick={() => navigate('/properties')}
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 hover:scale-[1.02]"
+        >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Portföydeki İlan Sayısı</p>
-              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{properties.length}</h3>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Portföy İlanları</p>
+              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{stats.forSaleProperties}</h3>
             </div>
             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600 dark:text-indigo-400">
               <HomeIcon className="w-6 h-6" />
             </div>
           </div>
           <div className="flex items-center text-xs text-gray-500 dark:text-slate-500 font-medium">
-            <span>Toplam {(totalPortfolioValue / 1000000).toFixed(1)}m TL değerinde</span>
+            <span>Toplam {(stats.totalPortfolioValue / 1000000).toFixed(1)}M TL</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-colors">
+        {/* Yeni Talepler */}
+        <div
+          onClick={() => navigate('/requests')}
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-sky-200 dark:hover:border-sky-800 hover:scale-[1.02]"
+        >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Yeni Talep (Son 7 Gün)</p>
-              <h3 className="text-3xl font-bold text-sky-600 dark:text-sky-400 mt-1">5</h3>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Yeni Talep (7 Gün)</p>
+              <h3 className="text-3xl font-bold text-sky-600 dark:text-sky-400 mt-1">{stats.recentRequests}</h3>
             </div>
             <div className="p-2 bg-sky-50 dark:bg-sky-900/20 rounded-lg text-sky-600 dark:text-sky-400">
               <Calendar className="w-6 h-6" />
             </div>
           </div>
+          <div className="flex items-center text-xs text-gray-500 dark:text-slate-500 font-medium">
+            <span>Toplam {requests.length} talep</span>
+          </div>
+        </div>
+
+        {/* Aylık Satış */}
+        <div
+          onClick={() => navigate('/reports')}
+          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-800 hover:scale-[1.02]"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık Satış</p>
+              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlySalesCount}</h3>
+            </div>
+            <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg text-green-600 dark:text-green-400">
+              <DollarSign className="w-6 h-6" />
+            </div>
+          </div>
           <div className="flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            <span>Hedefin üzerinde</span>
+            <span>{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL` : 'Satış bekleniyor'}</span>
           </div>
         </div>
       </div>
@@ -311,50 +368,37 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-slate-800 dark:text-white">Eşleşme Oranları</h3>
           </div>
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="flex-1">
-              <div className="flex justify-between mb-2 text-sm">
-                <span className="text-slate-600 dark:text-slate-300 font-medium">Ahmet Yılmaz - Portföy Eşleşmesi</span>
-                <span className="text-sky-600 dark:text-sky-400 font-bold">80%</span>
-              </div>
-              <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5 mb-6">
-                <div className="bg-sky-600 dark:bg-sky-500 h-2.5 rounded-full w-[80%]"></div>
-              </div>
-
-              {/* Matched Criteria List */}
-              <div className="grid grid-cols-2 gap-3">
-                {matchingCriteria.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm">
-                    {item.matched ? (
-                      <div className="bg-green-100 dark:bg-green-900/30 p-0.5 rounded-full">
-                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
-                      </div>
-                    ) : (
-                      <div className="bg-gray-100 dark:bg-slate-700 p-0.5 rounded-full">
-                        <X className="w-3 h-3 text-gray-400 dark:text-slate-500" />
-                      </div>
-                    )}
-                    <span className={item.matched ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-gray-400 dark:text-slate-500'}>
-                      {item.label}
-                    </span>
+          {smartMatches.length > 0 ? (
+            <div className="space-y-4">
+              {smartMatches.slice(0, 3).map((match, index) => (
+                <div key={index} className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-1 text-sm">
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">{match.request.customerName}</span>
+                      <span className="text-sky-600 dark:text-sky-400 font-bold">{match.score}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
+                      <div className="bg-sky-600 dark:bg-sky-500 h-2 rounded-full" style={{ width: `${match.score}%` }}></div>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                      {match.property.title} - {match.property.price.toLocaleString('tr-TR')} TL
+                    </p>
                   </div>
-                ))}
-              </div>
-
+                  <button
+                    onClick={() => navigate(`/properties/${match.property.id}`)}
+                    className="px-3 py-1.5 bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 text-xs font-medium rounded-lg hover:bg-sky-200 dark:hover:bg-sky-900/50"
+                  >
+                    Görüntüle
+                  </button>
+                </div>
+              ))}
             </div>
-            <div className="flex-1 md:max-w-xs">
-              <div className="p-4 bg-sky-50 dark:bg-sky-900/20 rounded-xl border border-sky-100 dark:border-sky-800/50">
-                <p className="text-sm text-sky-900 dark:text-sky-300 font-semibold mb-1">Uygun İlanlar Bulundu</p>
-                <p className="text-xs text-sky-700 dark:text-sky-400 mb-3">Müşteri profiline ve kriterlerine uygun 3 yeni ilan tespit edildi.</p>
-                <button
-                  onClick={() => navigate('/properties')}
-                  className="px-4 py-2.5 bg-sky-600 text-white text-xs font-bold rounded-lg hover:bg-sky-700 transition-colors w-full shadow-sm"
-                >
-                  İlanları Görüntüle
-                </button>
-              </div>
+          ) : (
+            <div className="text-center py-6 text-gray-400 dark:text-slate-500">
+              <p className="text-sm">Henüz eşleşme bulunamadı</p>
+              <p className="text-xs mt-1">Talep ve portföy ekledikçe eşleşmeler görünecek</p>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
