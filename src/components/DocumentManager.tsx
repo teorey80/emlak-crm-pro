@@ -36,16 +36,22 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
   const [showPreview, setShowPreview] = useState<Document | null>(null);
   const [selectedDocType, setSelectedDocType] = useState('');
   const [uploadNotes, setUploadNotes] = useState('');
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(true);
 
   // Initialize Google Drive API
   useEffect(() => {
+    setGoogleLoading(true);
     initGoogleDrive()
       .then(() => {
         setGoogleReady(true);
         setGoogleSignedIn(isSignedIn());
+        setGoogleLoading(false);
       })
       .catch(err => {
         console.error('Failed to init Google Drive:', err);
+        setGoogleError('Google API yuklenemedi');
+        setGoogleLoading(false);
       });
   }, []);
 
@@ -224,33 +230,38 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {googleReady && (
-              googleSignedIn ? (
-                <>
-                  <button
-                    onClick={() => setShowUploadModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Dokuman Ekle
-                  </button>
-                  <button
-                    onClick={handleGoogleSignOut}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    title="Google Drive Baglantisini Kes"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </>
-              ) : (
+            {googleLoading ? (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Google API yukleniyor...
+              </span>
+            ) : googleError ? (
+              <span className="text-xs text-red-500">{googleError}</span>
+            ) : googleSignedIn ? (
+              <>
                 <button
-                  onClick={handleGoogleSignIn}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  <LogIn className="w-4 h-4" />
-                  Google Drive Baglan
+                  <Plus className="w-4 h-4" />
+                  Dokuman Ekle
                 </button>
-              )
+                <button
+                  onClick={handleGoogleSignOut}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  title="Google Drive Baglantisini Kes"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleGoogleSignIn}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                Google Drive Baglan
+              </button>
             )}
           </div>
         </div>
