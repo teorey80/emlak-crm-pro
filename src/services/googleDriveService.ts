@@ -26,11 +26,41 @@ export interface DriveFile {
 // Initialize the Google API client
 export const initGoogleDrive = (): Promise<void> => {
   return new Promise((resolve, reject) => {
+    // Check if API keys are configured
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_API_KEY) {
+      reject(new Error('Google API anahtarlari eksik'));
+      return;
+    }
+
+    let resolved = false;
+    const tryResolve = () => {
+      if (resolved) return;
+      if (gapiInited && gisInited) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    const handleError = (msg: string) => {
+      if (!resolved) {
+        resolved = true;
+        reject(new Error(msg));
+      }
+    };
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (!resolved) {
+        handleError('Google API zaman asimi');
+      }
+    }, 10000);
+
     // Load GAPI
     const gapiScript = document.createElement('script');
     gapiScript.src = 'https://apis.google.com/js/api.js';
     gapiScript.async = true;
     gapiScript.defer = true;
+    gapiScript.onerror = () => handleError('Google API script yuklenemedi');
     gapiScript.onload = () => {
       (window as any).gapi.load('client:picker', async () => {
         try {
@@ -39,9 +69,9 @@ export const initGoogleDrive = (): Promise<void> => {
             discoveryDocs: [DISCOVERY_DOC],
           });
           gapiInited = true;
-          maybeEnableButtons(resolve);
-        } catch (err) {
-          reject(err);
+          tryResolve();
+        } catch (err: any) {
+          handleError(err?.message || 'GAPI init hatasi');
         }
       });
     };
@@ -52,23 +82,22 @@ export const initGoogleDrive = (): Promise<void> => {
     gisScript.src = 'https://accounts.google.com/gsi/client';
     gisScript.async = true;
     gisScript.defer = true;
+    gisScript.onerror = () => handleError('Google Identity script yuklenemedi');
     gisScript.onload = () => {
-      tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: SCOPES,
-        callback: '', // Will be set later
-      });
-      gisInited = true;
-      maybeEnableButtons(resolve);
+      try {
+        tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: SCOPES,
+          callback: '', // Will be set later
+        });
+        gisInited = true;
+        tryResolve();
+      } catch (err: any) {
+        handleError(err?.message || 'GIS init hatasi');
+      }
     };
     document.body.appendChild(gisScript);
   });
-};
-
-const maybeEnableButtons = (resolve: () => void) => {
-  if (gapiInited && gisInited) {
-    resolve();
-  }
 };
 
 // Check if user is signed in
