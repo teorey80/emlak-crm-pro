@@ -1,23 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, Upload, Trash2, Eye, Download, FolderOpen,
-  Plus, X, ExternalLink, LogIn, LogOut, RefreshCw
+  FileText, Trash2, Eye, Download, FolderOpen,
+  Plus, X, ExternalLink, RefreshCw, Link
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Document } from '../types';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
-import {
-  initGoogleDrive,
-  isSignedIn,
-  signInToGoogle,
-  signOutFromGoogle,
-  openFilePicker,
-  uploadFileToDrive,
-  getEmbedUrl,
-  DriveFile,
-  DOCUMENT_TYPES
-} from '../services/googleDriveService';
+import { DOCUMENT_TYPES } from '../services/googleDriveService';
 
 interface DocumentManagerProps {
   entityType: 'property' | 'customer' | 'sale';
@@ -29,31 +19,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
   const { userProfile, session } = useData();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [googleReady, setGoogleReady] = useState(false);
-  const [googleSignedIn, setGoogleSignedIn] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showPreview, setShowPreview] = useState<Document | null>(null);
   const [selectedDocType, setSelectedDocType] = useState('');
   const [uploadNotes, setUploadNotes] = useState('');
-  const [googleError, setGoogleError] = useState<string | null>(null);
-  const [googleLoading, setGoogleLoading] = useState(true);
-
-  // Initialize Google Drive API
-  useEffect(() => {
-    setGoogleLoading(true);
-    initGoogleDrive()
-      .then(() => {
-        setGoogleReady(true);
-        setGoogleSignedIn(isSignedIn());
-        setGoogleLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to init Google Drive:', err);
-        setGoogleError('Google API yuklenemedi');
-        setGoogleLoading(false);
-      });
-  }, []);
+  const [manualUrl, setManualUrl] = useState('');
+  const [manualFileName, setManualFileName] = useState('');
 
   // Fetch documents for this entity
   useEffect(() => {
@@ -116,70 +87,63 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
     toast.success('Google Drive baglantisi kesildi');
   };
 
-  const handlePickFile = () => {
+  // Extract file ID from Google Drive URL
+  const extractDriveFileId = (url: string): string | null => {
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+      /\/d\/([a-zA-Z0-9_-]+)/
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  const handleAddDocument = async () => {
     if (!selectedDocType) {
       toast.error('Lutfen dokuman tipi secin');
       return;
     }
-
-    openFilePicker(async (files: DriveFile[]) => {
-      if (files.length > 0) {
-        await saveDocuments(files);
-      }
-    });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!selectedDocType) {
-      toast.error('Lutfen dokuman tipi secin');
+    if (!manualUrl) {
+      toast.error('Lutfen dokuman linkini girin');
+      return;
+    }
+    if (!manualFileName) {
+      toast.error('Lutfen dosya adini girin');
       return;
     }
 
-    setUploading(true);
     try {
-      const driveFile = await uploadFileToDrive(file);
-      await saveDocuments([driveFile]);
-      toast.success('Dokuman yuklendi!');
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Yukleme basarisiz');
-    } finally {
-      setUploading(false);
-      setShowUploadModal(false);
-    }
-  };
+      const fileId = extractDriveFileId(manualUrl) || manualUrl;
 
-  const saveDocuments = async (files: DriveFile[]) => {
-    try {
-      for (const file of files) {
-        const docData = {
-          entity_type: entityType,
-          entity_id: entityId,
-          document_type: selectedDocType,
-          file_name: file.name,
-          file_id: file.id,
-          mime_type: file.mimeType,
-          web_view_link: file.webViewLink,
-          web_content_link: file.webContentLink,
-          thumbnail_link: file.thumbnailLink,
-          file_size: file.size ? parseInt(file.size) : null,
-          uploaded_by: session?.user?.id,
-          uploaded_by_name: userProfile?.name,
-          notes: uploadNotes,
-          office_id: userProfile?.officeId
-        };
+      const docData = {
+        entity_type: entityType,
+        entity_id: entityId,
+        document_type: selectedDocType,
+        file_name: manualFileName,
+        file_id: fileId,
+        mime_type: 'application/octet-stream',
+        web_view_link: manualUrl,
+        web_content_link: null,
+        thumbnail_link: null,
+        file_size: null,
+        uploaded_by: session?.user?.id,
+        uploaded_by_name: userProfile?.name,
+        notes: uploadNotes,
+        office_id: userProfile?.officeId
+      };
 
-        const { error } = await supabase.from('documents').insert([docData]);
-        if (error) throw error;
-      }
+      const { error } = await supabase.from('documents').insert([docData]);
+      if (error) throw error;
 
-      toast.success(`${files.length} dokuman eklendi`);
+      toast.success('Dokuman eklendi!');
       setShowUploadModal(false);
       setSelectedDocType('');
       setUploadNotes('');
+      setManualUrl('');
+      setManualFileName('');
       fetchDocuments();
     } catch (error) {
       console.error('Save error:', error);
@@ -230,39 +194,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {googleLoading ? (
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Google API yukleniyor...
-              </span>
-            ) : googleError ? (
-              <span className="text-xs text-red-500">{googleError}</span>
-            ) : googleSignedIn ? (
-              <>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Dokuman Ekle
-                </button>
-                <button
-                  onClick={handleGoogleSignOut}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  title="Google Drive Baglantisini Kes"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleGoogleSignIn}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
-              >
-                <LogIn className="w-4 h-4" />
-                Google Drive Baglan
-              </button>
-            )}
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Dokuman Ekle
+            </button>
           </div>
         </div>
       </div>
@@ -278,14 +216,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
           <div className="p-8 text-center">
             <FileText className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-slate-400">Henuz dokuman eklenmemis</p>
-            {googleSignedIn && (
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="mt-3 text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline"
-              >
-                Ilk dokumaninizi ekleyin
-              </button>
-            )}
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="mt-3 text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline"
+            >
+              Ilk dokumaninizi ekleyin
+            </button>
           </div>
         ) : (
           documents.map(doc => {
@@ -394,6 +330,34 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
                 </select>
               </div>
 
+              {/* File Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Dosya Adi *
+                </label>
+                <input
+                  type="text"
+                  value={manualFileName}
+                  onChange={e => setManualFileName(e.target.value)}
+                  placeholder="ornek: Kira_Sozlesmesi_2024.pdf"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              {/* URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  Dokuman Linki * <span className="text-xs text-gray-400">(Google Drive, Dropbox, vb.)</span>
+                </label>
+                <input
+                  type="text"
+                  value={manualUrl}
+                  onChange={e => setManualUrl(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/..."
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-gray-900 dark:text-white"
+                />
+              </div>
+
               {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -408,30 +372,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
                 />
               </div>
 
-              {/* Upload Options */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  onClick={handlePickFile}
-                  disabled={!selectedDocType}
-                  className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FolderOpen className="w-8 h-8 text-blue-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">Drive'dan Sec</span>
-                </button>
-
-                <label className={`flex flex-col items-center gap-2 p-4 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors cursor-pointer ${!selectedDocType ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  <Upload className="w-8 h-8 text-green-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                    {uploading ? 'Yukleniyor...' : 'Dosya Yukle'}
-                  </span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                    disabled={!selectedDocType || uploading}
-                  />
-                </label>
-              </div>
+              {/* Submit Button */}
+              <button
+                onClick={handleAddDocument}
+                disabled={!selectedDocType || !manualFileName || !manualUrl}
+                className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Dokuman Ekle
+              </button>
             </div>
           </div>
         </div>

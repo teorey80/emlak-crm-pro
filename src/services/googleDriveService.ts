@@ -3,6 +3,12 @@
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || '';
+
+// Debug: log if keys are present
+console.log('Google API Keys:', {
+  clientId: GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+  apiKey: GOOGLE_API_KEY ? 'SET' : 'MISSING'
+});
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
@@ -27,8 +33,16 @@ export interface DriveFile {
 export const initGoogleDrive = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     // Check if API keys are configured
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_API_KEY) {
-      reject(new Error('Google API anahtarlari eksik'));
+    if (!GOOGLE_CLIENT_ID && !GOOGLE_API_KEY) {
+      reject(new Error('Client ID ve API Key eksik'));
+      return;
+    }
+    if (!GOOGLE_CLIENT_ID) {
+      reject(new Error('Client ID eksik'));
+      return;
+    }
+    if (!GOOGLE_API_KEY) {
+      reject(new Error('API Key eksik'));
       return;
     }
 
