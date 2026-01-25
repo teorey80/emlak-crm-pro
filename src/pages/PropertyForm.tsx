@@ -41,18 +41,7 @@ import {
   LAND_GENERAL_FEATURES,
   WORKPLACE_FEATURES,
 } from '../constants/propertyConstants';
-
-// Türkiye İlleri
-const CITIES = [
-  'Adana', 'Adıyaman', 'Afyonkarahisar', 'Ağrı', 'Aksaray', 'Amasya', 'Ankara', 'Antalya', 'Ardahan', 'Artvin',
-  'Aydın', 'Balıkesir', 'Bartın', 'Batman', 'Bayburt', 'Bilecik', 'Bingöl', 'Bitlis', 'Bolu', 'Burdur',
-  'Bursa', 'Çanakkale', 'Çankırı', 'Çorum', 'Denizli', 'Diyarbakır', 'Düzce', 'Edirne', 'Elazığ', 'Erzincan',
-  'Erzurum', 'Eskişehir', 'Gaziantep', 'Giresun', 'Gümüşhane', 'Hakkari', 'Hatay', 'Iğdır', 'Isparta', 'İstanbul',
-  'İzmir', 'Kahramanmaraş', 'Karabük', 'Karaman', 'Kars', 'Kastamonu', 'Kayseri', 'Kırıkkale', 'Kırklareli', 'Kırşehir',
-  'Kilis', 'Kocaeli', 'Konya', 'Kütahya', 'Malatya', 'Manisa', 'Mardin', 'Mersin', 'Muğla', 'Muş',
-  'Nevşehir', 'Niğde', 'Ordu', 'Osmaniye', 'Rize', 'Sakarya', 'Samsun', 'Şanlıurfa', 'Siirt', 'Sinop',
-  'Şırnak', 'Sivas', 'Tekirdağ', 'Tokat', 'Trabzon', 'Tunceli', 'Uşak', 'Van', 'Yalova', 'Yozgat', 'Zonguldak'
-];
+import { PROVINCES, getDistricts, getProvinceCoordinates } from '../constants/turkeyLocations';
 
 const PropertyForm: React.FC = () => {
   const navigate = useNavigate();
@@ -1029,7 +1018,12 @@ Sadece JSON döndür:
   );
 
   // Step: Location
-  const renderLocationStep = () => (
+  const renderLocationStep = () => {
+    const districts = formData.city ? getDistricts(formData.city) : [];
+    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${(formData.coordinates?.lng || 32.8597) - 0.05}%2C${(formData.coordinates?.lat || 39.9334) - 0.03}%2C${(formData.coordinates?.lng || 32.8597) + 0.05}%2C${(formData.coordinates?.lat || 39.9334) + 0.03}&layer=mapnik&marker=${formData.coordinates?.lat || 39.9334}%2C${formData.coordinates?.lng || 32.8597}`;
+    const googleMapsPickerUrl = `https://www.google.com/maps/search/?api=1&query=${formData.coordinates?.lat || 39.9334},${formData.coordinates?.lng || 32.8597}`;
+
+    return (
     <div className="space-y-6">
       <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Konum Bilgileri</h3>
 
@@ -1042,35 +1036,48 @@ Sadece JSON döndür:
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
             value={formData.city}
-            onChange={e => handleChange('city', e.target.value)}
+            onChange={e => {
+              const newCity = e.target.value;
+              handleChange('city', newCity);
+              handleChange('district', ''); // Reset district when city changes
+              // Update coordinates to city center
+              if (newCity) {
+                const coords = getProvinceCoordinates(newCity);
+                handleChange('coordinates', coords);
+              }
+            }}
           >
             <option value="">İl Seçiniz</option>
-            {CITIES.map(city => (
+            {PROVINCES.map(city => (
               <option key={city} value={city}>{city}</option>
             ))}
           </select>
         </div>
 
-        {/* District */}
+        {/* District - Cascading dropdown */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
             İlçe <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            placeholder="İlçe yazınız"
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+          <select
+            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
             value={formData.district}
             onChange={e => handleChange('district', e.target.value)}
-          />
+            disabled={!formData.city}
+          >
+            <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
+            {districts.map(district => (
+              <option key={district} value={district}>{district}</option>
+            ))}
+          </select>
         </div>
 
         {/* Neighborhood */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mahalle</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mahalle / Köy</label>
           <input
             type="text"
-            placeholder="Mahalle yazınız"
+            placeholder="Mahalle veya köy adı"
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
             value={formData.neighborhood}
             onChange={e => handleChange('neighborhood', e.target.value)}
@@ -1114,6 +1121,73 @@ Sadece JSON döndür:
             value={formData.address}
             onChange={e => handleChange('address', e.target.value)}
           />
+        </div>
+      </div>
+
+      {/* Map Section */}
+      <div className="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
+        <div className="bg-gray-50 dark:bg-slate-700/50 px-4 py-3 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-red-500" />
+            <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
+          </div>
+          <a
+            href={googleMapsPickerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
+          >
+            <MapPin className="w-4 h-4" />
+            Google Maps'te Aç
+          </a>
+        </div>
+
+        {/* Map Preview */}
+        <div className="h-64 bg-gray-100 dark:bg-slate-800 relative">
+          <iframe
+            width="100%"
+            height="100%"
+            src={mapUrl}
+            title="Konum Haritası"
+            className="border-0"
+          />
+        </div>
+
+        {/* Coordinate Inputs */}
+        <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
+            Koordinatları manuel olarak girebilir veya Google Maps'ten kopyalayabilirsiniz.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Enlem (Latitude)</label>
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="Örn: 41.0082"
+                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.coordinates?.lat || ''}
+                onChange={e => handleChange('coordinates', {
+                  ...formData.coordinates,
+                  lat: parseFloat(e.target.value) || 0
+                })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Boylam (Longitude)</label>
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="Örn: 28.9784"
+                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.coordinates?.lng || ''}
+                onChange={e => handleChange('coordinates', {
+                  ...formData.coordinates,
+                  lng: parseFloat(e.target.value) || 0
+                })}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1178,6 +1252,7 @@ Sadece JSON döndür:
       </div>
     </div>
   );
+  };
 
   // Step: Features
   const renderFeaturesStep = () => {
