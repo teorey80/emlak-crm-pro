@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { MapPin, Phone, Mail, Search, Menu, Bed, Bath, Maximize, Grid, List, Facebook, Instagram, Twitter, Linkedin, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Phone, Mail, Search, Menu, Bed, Bath, Maximize, Grid, List, Facebook, Instagram, Twitter, Linkedin, X, ChevronLeft, ChevronRight, MessageCircle, Send } from 'lucide-react';
 import { Property, WebSiteConfig } from '../types';
 import { PublicSiteData } from '../services/publicSiteService';
+import toast from 'react-hot-toast';
 
 interface PublicSiteProps {
     siteData: PublicSiteData;
@@ -11,6 +12,7 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
     const { siteConfig, properties, type, ownerName, officeName } = siteData;
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [filter, setFilter] = useState<'all' | 'satilik' | 'kiralik'>('all');
+    const [showContactForm, setShowContactForm] = useState(false);
 
     // Filter properties based on selection
     const filteredProperties = properties.filter(p => {
@@ -48,6 +50,40 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
                     onClose={() => setSelectedProperty(null)}
                 />
             )}
+
+            {/* Contact Form Modal */}
+            {showContactForm && (
+                <ContactFormModal
+                    config={siteConfig}
+                    ownerName={type === 'personal' ? ownerName : officeName}
+                    onClose={() => setShowContactForm(false)}
+                />
+            )}
+
+            {/* Floating Action Buttons */}
+            <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+                {/* Contact Form Button */}
+                <button
+                    onClick={() => setShowContactForm(true)}
+                    className="w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+                    title="İletişim Formu"
+                >
+                    <Mail className="w-6 h-6" />
+                </button>
+
+                {/* WhatsApp Button */}
+                {siteConfig.phone && (
+                    <a
+                        href={`https://wa.me/${siteConfig.phone?.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-14 h-14 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 animate-bounce"
+                        title="WhatsApp ile İletişim"
+                    >
+                        <MessageCircle className="w-6 h-6" />
+                    </a>
+                )}
+            </div>
         </div>
     );
 };
@@ -361,6 +397,132 @@ const PropertyGrid: React.FC<{ properties: Property[], config: WebSiteConfig, co
     );
 };
 
+// Contact Form Modal
+const ContactFormModal: React.FC<{ config: WebSiteConfig, ownerName: string | undefined, onClose: () => void }> = ({ config, ownerName, onClose }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
+        email: '',
+        message: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.name || !formData.phone) {
+            toast.error('Lütfen adınızı ve telefon numaranızı girin');
+            return;
+        }
+
+        setIsSubmitting(true);
+        // Simulate form submission
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Create WhatsApp message with form data
+        const message = encodeURIComponent(
+            `Merhaba ${ownerName || 'Emlak Danışmanı'},\n\n` +
+            `Ben ${formData.name}.\n` +
+            `Telefon: ${formData.phone}\n` +
+            (formData.email ? `E-posta: ${formData.email}\n` : '') +
+            `\nMesajım:\n${formData.message || 'Emlak ilanlarınız hakkında bilgi almak istiyorum.'}`
+        );
+
+        // Open WhatsApp with pre-filled message
+        window.open(`https://wa.me/${config.phone?.replace(/\D/g, '')}?text=${message}`, '_blank');
+
+        toast.success('Mesajınız WhatsApp ile iletiliyor...');
+        setIsSubmitting(false);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="text-xl font-bold">İletişim Formu</h3>
+                            <p className="text-blue-100 text-sm mt-1">Size en kısa sürede dönüş yapacağız</p>
+                        </div>
+                        <button onClick={onClose} className="text-white/80 hover:text-white">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Adınız Soyadınız *</label>
+                        <input
+                            type="text"
+                            required
+                            className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="Örn: Ahmet Yılmaz"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Telefon Numaranız *</label>
+                        <input
+                            type="tel"
+                            required
+                            className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="Örn: 0532 123 45 67"
+                            value={formData.phone}
+                            onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">E-posta (Opsiyonel)</label>
+                        <input
+                            type="email"
+                            className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            placeholder="ornek@email.com"
+                            value={formData.email}
+                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mesajınız</label>
+                        <textarea
+                            rows={3}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
+                            placeholder="Hangi bölgede, ne tür bir emlak arıyorsunuz?"
+                            value={formData.message}
+                            onChange={e => setFormData({ ...formData, message: e.target.value })}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isSubmitting ? (
+                            'Gönderiliyor...'
+                        ) : (
+                            <>
+                                <Send className="w-5 h-5" />
+                                WhatsApp ile Gönder
+                            </>
+                        )}
+                    </button>
+
+                    <p className="text-center text-xs text-gray-500">
+                        Formunuz WhatsApp üzerinden iletilecektir.
+                    </p>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 // Property Detail Modal
 const PropertyModal: React.FC<{ property: Property, config: WebSiteConfig, onClose: () => void }> = ({ property, config, onClose }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -498,10 +660,9 @@ const PropertyModal: React.FC<{ property: Property, config: WebSiteConfig, onClo
                                 href={`https://wa.me/${config.phone?.replace(/\D/g, '')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-white px-5 py-3 rounded-lg font-medium transition-opacity hover:opacity-90"
-                                style={{ backgroundColor: config.primaryColor }}
+                                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-lg font-medium transition-colors"
                             >
-                                <Mail className="w-4 h-4" />
+                                <MessageCircle className="w-4 h-4" />
                                 WhatsApp
                             </a>
                         </div>
