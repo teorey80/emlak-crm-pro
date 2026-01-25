@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
@@ -23,6 +23,51 @@ const PropertyDetail: React.FC = () => {
 
     // Filter activities related to this property
     const propertyActivities = activities.filter(a => a.propertyId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Calculate Performance Metrics
+    const calculatePerformanceMetrics = () => {
+        const now = new Date();
+        const listingDate = property?.listingDate ? new Date(property.listingDate) : now;
+        const daysOnMarket = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Count activity types
+        const showings = propertyActivities.filter(a => a.type === 'Yer Gösterimi').length;
+        const calls = propertyActivities.filter(a => a.type === 'Gelen Arama' || a.type === 'Giden Arama').length;
+        const totalActivities = propertyActivities.length;
+
+        // Calculate positive/negative ratio
+        const positiveActivities = propertyActivities.filter(a => a.status === 'Olumlu').length;
+        const negativeActivities = propertyActivities.filter(a => a.status === 'Olumsuz').length;
+
+        // Interest score (0-100)
+        let interestScore = 0;
+        if (totalActivities > 0) {
+            const activityScore = Math.min(totalActivities * 10, 40); // Max 40 points
+            const showingScore = Math.min(showings * 15, 30); // Max 30 points
+            const positiveRatio = totalActivities > 0 ? (positiveActivities / totalActivities) * 30 : 0; // Max 30 points
+            interestScore = Math.round(activityScore + showingScore + positiveRatio);
+        }
+
+        // Last activity date
+        const lastActivity = propertyActivities[0]?.date || null;
+
+        // Price per sqm
+        const pricePerSqm = property?.area ? Math.round(property.price / property.area) : 0;
+
+        return {
+            daysOnMarket,
+            showings,
+            calls,
+            totalActivities,
+            positiveActivities,
+            negativeActivities,
+            interestScore,
+            lastActivity,
+            pricePerSqm
+        };
+    };
+
+    const metrics = property ? calculatePerformanceMetrics() : null;
 
     // Find matching requests
     const matchingRequests = requests.filter(req => {
@@ -240,6 +285,101 @@ const PropertyDetail: React.FC = () => {
 
                 {/* Actions Sidebar Right Column */}
                 <div className="w-full lg:w-80 space-y-4">
+                    {/* Performance Panel */}
+                    {metrics && (
+                        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-slate-800 dark:to-indigo-900/20 p-5 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/50">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="bg-indigo-600 p-1.5 rounded-lg">
+                                    <BarChart3 className="w-4 h-4 text-white" />
+                                </div>
+                                <h3 className="font-bold text-slate-800 dark:text-white">Portfoy Performansi</h3>
+                            </div>
+
+                            {/* Interest Score */}
+                            <div className="mb-4">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-xs text-gray-500 dark:text-slate-400">Ilgi Skoru</span>
+                                    <span className={`text-sm font-bold ${metrics.interestScore >= 70 ? 'text-green-600' : metrics.interestScore >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                        {metrics.interestScore}/100
+                                    </span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
+                                    <div
+                                        className={`h-2 rounded-full transition-all ${metrics.interestScore >= 70 ? 'bg-green-500' : metrics.interestScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                        style={{ width: `${metrics.interestScore}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Metrics Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                        <span className="text-[10px] text-gray-400 dark:text-slate-500 uppercase">Piyasada</span>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-800 dark:text-white">{metrics.daysOnMarket} <span className="text-xs font-normal text-gray-400">gun</span></p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Eye className="w-3.5 h-3.5 text-purple-500" />
+                                        <span className="text-[10px] text-gray-400 dark:text-slate-500 uppercase">Gosterim</span>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-800 dark:text-white">{metrics.showings}</p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Phone className="w-3.5 h-3.5 text-green-500" />
+                                        <span className="text-[10px] text-gray-400 dark:text-slate-500 uppercase">Arama</span>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-800 dark:text-white">{metrics.calls}</p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Activity className="w-3.5 h-3.5 text-orange-500" />
+                                        <span className="text-[10px] text-gray-400 dark:text-slate-500 uppercase">Aktivite</span>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-800 dark:text-white">{metrics.totalActivities}</p>
+                                </div>
+                            </div>
+
+                            {/* Activity Summary */}
+                            <div className="mt-3 pt-3 border-t border-indigo-100 dark:border-slate-700">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-slate-400">
+                                        <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                                        Olumlu: {metrics.positiveActivities}
+                                    </span>
+                                    <span className="text-gray-500 dark:text-slate-400">
+                                        <span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>
+                                        Olumsuz: {metrics.negativeActivities}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Price per sqm */}
+                            <div className="mt-3 pt-3 border-t border-indigo-100 dark:border-slate-700 flex justify-between items-center">
+                                <span className="text-xs text-gray-500 dark:text-slate-400">m² Birim Fiyat</span>
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                    {metrics.pricePerSqm.toLocaleString('tr-TR')} TL/m²
+                                </span>
+                            </div>
+
+                            {/* Last Activity */}
+                            {metrics.lastActivity && (
+                                <div className="mt-2 flex justify-between items-center text-xs">
+                                    <span className="text-gray-500 dark:text-slate-400">Son Aktivite</span>
+                                    <span className="text-gray-600 dark:text-slate-300">
+                                        {new Date(metrics.lastActivity).toLocaleDateString('tr-TR')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 sticky top-24 transition-colors">
                         <h3 className="font-bold text-slate-800 dark:text-white mb-4">Aksiyonlar</h3>
                         <div className="space-y-3">
