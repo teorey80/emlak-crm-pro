@@ -1,333 +1,384 @@
 # PROJECT STATUS
 
-Son Güncelleme: 2026-01-25
+**Son Güncelleme:** 2026-01-25
+**Repo:** https://github.com/teorey80/emlak-crm-pro
+**Canlı URL:** Vercel üzerinde deploy edilmiş (`.vercel.app` domain)
 
 ---
 
 ## PROJECT OVERVIEW
 
-### Uygulamanın Amacı
-Emlak CRM Pro, emlak ofisleri ve danışmanları için geliştirilmiş bir müşteri ilişkileri yönetim (CRM) sistemidir. Gayrimenkul ilanlarını, müşterileri, randevuları ve satışları tek bir platformda yönetmeyi sağlar.
+### Ne Bu Uygulama?
+Türkiye pazarına yönelik bir **Emlak CRM (Müşteri İlişkileri Yönetimi)** sistemi. Emlak danışmanları ve ofisleri için geliştirilmiş.
 
-### Kimler İçin
-- Emlak danışmanları (bireysel kullanım)
-- Emlak ofisleri (çoklu kullanıcı/ekip)
-- Türkiye pazarına yönelik (Türkçe arayüz, sahibinden.com uyumlu)
+### Ne Yapıyor?
+1. Emlak ilanlarını yönetme (ekleme, düzenleme, satıldı işaretleme)
+2. Müşteri takibi (alıcı, satıcı, kiracı)
+3. Müşteri talepleri ile ilanları otomatik eşleştirme
+4. Randevu ve aktivite takibi
+5. Satış kaydı ve komisyon hesaplama
+6. Kişisel/ofis web sitesi oluşturma (domain ile erişilebilir)
+7. Raporlama (aylık performans, ekip performansı)
 
-### Hangi Problemi Çözüyor
-- Emlak ilanlarının merkezi yönetimi
-- Müşteri takibi ve eşleştirme (talep-ilan eşleştirme)
-- Randevu ve aktivite yönetimi
-- Satış takibi ve komisyon hesaplama
-- Kişisel/ofis web sitesi oluşturma
-- Ekip içi veri paylaşımı
+### Kim Kullanıyor?
+- Bireysel emlak danışmanları
+- Emlak ofisleri (birden fazla danışman)
+- Broker'lar (ofis sahipleri)
 
 ---
 
 ## TECH STACK
 
-### Frontend
-| Teknoloji | Versiyon | Açıklama |
-|-----------|----------|----------|
-| React | 19.2.0 | UI framework |
-| TypeScript | 5.8.2 | Tip güvenliği için |
-| Vite | 6.2.0 | Build tool ve dev server |
-| react-router-dom | 7.9.6 | Sayfa yönlendirme (HashRouter kullanıyor) |
-| lucide-react | 0.554.0 | İkon kütüphanesi |
-| react-hot-toast | 2.6.0 | Bildirim (toast) mesajları |
-| TailwindCSS | - | Inline CSS class'ları ile kullanılıyor (ayrı config yok) |
+| Katman | Teknoloji | Versiyon | Notlar |
+|--------|-----------|----------|--------|
+| **UI Framework** | React | 19.2.0 | Hooks kullanılıyor |
+| **Dil** | TypeScript | 5.8.2 | Strict mode aktif değil |
+| **Build Tool** | Vite | 6.2.0 | Hot reload çalışıyor |
+| **Routing** | react-router-dom | 7.9.6 | **HashRouter** kullanıyor (`/#/path`) |
+| **State** | React Context | - | `DataContext.tsx` tek global state |
+| **İkonlar** | lucide-react | 0.554.0 | - |
+| **Bildirimler** | react-hot-toast | 2.6.0 | - |
+| **CSS** | Tailwind (inline) | - | Ayrı config yok, class'lar inline |
+| **Database** | Supabase (PostgreSQL) | - | RLS aktif |
+| **Auth** | Supabase Auth | - | Email/password |
+| **AI** | Google Gemini | gemini-2.5-flash | İlan açıklaması, fiyat tahmini |
+| **Hosting** | Vercel | - | Otomatik deploy (main branch) |
+| **Serverless** | Vercel Functions | - | `/api/analyze-listing.ts` |
 
-### Backend
-| Teknoloji | Açıklama |
-|-----------|----------|
-| Supabase | PostgreSQL veritabanı + Auth + Realtime + RLS |
-| Vercel Serverless | API endpoint'leri (`/api/analyze-listing`, `/api/keep-alive`) |
-
-### AI Entegrasyonu
-| Teknoloji | Kullanım Alanı |
-|-----------|---------------|
-| Google Gemini AI (gemini-2.5-flash) | İlan açıklaması oluşturma, fiyat tahmini, URL'den ilan import |
-
-### Database
-- **PostgreSQL** (Supabase üzerinden)
-- Row Level Security (RLS) aktif
-- Çoklu tablo yapısı (properties, customers, activities, requests, sales, profiles, offices, sites, documents)
-
-### Auth Sistemi
-- **Supabase Auth** (email/password)
-- Kayıt olunca otomatik profil oluşturma (trigger)
-- Session yönetimi React Context ile
-
-### Deployment
-| Platform | Kullanım |
-|----------|----------|
-| Vercel | Frontend hosting + Serverless functions |
-| Supabase | Database + Auth |
-| Cron Job | Günlük keep-alive (`/api/keep-alive` - 08:00 UTC) |
-
----
-
-## CURRENT STATE
-
-### Çalışan Özellikler
-
-| Özellik | Durum | Açıklama |
-|---------|-------|----------|
-| Login/Register | Çalışıyor | Supabase Auth ile |
-| Dashboard | Çalışıyor | İstatistikler, akıllı eşleştirmeler, günlük program |
-| Emlak Yönetimi | Çalışıyor | 6 adımlı wizard form, sahibinden.com uyumlu |
-| Müşteri Yönetimi | Çalışıyor | CRUD, detay sayfası, etkileşim geçmişi |
-| Aktiviteler | Çalışıyor | Randevu, arama, gösterim takibi |
-| Talepler | Çalışıyor | Müşteri talepleri, akıllı eşleştirme |
-| Satış Takibi | Çalışıyor | Komisyon hesaplama, gider takibi |
-| Takvim | Çalışıyor | Aktivitelerin takvim görünümü |
-| Site Yönetimi | Çalışıyor | Konut siteleri kayıt |
-| Web Builder | Çalışıyor | Kişisel/ofis web sitesi oluşturma |
-| Public Site | Çalışıyor | Domain bazlı public site render |
-| Ekip | Çalışıyor | Ofis üyelerini görüntüleme |
-| Raporlar | Çalışıyor | Performans grafikleri |
-| Ayarlar | Çalışıyor | Profil, hedefler |
-| Dark Mode | Çalışıyor | Sistem/manuel geçiş |
-| AI Özellikler | Çalışıyor | Açıklama oluşturma, fiyat tahmini |
-
-### Sorunsuz Çalışan Sayfalar
-- `/` - Dashboard
-- `/login` - Giriş
-- `/register` - Kayıt
-- `/properties` - Emlak listesi (sıralanabilir kolonlar, filtreler)
-- `/properties/new` - Yeni emlak (6 adımlı wizard)
-- `/properties/:id` - Emlak detay
-- `/customers` - Müşteri listesi (sıralanabilir kolonlar)
-- `/customers/new` - Yeni müşteri
-- `/customers/:id` - Müşteri detay
-- `/activities` - Aktivite listesi
-- `/requests` - Talep listesi
-- `/calendar` - Takvim
-- `/reports` - Raporlar
-- `/team` - Ekip
-- `/settings` - Ayarlar
-- `/web-builder` - Web sitesi oluşturucu
-
-### Canlı Ortam Durumu
-- **Vercel**: Deploy edilmiş ve çalışıyor
-- **Supabase**: Aktif, veritabanı çalışıyor
-- **Public Site**: Domain eşleştirme ile aktif
-
----
-
-## DATA & AUTH
-
-### Supabase Tabloları
-
-| Tablo | Açıklama | Önemli Kolonlar |
-|-------|----------|-----------------|
-| `properties` | Emlak ilanları | id, title, price, type, status, user_id, office_id, listing_status |
-| `customers` | Müşteriler | id, name, phone, email, customerType, user_id, office_id |
-| `activities` | Aktiviteler/Randevular | id, type, customerId, propertyId, date, status, user_id |
-| `requests` | Müşteri talepleri | id, customerId, type, requestType, minPrice, maxPrice, city |
-| `sales` | Satışlar | id, property_id, sale_price, commission_rate, consultant_id |
-| `sites` | Konut siteleri | id, name, region, address |
-| `profiles` | Kullanıcı profilleri | id (=auth.users.id), full_name, office_id, role, site_config |
-| `offices` | Emlak ofisleri | id, name, domain, owner_id, site_config |
-| `documents` | Belgeler (Google Drive) | id, entity_type, entity_id, file_id, office_id |
-
-### Auth Akışı
-1. Kullanıcı `/register` sayfasından kayıt olur
-2. Supabase Auth yeni kullanıcı oluşturur
-3. `handle_new_user` trigger'ı otomatik `profiles` kaydı oluşturur
-4. Kullanıcı giriş yapınca `session` oluşur
-5. `DataContext` session'a göre veri çeker
-6. Çıkış yapınca session temizlenir
-
-### RLS (Row Level Security)
-- Tüm tablolarda RLS aktif
-- Kullanıcılar sadece kendi ofislerinin verilerini görebilir
-- `office_id` bazlı veri izolasyonu
-- `/supabase/migrations/` klasöründe çok sayıda RLS düzeltmesi var (geçmişte sorunlar yaşanmış)
-
-### Önemli RLS Notları
-- Yeni kayıtlara mutlaka `office_id` eklenmeli
-- `user_id` ve `office_id` olmadan veri kaydetme sorun yaratabilir
-- Migration dosyaları sırayla çalıştırılmalı
-
----
-
-## FILE / FOLDER STRUCTURE
-
+### Environment Variables (.env.local)
 ```
-emlak-crm-pro/
-├── src/
-│   ├── App.tsx                 # Ana uygulama, routing, auth kontrolü
-│   ├── index.tsx               # Entry point
-│   ├── types.ts                # TypeScript tüm interface'ler
-│   ├── mockData.ts             # Demo veriler (artık kullanılmıyor)
-│   │
-│   ├── components/             # Paylaşılan bileşenler
-│   │   ├── Sidebar.tsx         # Sol menü
-│   │   ├── TopBar.tsx          # Üst bar
-│   │   ├── SaleForm.tsx        # Satış kayıt modal
-│   │   ├── NotificationBell.tsx
-│   │   ├── AddToCalendarButton.tsx
-│   │   └── ErrorBoundary.tsx
-│   │
-│   ├── pages/                  # Sayfa bileşenleri
-│   │   ├── Dashboard.tsx       # Ana sayfa, istatistikler
-│   │   ├── PropertyList.tsx    # Emlak listesi (sıralama, filtreleme)
-│   │   ├── PropertyForm.tsx    # Emlak ekleme/düzenleme (6 adım wizard)
-│   │   ├── PropertyDetail.tsx  # Emlak detay
-│   │   ├── CustomerList.tsx    # Müşteri listesi
-│   │   ├── CustomerForm.tsx    # Müşteri formu
-│   │   ├── CustomerDetail.tsx  # Müşteri detay
-│   │   ├── ActivityList.tsx    # Aktiviteler
-│   │   ├── ActivityForm.tsx    # Aktivite formu
-│   │   ├── RequestList.tsx     # Talepler
-│   │   ├── RequestForm.tsx     # Talep formu
-│   │   ├── RequestDetail.tsx   # Talep detay
-│   │   ├── CalendarPage.tsx    # Takvim görünümü
-│   │   ├── Reports.tsx         # Raporlar
-│   │   ├── Team.tsx            # Ekip yönetimi
-│   │   ├── Settings.tsx        # Ayarlar
-│   │   ├── SiteManagement.tsx  # Site (konut) yönetimi
-│   │   ├── WebBuilder.tsx      # Web sitesi oluşturucu
-│   │   ├── WebPreview.tsx      # Web önizleme
-│   │   ├── PublicSite.tsx      # Public web sitesi render
-│   │   ├── Login.tsx           # Giriş sayfası
-│   │   └── Register.tsx        # Kayıt sayfası
-│   │
-│   ├── context/
-│   │   └── DataContext.tsx     # Global state, Supabase CRUD işlemleri
-│   │
-│   ├── services/
-│   │   ├── supabaseClient.ts   # Supabase bağlantısı
-│   │   ├── config.ts           # Environment değişkenleri
-│   │   ├── geminiService.ts    # Google Gemini AI
-│   │   ├── matchingService.ts  # Talep-emlak eşleştirme
-│   │   ├── publicSiteService.ts # Public site domain kontrolü
-│   │   └── keepAliveService.ts # Supabase keep-alive
-│   │
-│   ├── constants/
-│   │   └── propertyConstants.ts # Emlak form sabitleri (sahibinden uyumlu)
-│   │
-│   └── utils/
-│       └── validation.ts       # Form validasyon
-│
-├── api/                        # Vercel serverless functions
-│   ├── analyze-listing.ts      # URL'den ilan analizi (AI)
-│   └── keep-alive.ts           # Supabase uyandırma
-│
-├── supabase/
-│   └── migrations/             # SQL migration dosyaları (28 adet)
-│
-├── package.json
-├── vite.config.ts
-├── vercel.json                 # Vercel config, cron job
-├── tsconfig.json
-├── .env.example                # Environment örneği
-├── supabase_schema.sql         # Temel tablo şeması
-├── migration_auth.sql          # Auth ve profiles şeması
-└── migration_documents.sql     # Documents tablosu
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJxxx
+VITE_GEMINI_API_KEY=AIzaxxx
+GEMINI_API_KEY=AIzaxxx  # Serverless için (VITE_ prefix'siz)
+VITE_GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com  # Google Drive için (opsiyonel)
+VITE_GOOGLE_API_KEY=xxx  # Google Drive için (opsiyonel)
 ```
 
 ---
 
-## KNOWN ISSUES
+## SUPABASE TABLOLARI (Detaylı)
 
-### Bilinen Buglar
-| Sorun | Önem | Açıklama |
-|-------|------|----------|
-| - | - | Şu an bilinen kritik bug yok |
+### Ana Tablolar
 
-### Yarım Kalan İşler
-| İş | Durum | Açıklama |
-|----|-------|----------|
-| Google Drive Entegrasyonu | Yarım | Documents tablosu var ama frontend'de tam entegre değil |
-| PropertyForm yeni alanlar | Yeni | Wizard form yeni eklendi, DB şeması güncellenebilir |
-| Public Site SEO | Eksik | Meta tag'ler dinamik değil |
+| Tablo | Primary Key | Önemli Kolonlar | RLS |
+|-------|-------------|-----------------|-----|
+| `properties` | `id` (text) | `title`, `price`, `type`, `status`, `user_id`, `office_id`, `listing_status`, `images` (jsonb) | Aktif |
+| `customers` | `id` (text) | `name`, `phone`, `email`, `customerType`, `status`, `user_id`, `office_id` | Aktif |
+| `activities` | `id` (text) | `type`, `customerId`, `propertyId`, `date`, `time`, `status`, `user_id` | Aktif |
+| `requests` | `id` (text) | `customerId`, `type`, `requestType`, `minPrice`, `maxPrice`, `city`, `district`, `user_id` | Aktif |
+| `sales` | `id` (uuid) | `property_id`, `sale_price`, `sale_date`, `commission_rate`, `commission_amount`, `office_share_amount`, `consultant_share_amount`, `expenses` (jsonb) | Aktif |
+| `sites` | `id` (text) | `name`, `region`, `address`, `status` | Aktif |
+| `profiles` | `id` (uuid = auth.users.id) | `full_name`, `email`, `office_id`, `role`, `site_config` (jsonb), `title` | Aktif |
+| `offices` | `id` (uuid) | `name`, `domain`, `owner_id`, `site_config` (jsonb), `logo_url` | Aktif |
+| `documents` | `id` (uuid) | `entity_type`, `entity_id`, `file_id`, `file_name`, `office_id` | Aktif |
 
-### Riskli / Kararsız Alanlar
-| Alan | Risk | Açıklama |
-|------|------|----------|
-| RLS Politikaları | Orta | Geçmişte çok sorun yaşanmış (28 migration dosyası var) |
-| Property type mismatch | Düşük | types.ts ile DB şeması arasında bazı farklar olabilir |
-| Supabase Free Tier | Orta | Inaktif kalırsa uyuyor, keep-alive cron var |
+### Enum Değerleri
+
+```sql
+-- properties.listing_status
+'Aktif' | 'Pasif' | 'Satıldı' | 'Kiralandı'
+
+-- properties.status (ilan tipi)
+'Satılık' | 'Kiralık'
+
+-- properties.type (emlak tipi)
+'Daire' | 'Villa' | 'Müstakil Ev' | 'Rezidans' | 'Arsa' | 'Büro & Ofis' | ...
+
+-- customers.status
+'Aktif' | 'Potansiyel' | 'Pasif'
+
+-- customers.customerType
+'Alıcı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi'
+
+-- activities.type
+'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Diğer'
+
+-- activities.status
+'Planlandı' | 'Tamamlandı' | 'Olumlu' | 'Olumsuz' | 'Düşünüyor'
+
+-- profiles.role
+'broker' | 'consultant' | 'staff'
+
+-- requests.requestType
+'Satılık' | 'Kiralık'
+```
+
+### Supabase Migration Dosyaları (Sıralı)
+`/supabase/migrations/` klasöründe **28 migration** var. Önemli olanlar:
+
+| Dosya | Ne Yapıyor |
+|-------|-----------|
+| `01_multi_user_schema.sql` | offices tablosu, profiles'a office_id, role ekleme |
+| `05_appointment_schema.sql` | activities tablosuna time kolonu ekleme |
+| `10_final_stabilization.sql` | RLS politikalarını düzeltme |
+| `19_web_site_config.sql` | profiles ve offices'a site_config jsonb ekleme |
+| `20_public_site_access.sql` | Public site için anon erişim |
+| `22_property_status_and_sales.sql` | sales tablosu, listing_status kolonu |
+| `25_aggressive_performance_fix.sql` | Index'ler, performans iyileştirme |
 
 ---
 
-## TODO (NEXT STEPS)
+## SAYFA YAPISI VE ROUTING
 
-Öncelik sırasına göre:
+### Route Tanımları (`src/App.tsx`)
 
-1. **PropertyForm Test** - Yeni wizard formun tüm adımlarını test et
-2. **DB Schema Sync** - types.ts'deki yeni alanların DB'de olduğunu doğrula
-3. **Google Drive** - Document management özelliğini tamamla
-4. **Public Site** - SEO meta tag'leri ekle, sitemap oluştur
-5. **Performance** - Büyük veri setlerinde sayfalama test et
-6. **Mobile** - Responsive tasarımı iyileştir
-7. **Notifications** - Push notification ekle (opsiyonel)
+```
+/login          → Login.tsx (public)
+/register       → Register.tsx (public)
+/web-preview    → WebPreview.tsx (public)
+
+/ (Layout içinde, auth gerekli):
+  /               → Dashboard.tsx
+  /calendar       → CalendarPage.tsx
+  /properties     → PropertyList.tsx
+  /properties/new → PropertyForm.tsx
+  /properties/:id → PropertyDetail.tsx
+  /properties/edit/:id → PropertyForm.tsx
+  /customers      → CustomerList.tsx
+  /customers/new  → CustomerForm.tsx
+  /customers/:id  → CustomerDetail.tsx
+  /customers/edit/:id → CustomerForm.tsx
+  /activities     → ActivityList.tsx
+  /activities/new → ActivityForm.tsx
+  /activities/edit/:id → ActivityForm.tsx
+  /requests       → RequestList.tsx
+  /requests/new   → RequestForm.tsx
+  /requests/:id   → RequestDetail.tsx
+  /requests/edit/:id → RequestForm.tsx
+  /sites          → SiteManagement.tsx
+  /web-builder    → WebBuilder.tsx
+  /reports        → Reports.tsx
+  /team           → Team.tsx
+  /settings       → Settings.tsx
+```
+
+### Public Site Routing
+Uygulama domain'e göre farklı davranıyor:
+- `*.vercel.app`, `localhost` → CRM paneli göster
+- Custom domain (örn: `emlak.example.com`) → `PublicSite.tsx` render et
 
 ---
 
-## NOTES FOR NEXT DEVELOPER (IMPORTANT)
+## ÖZELLİK DURUMU (Feature Status)
 
-### Dikkat Edilmesi Gereken Noktalar
+### ÇALIŞAN ÖZELLİKLER
 
-1. **office_id Zorunlu**: Yeni kayıtlara mutlaka `office_id` ekle. DataContext zaten bunu yapıyor ama manuel SQL yazarken unutma.
+| Özellik | Sayfa | Açıklama | Test Durumu |
+|---------|-------|----------|-------------|
+| **Login/Register** | `Login.tsx`, `Register.tsx` | Supabase Auth, otomatik profil oluşturma | Çalışıyor |
+| **Dashboard** | `Dashboard.tsx` | İstatistikler, akıllı eşleştirmeler, günlük program, AI asistan | Çalışıyor |
+| **Emlak Listesi** | `PropertyList.tsx` | Filtreleme, sıralanabilir kolonlar, "Daha Fazla Yükle" | Çalışıyor |
+| **Emlak Formu (Wizard)** | `PropertyForm.tsx` | 6 adımlı form, sahibinden.com uyumlu, AI açıklama | **Yeni (test edilmeli)** |
+| **Emlak Detay** | `PropertyDetail.tsx` | Galeri, harita, satışa çevirme, belge yükleme | Çalışıyor |
+| **Müşteri Listesi** | `CustomerList.tsx` | Filtreleme, sıralanabilir kolonlar | Çalışıyor |
+| **Müşteri Formu** | `CustomerForm.tsx` | Detaylı müşteri bilgileri | Çalışıyor |
+| **Müşteri Detay** | `CustomerDetail.tsx` | Etkileşim geçmişi, eşleşen ilanlar | Çalışıyor |
+| **Aktiviteler** | `ActivityList.tsx`, `ActivityForm.tsx` | Randevu, arama, gösterim takibi | Çalışıyor |
+| **Talepler** | `RequestList.tsx`, `RequestForm.tsx` | Müşteri talepleri | Çalışıyor |
+| **Talep-İlan Eşleştirme** | `matchingService.ts` | Otomatik skor hesaplama, cross-consultant | Çalışıyor |
+| **Satış Kaydı** | `SaleForm.tsx` (modal) | Komisyon hesaplama, gider takibi | Çalışıyor |
+| **Takvim** | `CalendarPage.tsx` | Aylık görünüm, aktiviteler | Çalışıyor |
+| **Raporlar** | `Reports.tsx` | Portföy dağılımı, komisyon raporu | Çalışıyor |
+| **Ekip** | `Team.tsx` | Üye listesi, performans, hedefler | Çalışıyor |
+| **Site Yönetimi** | `SiteManagement.tsx` | Konut siteleri kayıt | Çalışıyor |
+| **Web Builder** | `WebBuilder.tsx` | Kişisel/ofis site ayarları, domain | Çalışıyor |
+| **Public Site** | `PublicSite.tsx` | Domain bazlı emlak sitesi | Çalışıyor |
+| **Ayarlar** | `Settings.tsx` | Profil, CSV export | Çalışıyor |
+| **Dark Mode** | `TopBar.tsx` | Sistem/manuel geçiş | Çalışıyor |
 
-2. **RLS Değişikliği**: RLS policy değiştirmeden önce `/supabase/migrations/` klasörünü incele. Geçmişte çok sorun yaşanmış.
+### ÇALIŞMIYOR / EKSİK ÖZELLİKLER
 
-3. **HashRouter**: Uygulama `HashRouter` kullanıyor (`/#/path` formatı). Normal `BrowserRouter` değil.
+| Özellik | Durum | Sorun |
+|---------|-------|-------|
+| **Google Drive Belge Yükleme** | Yarım | `documents` tablosu var, frontend'de picker entegrasyonu eksik |
+| **Push Notifications** | Yok | Planlanmış ama yapılmamış |
+| **Email Bildirimleri** | Yok | - |
+| **Çoklu Dil** | Yok | Sadece Türkçe |
+| **PWA/Mobile App** | Yok | Responsive var ama PWA yok |
+| **Takvim Google Sync** | Yok | `AddToCalendarButton.tsx` var ama manuel |
 
-4. **Environment Variables**:
-   - `VITE_` prefix'i frontend için
-   - Prefix'siz olanlar Vercel serverless için
-   - `.env.local` dosyası .gitignore'da
+### RİSKLİ ALANLAR
 
-5. **Supabase Uyuma**: Free tier kullanılıyorsa Supabase 1 hafta inaktif kalınca uyuyor. `/api/keep-alive` cron job her gün çalışıyor.
+| Alan | Risk | Detay |
+|------|------|-------|
+| **RLS Politikaları** | YÜKSEK | 28 migration dosyası var, geçmişte çok sorun yaşanmış. Değiştirmeden önce test et. |
+| **PropertyForm yeni alanlar** | ORTA | `types.ts`'e eklenen yeni alanlar (facades, interiorFeatures vb.) DB'de olmayabilir |
+| **Supabase Free Tier** | ORTA | 1 hafta inaktif kalırsa uyuyor. `/api/keep-alive` cron var. |
+| **AI API Key** | DÜŞÜK | Key yoksa graceful fallback var ama AI özellikleri çalışmaz |
 
-6. **AI API Key**: Gemini API key olmadan AI özellikleri çalışmaz ama uygulama crash olmaz (graceful fallback var).
+---
 
-### Dokunulmaması Gereken Yerler
+## DOSYA YAPISI (Kritik Dosyalar)
 
-1. **DataContext.tsx** - Çok kritik, dikkatli değiştir. Tüm CRUD buradan geçiyor.
+```
+src/
+├── App.tsx                    # Routing, auth kontrolü, domain bazlı render
+├── types.ts                   # TÜM TypeScript interface'ler (Property, Customer, vb.)
+├── index.tsx                  # React entry point
+│
+├── context/
+│   └── DataContext.tsx        # GLOBAL STATE - Tüm CRUD işlemleri, session, pagination
+│
+├── pages/
+│   ├── Dashboard.tsx          # Ana sayfa (545 satır)
+│   ├── PropertyList.tsx       # Emlak listesi (630 satır)
+│   ├── PropertyForm.tsx       # Emlak formu - 6 ADIMLI WİZARD (1600+ satır) ⭐ YENİ
+│   ├── PropertyDetail.tsx     # Emlak detay (890 satır)
+│   ├── CustomerList.tsx       # Müşteri listesi (220 satır)
+│   ├── CustomerForm.tsx       # Müşteri formu (560 satır)
+│   ├── CustomerDetail.tsx     # Müşteri detay (630 satır)
+│   ├── ActivityList.tsx       # Aktivite listesi (285 satır)
+│   ├── ActivityForm.tsx       # Aktivite formu (480 satır)
+│   ├── RequestList.tsx        # Talep listesi (190 satır)
+│   ├── RequestForm.tsx        # Talep formu (470 satır)
+│   ├── RequestDetail.tsx      # Talep detay (190 satır)
+│   ├── CalendarPage.tsx       # Takvim (445 satır)
+│   ├── Reports.tsx            # Raporlar (535 satır)
+│   ├── Team.tsx               # Ekip yönetimi (740 satır)
+│   ├── Settings.tsx           # Ayarlar (680 satır)
+│   ├── SiteManagement.tsx     # Site (konut) yönetimi (185 satır)
+│   ├── WebBuilder.tsx         # Web sitesi oluşturucu (955 satır)
+│   ├── WebPreview.tsx         # Web önizleme (465 satır)
+│   ├── PublicSite.tsx         # Public emlak sitesi (920 satır)
+│   ├── Login.tsx              # Giriş (235 satır)
+│   └── Register.tsx           # Kayıt (325 satır)
+│
+├── components/
+│   ├── Sidebar.tsx            # Sol menü navigasyonu
+│   ├── TopBar.tsx             # Üst bar, dark mode toggle
+│   ├── SaleForm.tsx           # Satış modal formu
+│   ├── NotificationBell.tsx   # Bildirim ikonu
+│   └── AddToCalendarButton.tsx
+│
+├── services/
+│   ├── supabaseClient.ts      # Supabase bağlantısı
+│   ├── config.ts              # Environment değişkenleri okuma
+│   ├── geminiService.ts       # AI çağrıları (client-side)
+│   ├── matchingService.ts     # Talep-ilan eşleştirme algoritması
+│   ├── publicSiteService.ts   # Domain bazlı site kontrolü + cache
+│   └── keepAliveService.ts    # Supabase ping
+│
+├── constants/
+│   └── propertyConstants.ts   # Emlak form sabitleri (sahibinden uyumlu) ⭐ YENİ
+│
+└── utils/
+    └── validation.ts          # Form validasyon
 
-2. **RLS Policies** - Production'da çalışan RLS'leri değiştirme, yeni migration ekle.
+api/
+├── analyze-listing.ts         # Vercel serverless: URL'den ilan parse (Gemini AI)
+└── keep-alive.ts              # Vercel cron: Supabase uyandırma (günlük 08:00 UTC)
+```
 
-3. **supabase/migrations/** - Mevcut dosyaları değiştirme, yeni numara ile ekle.
+---
 
-### Geliştirme Yaklaşımı
+## AUTH AKIŞI (Detaylı)
 
-1. **Yeni özellik** → Önce `types.ts`'e interface ekle → Sonra UI yap → Sonra DB migration
+```
+1. Kullanıcı /register'a gider
+2. Form doldurur (email, password, full_name)
+3. supabase.auth.signUp() çağrılır
+4. Supabase auth.users'a kayıt oluşturur
+5. handle_new_user() trigger'ı profiles tablosuna satır ekler
+6. Kullanıcı email doğrulama yapar (opsiyonel, Supabase ayarına bağlı)
+7. Login olunca session oluşur
+8. DataContext session'ı yakalar, fetchUserProfile() çağırır
+9. profiles tablosundan kullanıcı bilgileri çekilir
+10. userProfile.officeId varsa, office bilgileri de çekilir
+11. Tüm veriler (properties, customers, vb.) office_id'ye göre filtrelenir
+```
 
-2. **Bug fix** → Önce reproduce et → Console log'ları kontrol et → RLS mi kontrol et
+### Kritik: office_id Atanması
+Yeni kullanıcı kaydolunca `office_id` null oluyor. Broker'ın kullanıcıyı ofise eklemesi gerekiyor. Bu işlem için:
+- `99_fix_new_user_office.sql` migration'ı var
+- Veya manuel olarak Supabase'den profiles tablosunda `office_id` güncellenmeli
 
-3. **Test** → Farklı kullanıcılarla test et (veri izolasyonu için)
+---
 
-4. **Deploy** → `git push origin main` Vercel otomatik deploy eder
+## TODO (Öncelik Sırasına Göre)
 
-5. **DB değişikliği** → Supabase SQL Editor'de çalıştır → Migration dosyası olarak kaydet
+### 1. ACIL (Bu Hafta)
+- [ ] **PropertyForm Test**: Yeni wizard formun 6 adımını farklı kategorilerle test et (KONUT, ARSA, İŞYERİ)
+- [ ] **DB Schema Sync**: `types.ts`'deki yeni Property alanlarının (facades, interiorFeatures, zoningStatus, vb.) DB'de olduğunu kontrol et, yoksa migration yaz
+- [ ] **Listing Status Filter**: PropertyList'te `listing_status` filtresi çalışıyor mu kontrol et
 
-### Faydalı Komutlar
+### 2. KISA VADE (Bu Ay)
+- [ ] **Google Drive Entegrasyonu**: `PropertyDetail.tsx`'deki belge yükleme özelliğini tamamla
+- [ ] **Public Site SEO**: Meta tag'leri dinamik yap, sitemap.xml oluştur
+- [ ] **Mobile Responsive**: Özellikle PropertyForm wizard'ı mobilde test et
+- [ ] **Yeni Kullanıcı Onboarding**: office_id olmadan giriş yapan kullanıcıya yönlendirme ekle
 
+### 3. ORTA VADE
+- [ ] **Push Notifications**: Randevu hatırlatmaları
+- [ ] **Email Templates**: Supabase Edge Functions ile
+- [ ] **Bulk Import**: Excel'den toplu ilan yükleme
+- [ ] **Analytics Dashboard**: Daha detaylı grafikler
+
+### 4. UZUN VADE
+- [ ] **PWA**: Offline çalışma
+- [ ] **Native Mobile App**: React Native veya Flutter
+- [ ] **Multi-tenant SaaS**: Birden fazla bağımsız ofis
+
+---
+
+## SONRAKİ GELİŞTİRİCİ İÇİN NOTLAR
+
+### YAPMA (Don't)
+1. **RLS politikalarını direkt değiştirme** - Yeni migration dosyası oluştur
+2. **DataContext.tsx'i büyük değişiklik yapmadan önce backup al** - Tüm CRUD buradan geçiyor
+3. **HashRouter'ı BrowserRouter'a çevirme** - Vercel routing bozulur
+4. **office_id olmadan veri kaydetme** - RLS hata verir
+5. **Supabase free tier'da heavy query yapma** - Rate limit var
+
+### YAP (Do)
+1. **Her değişiklikten sonra farklı kullanıcılarla test et** - RLS izolasyonunu doğrula
+2. **Console'u kontrol et** - `CRITICAL: Attempting to add property without office_id!` gibi uyarılar var
+3. **types.ts'i güncel tut** - Yeni alan eklerken buraya da ekle
+4. **Migration numarası ile dosya oluştur** - `26_xxx.sql` gibi
+
+### Local Geliştirme
 ```bash
-# Local geliştirme
+# Bağımlılıkları yükle
+npm install
+
+# Dev server başlat (http://localhost:5173)
 npm run dev
 
 # Build test
 npm run build
 
-# Preview build
+# Build önizleme
 npm run preview
 ```
 
-### Supabase SQL Editor Erişimi
-Supabase Dashboard → SQL Editor → Migration dosyalarını buradan çalıştır
+### Deploy
+```bash
+# Main branch'e push = otomatik Vercel deploy
+git push origin main
+```
+
+### Supabase SQL Çalıştırma
+1. Supabase Dashboard → SQL Editor
+2. Migration dosyasını yapıştır
+3. Run
 
 ---
 
-## SON YAPILAN İŞLER (Log)
+## SON YAPILAN DEĞİŞİKLİKLER (Changelog)
 
-- **2026-01-25**: PropertyForm tamamen yeniden yazıldı (6 adımlı wizard, sahibinden.com uyumlu)
-- **2026-01-25**: PropertyList ve CustomerList'e sıralanabilir kolon başlıkları eklendi
-- **2026-01-25**: PropertyList filtre bölümü düzenlendi
-- **2026-01-25**: propertyConstants.ts oluşturuldu (tüm form sabitleri)
-- **2026-01-25**: types.ts genişletildi (yeni Property alanları)
+| Tarih | Değişiklik | Dosyalar |
+|-------|-----------|----------|
+| 2026-01-25 | PropertyForm 6 adımlı wizard olarak yeniden yazıldı | `PropertyForm.tsx` |
+| 2026-01-25 | Sahibinden.com uyumlu form sabitleri eklendi | `propertyConstants.ts` (yeni) |
+| 2026-01-25 | Property interface genişletildi (50+ yeni alan) | `types.ts` |
+| 2026-01-25 | PropertyList ve CustomerList'e sıralanabilir kolonlar eklendi | `PropertyList.tsx`, `CustomerList.tsx` |
+| 2026-01-25 | PropertyList filtre bölümü yeniden düzenlendi | `PropertyList.tsx` |
+
+---
+
+## YARDIMCI LİNKLER
+
+- **Supabase Dashboard**: https://supabase.com/dashboard (proje seç)
+- **Vercel Dashboard**: https://vercel.com (deploy logları)
+- **Google AI Studio**: https://aistudio.google.com (API key)
+- **Sahibinden.com Ilan Formu**: Referans için: https://www.sahibinden.com/ilan-ver
