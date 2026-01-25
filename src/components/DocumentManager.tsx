@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Document } from '../types';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
-import { DOCUMENT_TYPES } from '../services/googleDriveService';
+import { DOCUMENT_TYPES, getEmbedUrl } from '../services/googleDriveService';
 
 interface DocumentManagerProps {
   entityType: 'property' | 'customer' | 'sale';
