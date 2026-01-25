@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, ArrowUpDown, X } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+
+// Sortable column type
+type SortColumn = 'title' | 'type' | 'price' | 'status' | 'owner' | null;
+type SortDirection = 'asc' | 'desc';
 
 const PropertyList: React.FC = () => {
     const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore } = useData();
@@ -15,6 +19,38 @@ const PropertyList: React.FC = () => {
     const [maxPrice, setMaxPrice] = useState('');
     const [sortOrder, setSortOrder] = useState('dateDesc');
     const [viewScope, setViewScope] = useState<'all' | 'mine'>('all');
+
+    // Column sorting state
+    const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+    // Handle column header click
+    const handleSort = (column: SortColumn) => {
+        if (sortColumn === column) {
+            // Toggle direction if same column
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            // Set new column and reset to ascending
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    // Sortable header component
+    const SortableHeader: React.FC<{ column: SortColumn; label: string; className?: string }> = ({ column, label, className = '' }) => (
+        <th
+            className={`p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors select-none ${className}`}
+            onClick={() => handleSort(column)}
+        >
+            <div className="flex items-center gap-1">
+                <span>{label}</span>
+                <span className="flex flex-col">
+                    <ChevronUp className={`w-3 h-3 -mb-1 ${sortColumn === column && sortDirection === 'asc' ? 'text-[#1193d4]' : 'text-gray-300 dark:text-slate-500'}`} />
+                    <ChevronDown className={`w-3 h-3 ${sortColumn === column && sortDirection === 'desc' ? 'text-[#1193d4]' : 'text-gray-300 dark:text-slate-500'}`} />
+                </span>
+            </div>
+        </th>
+    );
 
     // Derived state for filtered and sorted properties
     const filteredAndSortedProperties = useMemo(() => {
@@ -50,6 +86,26 @@ const PropertyList: React.FC = () => {
                 return matchesSearch && matchesStatus && matchesType && matchesListingStatus && matchesPrice;
             })
             .sort((a, b) => {
+                // Column-based sorting takes priority
+                if (sortColumn) {
+                    const multiplier = sortDirection === 'asc' ? 1 : -1;
+                    switch (sortColumn) {
+                        case 'title':
+                            return multiplier * a.title.localeCompare(b.title, 'tr');
+                        case 'type':
+                            return multiplier * (a.type || '').localeCompare(b.type || '', 'tr');
+                        case 'price':
+                            return multiplier * (a.price - b.price);
+                        case 'status':
+                            return multiplier * (a.status || '').localeCompare(b.status || '', 'tr');
+                        case 'owner':
+                            const ownerA = teamMembers.find(m => m.id === a.user_id)?.name || '';
+                            const ownerB = teamMembers.find(m => m.id === b.user_id)?.name || '';
+                            return multiplier * ownerA.localeCompare(ownerB, 'tr');
+                    }
+                }
+
+                // Fallback to dropdown sort order
                 switch (sortOrder) {
                     case 'priceAsc':
                         return a.price - b.price;
@@ -59,11 +115,10 @@ const PropertyList: React.FC = () => {
                         return (a.listingDate || '').localeCompare(b.listingDate || '');
                     case 'dateDesc':
                     default:
-                        // If listingDate is missing, fallback to ID or stay neutral, usually ID implies recency in mock data
                         return (b.listingDate || '').localeCompare(a.listingDate || '');
                 }
             });
-    }, [properties, searchTerm, statusFilter, listingStatusFilter, typeFilter, minPrice, maxPrice, sortOrder, viewScope, session?.user.id]);
+    }, [properties, searchTerm, statusFilter, listingStatusFilter, typeFilter, minPrice, maxPrice, sortOrder, viewScope, session?.user.id, sortColumn, sortDirection, teamMembers]);
 
     const clearFilters = () => {
         setSearchTerm('');
@@ -73,6 +128,8 @@ const PropertyList: React.FC = () => {
         setMinPrice('');
         setMaxPrice('');
         setSortOrder('dateDesc');
+        setSortColumn(null);
+        setSortDirection('asc');
     };
 
     return (
@@ -214,11 +271,11 @@ const PropertyList: React.FC = () => {
                         <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700 text-gray-500 dark:text-slate-400 uppercase text-xs font-semibold">
                             <tr>
                                 <th className="p-4">Resim</th>
-                                <th className="p-4">Adres / Başlık</th>
-                                <th className="p-4">Tip</th>
-                                <th className="p-4">Fiyat</th>
-                                <th className="p-4">Durum</th>
-                                <th className="p-4">İlan Sahibi</th>
+                                <SortableHeader column="title" label="Adres / Başlık" />
+                                <SortableHeader column="type" label="Tip" />
+                                <SortableHeader column="price" label="Fiyat" />
+                                <SortableHeader column="status" label="Durum" />
+                                <SortableHeader column="owner" label="İlan Sahibi" />
                                 <th className="p-4 text-right">İşlem</th>
                             </tr>
                         </thead>

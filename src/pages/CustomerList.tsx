@@ -1,18 +1,76 @@
-import React, { useState } from 'react';
-import { Search, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Search, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
+
+// Sortable column type
+type SortColumn = 'name' | 'phone' | 'email' | 'status' | 'customerType' | 'createdAt' | null;
+type SortDirection = 'asc' | 'desc';
 
 const CustomerList: React.FC = () => {
     const { customers, deleteCustomer, hasMoreCustomers, loadMoreCustomers, loadingMore } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
 
-    const filteredCustomers = customers.filter(c =>
-        (selectedType === '' || c.customerType === selectedType) &&
-        (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.email.toLowerCase().includes(searchTerm.toLowerCase()))
+    // Column sorting state
+    const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+    // Handle column header click
+    const handleSort = (column: SortColumn) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    // Sortable header component
+    const SortableHeader: React.FC<{ column: SortColumn; label: string; className?: string }> = ({ column, label, className = '' }) => (
+        <th
+            className={`p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors select-none ${className}`}
+            onClick={() => handleSort(column)}
+        >
+            <div className="flex items-center gap-1">
+                <span>{label}</span>
+                <span className="flex flex-col">
+                    <ChevronUp className={`w-3 h-3 -mb-1 ${sortColumn === column && sortDirection === 'asc' ? 'text-[#1193d4]' : 'text-gray-300 dark:text-slate-500'}`} />
+                    <ChevronDown className={`w-3 h-3 ${sortColumn === column && sortDirection === 'desc' ? 'text-[#1193d4]' : 'text-gray-300 dark:text-slate-500'}`} />
+                </span>
+            </div>
+        </th>
     );
+
+    const filteredCustomers = useMemo(() => {
+        return customers
+            .filter(c =>
+                (selectedType === '' || c.customerType === selectedType) &&
+                (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    c.email.toLowerCase().includes(searchTerm.toLowerCase()))
+            )
+            .sort((a, b) => {
+                if (!sortColumn) return 0;
+
+                const multiplier = sortDirection === 'asc' ? 1 : -1;
+                switch (sortColumn) {
+                    case 'name':
+                        return multiplier * a.name.localeCompare(b.name, 'tr');
+                    case 'phone':
+                        return multiplier * (a.phone || '').localeCompare(b.phone || '', 'tr');
+                    case 'email':
+                        return multiplier * (a.email || '').localeCompare(b.email || '', 'tr');
+                    case 'status':
+                        return multiplier * (a.status || '').localeCompare(b.status || '', 'tr');
+                    case 'customerType':
+                        return multiplier * (a.customerType || '').localeCompare(b.customerType || '', 'tr');
+                    case 'createdAt':
+                        return multiplier * (a.createdAt || '').localeCompare(b.createdAt || '');
+                    default:
+                        return 0;
+                }
+            });
+    }, [customers, searchTerm, selectedType, sortColumn, sortDirection]);
 
     const handleDelete = async (id: string) => {
         if (window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
@@ -73,12 +131,12 @@ const CustomerList: React.FC = () => {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700 text-gray-500 dark:text-slate-400 uppercase text-xs font-semibold">
                         <tr>
-                            <th className="p-4">Ad Soyad</th>
-                            <th className="p-4">Telefon</th>
-                            <th className="p-4">E-posta</th>
-                            <th className="p-4">Durum</th>
-                            <th className="p-4">Müşteri Tipi</th>
-                            <th className="p-4">Oluşturulma</th>
+                            <SortableHeader column="name" label="Ad Soyad" />
+                            <SortableHeader column="phone" label="Telefon" />
+                            <SortableHeader column="email" label="E-posta" />
+                            <SortableHeader column="status" label="Durum" />
+                            <SortableHeader column="customerType" label="Müşteri Tipi" />
+                            <SortableHeader column="createdAt" label="Oluşturulma" />
                             <th className="p-4 text-right">İşlemler</th>
                         </tr>
                     </thead>
