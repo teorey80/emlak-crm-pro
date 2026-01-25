@@ -189,6 +189,9 @@ const PropertyForm: React.FC = () => {
   const [newOwnerPhone, setNewOwnerPhone] = useState('');
   const [isAddingOwner, setIsAddingOwner] = useState(false); // Loading state
 
+  // AI Description Generation State
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+
   const handleImport = async () => {
     if (!importInput.trim()) return;
 
@@ -269,6 +272,60 @@ const PropertyForm: React.FC = () => {
       setImportError('Analiz hatası: ' + (err.message || 'Bilinmeyen hata'));
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // AI Description Generator
+  const handleGenerateDescription = async () => {
+    // Check if we have enough info to generate
+    if (!formData.type && !formData.rooms && !formData.city) {
+      toast.error('Lütfen önce emlak tipi, oda sayısı ve konum bilgilerini doldurun');
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const propertyInfo = [
+        formData.type && `Emlak Tipi: ${formData.type}`,
+        formData.rooms && `Oda Sayısı: ${formData.rooms}`,
+        formData.bathrooms && `Banyo: ${formData.bathrooms}`,
+        formData.netArea && `Net Alan: ${formData.netArea} m²`,
+        formData.grossArea && `Brüt Alan: ${formData.grossArea} m²`,
+        formData.city && formData.district && `Konum: ${formData.district}, ${formData.city}`,
+        formData.neighborhood && `Mahalle: ${formData.neighborhood}`,
+        formData.buildingAge && `Bina Yaşı: ${formData.buildingAge}`,
+        formData.floorNumber && formData.floorCount && `Kat: ${formData.floorNumber}/${formData.floorCount}`,
+        formData.heating && `Isıtma: ${formData.heating}`,
+        formData.furnished && `Eşya: ${formData.furnished}`,
+        formData.parking && `Otopark: ${formData.parking}`,
+        formData.balcony && `Balkon: Var`,
+        formData.elevator && `Asansör: Var`,
+        formData.price && `Fiyat: ${formData.price.toLocaleString('tr-TR')} ${formData.currency || 'TL'}`,
+        formData.listingType && `İlan Tipi: ${formData.listingType}`,
+      ].filter(Boolean).join('\n');
+
+      const prompt = `Aşağıdaki emlak bilgilerine göre, profesyonel ve çekici bir Türkçe ilan açıklaması yaz.
+Açıklama 100-200 kelime arasında olsun. Sadece açıklama metnini yaz, başka bir şey ekleme.
+Emlak bilgilerini tekrar listeleme, bunları cazip bir anlatımla açıklamaya dönüştür.
+Potansiyel alıcı/kiracıyı heyecanlandıracak ve emlağın öne çıkan özelliklerini vurgulayacak şekilde yaz.
+
+Emlak Bilgileri:
+${propertyInfo}`;
+
+      const result = await generateRealEstateAdvice(prompt);
+
+      if (result) {
+        setFormData(prev => ({
+          ...prev,
+          description: result.trim()
+        }));
+        toast.success('İlan açıklaması AI ile oluşturuldu!');
+      }
+    } catch (err: any) {
+      console.error('AI Description error:', err);
+      toast.error('Açıklama oluşturulamadı: ' + (err.message || 'Bilinmeyen hata'));
+    } finally {
+      setIsGeneratingDescription(false);
     }
   };
 
@@ -767,7 +824,27 @@ const PropertyForm: React.FC = () => {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Açıklama</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Açıklama</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateDescription}
+                    disabled={isGeneratingDescription}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-purple-500 to-pink-500 rounded-md hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isGeneratingDescription ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Oluşturuluyor...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-3.5 h-3.5" />
+                        AI ile Oluştur
+                      </>
+                    )}
+                  </button>
+                </div>
                 <textarea
                   rows={4}
                   placeholder="İlan hakkında detaylı bilgi giriniz..."
