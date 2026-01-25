@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Document } from '../types';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
-import { DOCUMENT_TYPES, getEmbedUrl } from '../services/googleDriveService';
+import { DOCUMENT_TYPES } from '../services/googleDriveService';
 
 interface DocumentManagerProps {
   entityType: 'property' | 'customer' | 'sale';
@@ -388,34 +388,34 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
       {/* Preview Modal */}
       {showPreview && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowPreview(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-800 dark:text-white">{showPreview.fileName}</h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  {getDocTypeInfo(showPreview.documentType).label} - {new Date(showPreview.createdAt).toLocaleDateString('tr-TR')}
-                </p>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               </div>
-              <div className="flex items-center gap-2">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-1">{showPreview.fileName}</h3>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+                {getDocTypeInfo(showPreview.documentType).label}
+              </p>
+              {showPreview.notes && (
+                <p className="text-xs text-gray-400 dark:text-slate-500 mb-4 italic">"{showPreview.notes}"</p>
+              )}
+              <div className="flex gap-3 justify-center">
                 <a
                   href={showPreview.webViewLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  Drive'da Ac
+                  Dokumani Ac
                 </a>
-                <button onClick={() => setShowPreview(null)} className="p-2 text-gray-400 hover:text-gray-600">
-                  <X className="w-5 h-5" />
+                <button
+                  onClick={() => setShowPreview(null)}
+                  className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600"
+                >
+                  Kapat
                 </button>
               </div>
-            </div>
-            <div className="h-[70vh]">
-              <iframe
-                src={getEmbedUrl(showPreview.fileId)}
-                className="w-full h-full"
-                allow="autoplay"
-              />
             </div>
           </div>
         </div>
