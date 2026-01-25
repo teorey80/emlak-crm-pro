@@ -5,10 +5,10 @@ export interface Property {
   price: number;
   currency: string;
   location: string;
-  type: 'Daire' | 'Villa' | 'Müstakil Ev' | 'Ofis' | 'İşyeri' | 'Arsa';
-  status: 'Satılık' | 'Kiralık';
+  type: string; // Daire, Villa, Rezidans, Büro & Ofis, Arsa, etc.
+  status: string; // Satılık, Kiralık, Devren Satılık, etc.
   rooms: string;
-  area: number; // This corresponds to Net m2 usually, but we'll keep as generic area for list view
+  area: number; // Net m2 for list view
   bathrooms: number;
   heating: string;
   site?: string;
@@ -16,63 +16,112 @@ export interface Property {
   description: string;
   coordinates: { lat: number; lng: number };
 
-  // Extended fields for Detail/Form
-  grossArea?: number;
-  netArea?: number;
-  openArea?: number;
+  // Kategori Sistemi (Sahibinden uyumlu)
+  category?: 'KONUT' | 'ISYERI' | 'ARSA';
+  subCategory?: string; // Satılık, Kiralık, Devren, Kat Karşılığı
+
+  // Alan Bilgileri
+  grossArea?: number; // Brüt m²
+  netArea?: number; // Net m²
+  openArea?: number; // Açık alan m²
+
+  // Yapı Özellikleri
   buildingAge?: number;
-  floorCount?: number;
-  kitchenType?: string;
-  parking?: string;
-  furnished?: string;
-  usageStatus?: string;
-  deedStatus?: string;
-  ownerId?: string;
-  ownerName?: string;
+  currentFloor?: number; // Bulunduğu Kat
+  floorCount?: number; // Toplam Kat Sayısı
+  kitchenType?: string; // Açık, Kapalı, Amerikan, Ankastre
+  balcony?: number; // Balkon sayısı (0-4+)
+  elevator?: string; // Var, Yok
+  parking?: string; // Yok, Açık, Kapalı, Açık & Kapalı
+
+  // Durum ve Sahiplik
+  furnished?: boolean; // Eşyalı mı
+  usageStatus?: string; // Boş, Kiracılı, Mülk Sahibi
+  dues?: number; // Aidat
+  deposit?: number; // Depozito
+  creditEligible?: boolean; // Krediye Uygun
+  ownerType?: string; // Mülk Sahibi, Vasi, Yetkili, Vekil
+  deedStatus?: string; // Kat Mülkiyetli, Hisseli, vb.
+  propertyNumber?: string; // Taşınmaz Numarası
+  listingSource?: string; // Kimden: Emlak Ofisinden, Sahibinden
+  exchange?: string; // Takaslı: Evet, Hayır
+
+  // Konum Bilgileri
   city?: string;
   district?: string;
   neighborhood?: string;
   address?: string;
-  dues?: number;
-  deposit?: number;
+  isInSite?: boolean; // Site içinde mi
+  siteName?: string; // Site adı
+
+  // Mülk Sahibi Bilgileri
+  ownerId?: string;
+  ownerName?: string;
+  ownerPhone?: string;
+
+  // Çoklu Seçim Özellikleri (arrays)
+  facades?: string[]; // Cephe: Kuzey, Güney, Doğu, Batı
+  interiorFeatures?: string[]; // İç Özellikler
+  exteriorFeatures?: string[]; // Dış Özellikler
+  neighborhoodFeatures?: string[]; // Muhit
+  transportationFeatures?: string[]; // Ulaşım
+  viewFeatures?: string[]; // Manzara
+  residenceType?: string; // Konut Tipi: Dubleks, Tripleks, vb.
+  accessibilityFeatures?: string[]; // Engelliye Uygun
+
+  // Arsa Özel Alanları
+  zoningStatus?: string; // İmar Durumu
+  blockNo?: string; // Ada No
+  parcelNo?: string; // Parsel No
+  sheetNo?: string; // Pafta No
+  kaks?: string; // KAKS (Emsal)
+  gabari?: string; // Gabari
+  landInfrastructure?: string[]; // Altyapı
+  landLocation?: string[]; // Konum özellikleri
+  landGeneralFeatures?: string[]; // Genel özellikler
+
+  // İşyeri Özel Alanları
+  tenanted?: string; // Kiracılı: Evet, Hayır, Bilinmiyor
+  condition?: string; // Durumu: Sıfır, İkinci El
+  workplaceFeatures?: string[]; // İşyeri özellikleri
+
+  // Eski alanlar (geriye uyumluluk)
+  imarDurumu?: string;
+  adaNo?: string;
+  paftaNo?: string;
+  balkon?: 'Var' | 'Yok';
+  asansor?: 'Var' | 'Yok';
+  kimden?: string;
+  krediyeUygunluk?: 'Evet' | 'Hayır';
+  takas?: 'Evet' | 'Hayır';
+
+  // Tarihler
   listingDate?: string;
-  isInSite?: boolean;
+  listingType?: string;
 
   // Publishing flags
   publishedOnMarketplace?: boolean;
   publishedOnPersonalSite?: boolean;
 
-  // Additional property features
-  currentFloor?: number; // Bulunduğu Kat
-  balkon?: 'Var' | 'Yok';
-  asansor?: 'Var' | 'Yok';
-  kimden?: 'Emlak Ofisinden' | 'Sahibinden' | 'İnşaat Firmasından';
-  krediyeUygunluk?: 'Evet' | 'Hayır';
-  takas?: 'Evet' | 'Hayır';
-
-  // Arsa (Land) specific fields
-  imarDurumu?: string;
-  adaNo?: string;
-  parselNo?: string;
-  paftaNo?: string;
-  kaks?: number;
-  gabari?: number;
-
   // Multi-User / Office
   officeId?: string;
-  office_id?: string; // DB field
-  user_id?: string; // listing agent id
+  office_id?: string;
+  user_id?: string;
   visibility?: 'public' | 'private' | 'office_only';
 
   // Listing Status Management
   listingStatus?: 'Aktif' | 'Pasif' | 'Satıldı' | 'Kiralandı';
-  listing_status?: string; // DB field
+  listing_status?: string;
   inactiveReason?: string;
-  inactive_reason?: string; // DB field
+  inactive_reason?: string;
   soldDate?: string;
-  sold_date?: string; // DB field
+  sold_date?: string;
   rentedDate?: string;
-  rented_date?: string; // DB field
+  rented_date?: string;
+
+  // Draft
+  isDraft?: boolean;
+  lastSavedAt?: string;
 }
 
 export interface Customer {
