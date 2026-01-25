@@ -192,6 +192,9 @@ const PropertyForm: React.FC = () => {
   // AI Description Generation State
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
 
+  // AI Price Estimation State
+  const [isEstimatingPrice, setIsEstimatingPrice] = useState(false);
+
   const handleImport = async () => {
     if (!importInput.trim()) return;
 
@@ -326,6 +329,65 @@ ${propertyInfo}`;
       toast.error('Açıklama oluşturulamadı: ' + (err.message || 'Bilinmeyen hata'));
     } finally {
       setIsGeneratingDescription(false);
+    }
+  };
+
+  // AI Price Estimation
+  const handleEstimatePrice = async () => {
+    if (!formData.type && !formData.city) {
+      toast.error('Lütfen önce emlak tipi ve konum bilgilerini doldurun');
+      return;
+    }
+
+    setIsEstimatingPrice(true);
+    try {
+      const propertyInfo = [
+        formData.type && `Emlak Tipi: ${formData.type}`,
+        formData.listingType && `İşlem: ${formData.listingType}`,
+        formData.rooms && `Oda Sayısı: ${formData.rooms}`,
+        formData.netArea && `Net Alan: ${formData.netArea} m²`,
+        formData.grossArea && `Brüt Alan: ${formData.grossArea} m²`,
+        formData.city && `Şehir: ${formData.city}`,
+        formData.district && `İlçe: ${formData.district}`,
+        formData.neighborhood && `Mahalle: ${formData.neighborhood}`,
+        formData.buildingAge && `Bina Yaşı: ${formData.buildingAge}`,
+        formData.floorNumber && `Bulunduğu Kat: ${formData.floorNumber}`,
+        formData.heating && `Isıtma: ${formData.heating}`,
+        formData.furnished && `Eşya Durumu: ${formData.furnished}`,
+        formData.parking && `Otopark: ${formData.parking}`,
+        formData.elevator && `Asansör: Var`,
+        formData.balcony && `Balkon: Var`,
+      ].filter(Boolean).join('\n');
+
+      const prompt = `Aşağıdaki emlak bilgilerine göre Türkiye piyasasında tahmini bir ${formData.listingType === 'Kiralık' ? 'kira' : 'satış'} fiyatı öner.
+SADECE bir sayı döndür, başka hiçbir şey yazma. Türk Lirası cinsinden yaz.
+Örnek çıktı: 2500000
+
+Emlak Bilgileri:
+${propertyInfo}`;
+
+      const result = await generateRealEstateAdvice(prompt);
+
+      if (result) {
+        // Extract number from response
+        const priceMatch = result.replace(/[^\d]/g, '');
+        const estimatedPrice = parseInt(priceMatch, 10);
+
+        if (estimatedPrice && !isNaN(estimatedPrice)) {
+          setFormData(prev => ({
+            ...prev,
+            price: estimatedPrice
+          }));
+          toast.success(`AI fiyat tahmini: ${estimatedPrice.toLocaleString('tr-TR')} TL`);
+        } else {
+          toast.error('Fiyat tahmini alınamadı');
+        }
+      }
+    } catch (err: any) {
+      console.error('AI Price error:', err);
+      toast.error('Fiyat tahmini yapılamadı: ' + (err.message || 'Bilinmeyen hata'));
+    } finally {
+      setIsEstimatingPrice(false);
     }
   };
 
@@ -792,7 +854,27 @@ ${propertyInfo}`;
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Fiyat</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Fiyat</label>
+                  <button
+                    type="button"
+                    onClick={handleEstimatePrice}
+                    disabled={isEstimatingPrice}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isEstimatingPrice ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Hesaplanıyor...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-3 h-3" />
+                        AI Tahmin
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="relative rounded-md shadow-sm">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                     <span className="text-gray-500 sm:text-sm">₺</span>
