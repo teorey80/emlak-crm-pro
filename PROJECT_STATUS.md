@@ -260,7 +260,8 @@ src/
 │   └── keepAliveService.ts    # Supabase ping
 │
 ├── constants/
-│   └── propertyConstants.ts   # Emlak form sabitleri (sahibinden uyumlu) ⭐ YENİ
+│   ├── propertyConstants.ts   # Emlak form sabitleri (sahibinden uyumlu)
+│   └── turkeyLocations.ts     # 81 il, ilçeler, il koordinatları ⭐ YENİ
 │
 └── utils/
     └── validation.ts          # Form validasyon
@@ -368,6 +369,7 @@ git push origin main
 
 | Tarih | Değişiklik | Dosyalar |
 |-------|-----------|----------|
+| 2026-01-25 | Konum seçimi: 81 il, ilçeler cascading dropdown + harita eklendi | `turkeyLocations.ts` (yeni), `PropertyForm.tsx` |
 | 2026-01-25 | PropertyForm 6 adımlı wizard olarak yeniden yazıldı | `PropertyForm.tsx` |
 | 2026-01-25 | Sahibinden.com uyumlu form sabitleri eklendi | `propertyConstants.ts` (yeni) |
 | 2026-01-25 | Property interface genişletildi (50+ yeni alan) | `types.ts` |
