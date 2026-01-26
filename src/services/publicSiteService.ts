@@ -13,25 +13,44 @@ export interface PublicSiteData {
 
 // Memory cache to prevent repeated Supabase calls
 const siteCache = new Map<string, { data: PublicSiteData | null; timestamp: number }>();
-const CACHE_TTL = 600000; // 10 minute memory cache
-const LOCAL_STORAGE_KEY = 'emlak_site';
-const LOCAL_STORAGE_TTL = 3600000; // 1 hour localStorage cache
+const CACHE_TTL = 300000; // 5 minute memory cache (reduced)
+const LOCAL_STORAGE_KEY = 'emlak_site_v2'; // Version bump to invalidate old caches
+const LOCAL_STORAGE_TTL = 1800000; // 30 minute localStorage cache (reduced from 1 hour)
 
 // Warm-up flag to prevent multiple warm-ups
 let isWarmedUp = false;
+
+/**
+ * Validate that cached data is complete and usable
+ */
+function isValidSiteData(data: PublicSiteData | null): boolean {
+    if (!data) return false;
+    if (!data.siteConfig) return false;
+    if (!data.siteConfig.siteTitle && !data.siteConfig.domain) return false;
+    return true;
+}
 
 /**
  * Get cached data from localStorage (survives page refresh)
  */
 function getLocalStorageCache(domain: string): PublicSiteData | null {
     try {
+        // Also clear old cache keys (v1)
+        const oldKey = `emlak_site_${domain}`;
+        if (localStorage.getItem(oldKey)) {
+            localStorage.removeItem(oldKey);
+        }
+
         const cached = localStorage.getItem(`${LOCAL_STORAGE_KEY}_${domain}`);
         if (cached) {
             const { data, timestamp } = JSON.parse(cached);
-            if (Date.now() - timestamp < LOCAL_STORAGE_TTL) {
+            // Validate data is complete
+            if (Date.now() - timestamp < LOCAL_STORAGE_TTL && isValidSiteData(data)) {
                 return data;
             }
+            // Remove invalid or expired cache
             localStorage.removeItem(`${LOCAL_STORAGE_KEY}_${domain}`);
+            console.log('[PublicSite] Cleared invalid/expired cache for:', domain);
         }
     } catch (e) { /* ignore */ }
     return null;
@@ -94,7 +113,7 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
 
     // 1. Check memory cache first (fastest)
     const cached = siteCache.get(cleanDomain);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL && isValidSiteData(cached.data)) {
         console.log('[PublicSite] Memory cache hit:', cleanDomain);
         return cached.data;
     }
@@ -233,8 +252,8 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
 
         console.log('[PublicSite] ✗ No match:', cleanDomain);
 
-        // Cache null result to prevent repeated lookups
-        siteCache.set(cleanDomain, { data: null, timestamp: Date.now() });
+        // DON'T cache null results - allow retry on next page load
+        // This prevents permanent "not found" state if there was a temporary issue
         return null;
 
     } catch (error) {
