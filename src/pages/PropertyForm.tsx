@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ImagePlus, Trash2, MapPin, Wand2, Loader2, Link, FileText,
   UserPlus, X, ChevronLeft, ChevronRight, Check, Building,
-  List, Image, Home, Briefcase, Map, Save
+  List, Image, Home, Briefcase, Map, Save, Search, Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
@@ -66,6 +66,12 @@ const PropertyForm: React.FC = () => {
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [newOwnerName, setNewOwnerName] = useState('');
   const [newOwnerPhone, setNewOwnerPhone] = useState('');
+
+  // Location states
+  const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
+  const [loadingNeighborhoods, setLoadingNeighborhoods] = useState(false);
+  const [addressSearch, setAddressSearch] = useState('');
+  const [searchingAddress, setSearchingAddress] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<Property>>({
@@ -140,6 +146,84 @@ const PropertyForm: React.FC = () => {
       }
     }
   }, [id, properties]);
+
+  // Fetch neighborhoods when city and district change
+  useEffect(() => {
+    const fetchNeighborhoods = async () => {
+      if (!formData.city || !formData.district) {
+        setNeighborhoods([]);
+        return;
+      }
+
+      setLoadingNeighborhoods(true);
+      try {
+        // Use TurkiyeAPI to fetch neighborhoods
+        const response = await fetch(
+          `https://api.turkiyeapi.dev/api/v1/neighborhoods?province=${encodeURIComponent(formData.city)}&district=${encodeURIComponent(formData.district)}&limit=500`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'OK' && data.data) {
+            const neighborhoodNames = data.data.map((n: any) => n.name).sort((a: string, b: string) => a.localeCompare(b, 'tr'));
+            setNeighborhoods(neighborhoodNames);
+          }
+        }
+      } catch (error) {
+        console.error('Mahalle verisi alınamadı:', error);
+        setNeighborhoods([]);
+      } finally {
+        setLoadingNeighborhoods(false);
+      }
+    };
+
+    fetchNeighborhoods();
+  }, [formData.city, formData.district]);
+
+  // Address search with Nominatim geocoding
+  const handleAddressSearch = async () => {
+    if (!addressSearch.trim()) return;
+
+    setSearchingAddress(true);
+    try {
+      // Build search query with city/district context
+      const searchQuery = [
+        addressSearch,
+        formData.neighborhood,
+        formData.district,
+        formData.city,
+        'Türkiye'
+      ].filter(Boolean).join(', ');
+
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=tr`,
+        {
+          headers: {
+            'Accept-Language': 'tr'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const results = await response.json();
+        if (results && results.length > 0) {
+          const { lat, lon, display_name } = results[0];
+          handleChange('coordinates', {
+            lat: parseFloat(lat),
+            lng: parseFloat(lon)
+          });
+          toast.success(`Konum bulundu: ${display_name.split(',').slice(0, 2).join(',')}`);
+        } else {
+          toast.error('Adres bulunamadı. Farklı bir adres deneyin.');
+        }
+      }
+    } catch (error) {
+      console.error('Adres arama hatası:', error);
+      toast.error('Adres arama sırasında hata oluştu');
+    } finally {
+      setSearchingAddress(false);
+    }
+  };
 
   // Get steps based on category
   const getSteps = () => {
@@ -1062,7 +1146,10 @@ Sadece JSON döndür:
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
             value={formData.district}
-            onChange={e => handleChange('district', e.target.value)}
+            onChange={e => {
+              handleChange('district', e.target.value);
+              handleChange('neighborhood', ''); // Reset neighborhood when district changes
+            }}
             disabled={!formData.city}
           >
             <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
@@ -1072,16 +1159,37 @@ Sadece JSON döndür:
           </select>
         </div>
 
-        {/* Neighborhood */}
+        {/* Neighborhood - Cascading dropdown */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mahalle / Köy</label>
-          <input
-            type="text"
-            placeholder="Mahalle veya köy adı"
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.neighborhood}
-            onChange={e => handleChange('neighborhood', e.target.value)}
-          />
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            Mahalle / Köy
+            {loadingNeighborhoods && <Loader2 className="w-3 h-3 inline ml-2 animate-spin text-blue-500" />}
+          </label>
+          {neighborhoods.length > 0 ? (
+            <select
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+              value={formData.neighborhood}
+              onChange={e => handleChange('neighborhood', e.target.value)}
+              disabled={!formData.district || loadingNeighborhoods}
+            >
+              <option value="">{loadingNeighborhoods ? 'Yükleniyor...' : 'Mahalle Seçiniz'}</option>
+              {neighborhoods.map(neighborhood => (
+                <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder={formData.district ? 'Mahalle adı yazın' : 'Önce ilçe seçin'}
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+              value={formData.neighborhood}
+              onChange={e => handleChange('neighborhood', e.target.value)}
+              disabled={!formData.district}
+            />
+          )}
+          {formData.district && neighborhoods.length === 0 && !loadingNeighborhoods && (
+            <p className="text-xs text-gray-400 mt-1">API'den mahalle bulunamadı, manuel yazabilirsiniz</p>
+          )}
         </div>
 
         {/* Is In Site */}
@@ -1131,32 +1239,87 @@ Sadece JSON döndür:
             <MapPin className="w-5 h-5 text-red-500" />
             <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
           </div>
-          <a
-            href={googleMapsPickerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
-          >
-            <MapPin className="w-4 h-4" />
-            Google Maps'te Aç
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                // Use current location from address fields to search
+                const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
+                if (searchText) {
+                  setAddressSearch(searchText);
+                  handleAddressSearch();
+                }
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
+            >
+              <Navigation className="w-4 h-4" />
+              Adresten Bul
+            </button>
+            <a
+              href={googleMapsPickerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
+            >
+              <MapPin className="w-4 h-4" />
+              Google Maps
+            </a>
+          </div>
+        </div>
+
+        {/* Address Search */}
+        <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+            Adres Ara (Konum Bulmak İçin)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Örn: Bağdat Caddesi, Kadıköy, İstanbul"
+              className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={addressSearch}
+              onChange={e => setAddressSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
+            />
+            <button
+              type="button"
+              onClick={handleAddressSearch}
+              disabled={searchingAddress || !addressSearch.trim()}
+              className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {searchingAddress ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Search className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Adres yazıp arayın veya "Adresten Bul" butonuna tıklayın. Konum haritada işaretlenecektir.
+          </p>
         </div>
 
         {/* Map Preview */}
-        <div className="h-64 bg-gray-100 dark:bg-slate-800 relative">
+        <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
           <iframe
+            key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
             width="100%"
             height="100%"
             src={mapUrl}
             title="Konum Haritası"
             className="border-0"
           />
+          {formData.coordinates?.lat && formData.coordinates?.lng && (
+            <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
+              {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
+            </div>
+          )}
         </div>
 
         {/* Coordinate Inputs */}
         <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
-            Koordinatları manuel olarak girebilir veya Google Maps'ten kopyalayabilirsiniz.
+            Koordinatları manuel girebilir veya Google Maps'ten kopyalayabilirsiniz (sağ tık → koordinatları kopyala)
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
