@@ -91,9 +91,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     avatar: ''
   });
 
-  // Auth Listener
+  // Auth Listener with timeout to prevent infinite loading
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let timeoutId: NodeJS.Timeout;
+
+    // Set a timeout to prevent infinite loading if Supabase doesn't respond
+    const authTimeout = new Promise<null>((resolve) => {
+      timeoutId = setTimeout(() => {
+        console.warn('Supabase auth timeout - showing login screen');
+        resolve(null);
+      }, 10000); // 10 second timeout
+    });
+
+    // Race between getSession and timeout
+    Promise.race([
+      supabase.auth.getSession().then(({ data: { session } }) => session),
+      authTimeout
+    ]).then((session) => {
+      clearTimeout(timeoutId);
       setSession(session);
       if (session) fetchUserProfile(session.user.id);
     });
@@ -109,7 +124,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
