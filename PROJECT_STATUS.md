@@ -42,6 +42,8 @@ Türkiye pazarına yönelik bir **Emlak CRM (Müşteri İlişkileri Yönetimi)**
 | **Database** | Supabase (PostgreSQL) | - | RLS aktif |
 | **Auth** | Supabase Auth | - | Email/password |
 | **AI** | Google Gemini | gemini-2.5-flash | İlan açıklaması, fiyat tahmini |
+| **Konum API** | TurkiyeAPI | - | Mahalle verileri (api.turkiyeapi.dev) |
+| **Geocoding** | Nominatim | - | OpenStreetMap adres arama (ücretsiz) |
 | **Hosting** | Vercel | - | Otomatik deploy (main branch) |
 | **Serverless** | Vercel Functions | - | `/api/analyze-listing.ts` |
 
@@ -169,7 +171,9 @@ Uygulama domain'e göre farklı davranıyor:
 | **Login/Register** | `Login.tsx`, `Register.tsx` | Supabase Auth, otomatik profil oluşturma | Çalışıyor |
 | **Dashboard** | `Dashboard.tsx` | İstatistikler, akıllı eşleştirmeler, günlük program, AI asistan | Çalışıyor |
 | **Emlak Listesi** | `PropertyList.tsx` | Filtreleme, sıralanabilir kolonlar, "Daha Fazla Yükle" | Çalışıyor |
-| **Emlak Formu (Wizard)** | `PropertyForm.tsx` | 6 adımlı form, sahibinden.com uyumlu, AI açıklama | **Yeni (test edilmeli)** |
+| **Emlak Formu (Wizard)** | `PropertyForm.tsx` | 6 adımlı form, sahibinden.com uyumlu, AI açıklama | Çalışıyor |
+| **Konum Seçimi** | `PropertyForm.tsx` | 81 il → ilçe → mahalle cascading dropdown, TurkiyeAPI entegrasyonu | Çalışıyor |
+| **Adres Geocoding** | `PropertyForm.tsx` | Nominatim API ile adres arama, harita işaretleme | Çalışıyor |
 | **Emlak Detay** | `PropertyDetail.tsx` | Galeri, harita, satışa çevirme, belge yükleme | Çalışıyor |
 | **Müşteri Listesi** | `CustomerList.tsx` | Filtreleme, sıralanabilir kolonlar | Çalışıyor |
 | **Müşteri Formu** | `CustomerForm.tsx` | Detaylı müşteri bilgileri | Çalışıyor |
@@ -369,6 +373,7 @@ git push origin main
 
 | Tarih | Değişiklik | Dosyalar |
 |-------|-----------|----------|
+| 2026-01-26 | Mahalle API entegrasyonu + adres arama (geocoding) eklendi | `PropertyForm.tsx` |
 | 2026-01-25 | Konum seçimi: 81 il, ilçeler cascading dropdown + harita eklendi | `turkeyLocations.ts` (yeni), `PropertyForm.tsx` |
 | 2026-01-25 | PropertyForm 6 adımlı wizard olarak yeniden yazıldı | `PropertyForm.tsx` |
 | 2026-01-25 | Sahibinden.com uyumlu form sabitleri eklendi | `propertyConstants.ts` (yeni) |
@@ -378,9 +383,33 @@ git push origin main
 
 ---
 
+## HARİCİ API KULLANIMI
+
+### TurkiyeAPI (Mahalle Verileri)
+```
+URL: https://api.turkiyeapi.dev/api/v1/neighborhoods
+Params: ?province={il}&district={ilçe}&limit=500
+Response: { status: "OK", data: [{ name: "Mahalle Adı" }, ...] }
+Kullanım: İlçe seçilince mahalle listesi otomatik yüklenir
+Rate Limit: Yok (ücretsiz)
+```
+
+### Nominatim (OpenStreetMap Geocoding)
+```
+URL: https://nominatim.openstreetmap.org/search
+Params: ?format=json&q={adres}&limit=1&countrycodes=tr
+Response: [{ lat, lon, display_name }]
+Kullanım: "Adresten Bul" butonu ile adres → koordinat dönüşümü
+Rate Limit: 1 istek/saniye (fazla istek yapmayın)
+```
+
+---
+
 ## YARDIMCI LİNKLER
 
 - **Supabase Dashboard**: https://supabase.com/dashboard (proje seç)
 - **Vercel Dashboard**: https://vercel.com (deploy logları)
 - **Google AI Studio**: https://aistudio.google.com (API key)
+- **TurkiyeAPI Docs**: https://api.turkiyeapi.dev (mahalle API)
+- **Nominatim Usage**: https://nominatim.org/release-docs/develop/api/Search/ (geocoding)
 - **Sahibinden.com Ilan Formu**: Referans için: https://www.sahibinden.com/ilan-ver
