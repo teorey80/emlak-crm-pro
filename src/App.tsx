@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Sidebar from './components/Sidebar';
+import Sidebar, { MobileHeader } from './components/Sidebar';
+import { QuickActionsFAB, QuickCallModal, QuickMessageModal } from './components/QuickActions';
 import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
 import CalendarPage from './pages/CalendarPage';
@@ -33,15 +34,37 @@ import { keepSupabaseAlive } from './services/keepAliveService';
 warmupSupabase();
 
 const Layout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-200">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      {/* Mobile Header - only visible on mobile */}
+      <MobileHeader onMenuClick={toggleSidebar} />
+
+      {/* Sidebar - hidden on mobile by default, visible on desktop */}
+      <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
+
+      {/* Main Content - full width on mobile, with margin on desktop */}
+      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen pt-16 lg:pt-0">
         <TopBar title="Emlak CRM" />
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
           <Outlet />
         </main>
       </div>
+
+      {/* Quick Actions FAB - appears on all pages */}
+      <QuickActionsFAB
+        onCallClick={() => setShowCallModal(true)}
+        onMessageClick={() => setShowMessageModal(true)}
+      />
+
+      {/* Quick Entry Modals */}
+      <QuickCallModal isOpen={showCallModal} onClose={() => setShowCallModal(false)} />
+      <QuickMessageModal isOpen={showMessageModal} onClose={() => setShowMessageModal(false)} />
     </div>
   );
 };
