@@ -1,12 +1,14 @@
 
 import React, { useState } from 'react';
-import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building } from 'lucide-react';
+import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 
 const Settings: React.FC = () => {
     const { properties, customers, activities, requests, userProfile, updateUserProfile, session } = useData();
+    const { currentTheme, setTheme, allThemes, isDark, toggleDark } = useTheme();
     const [exportStatus, setExportStatus] = useState<string | null>(null);
     const [profileForm, setProfileForm] = useState(userProfile);
     const [savedStatus, setSavedStatus] = useState(false);
@@ -207,6 +209,123 @@ const Settings: React.FC = () => {
                             </div>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            {/* Theme Settings Section */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
+                <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                        <Palette className="w-5 h-5 text-purple-600" />
+                        Tema Ayarları
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                        Panelin görsel temasını ve renk şemasını özelleştirin.
+                    </p>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    {/* Dark Mode Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                        <div className="flex items-center gap-3">
+                            {isDark ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
+                            <div>
+                                <div className="font-medium text-slate-800 dark:text-white">Karanlık Mod</div>
+                                <div className="text-sm text-gray-500 dark:text-slate-400">
+                                    {isDark ? 'Karanlık tema aktif' : 'Aydınlık tema aktif'}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={toggleDark}
+                            className={`relative w-14 h-7 rounded-full transition-colors ${
+                                isDark ? 'bg-indigo-600' : 'bg-gray-300'
+                            }`}
+                        >
+                            <div
+                                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                                    isDark ? 'translate-x-8' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+
+                    {/* Theme Selection */}
+                    <div>
+                        <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Renk Teması Seçin</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {allThemes.map((theme) => (
+                                <button
+                                    key={theme.id}
+                                    onClick={() => {
+                                        setTheme(theme.id);
+                                        toast.success(`${theme.name} teması uygulandı`);
+                                    }}
+                                    className={`relative p-4 rounded-xl border-2 transition-all text-left hover:shadow-md ${
+                                        currentTheme.id === theme.id
+                                            ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                                    }`}
+                                >
+                                    {currentTheme.id === theme.id && (
+                                        <div className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                            <Check className="w-4 h-4 text-white" />
+                                        </div>
+                                    )}
+
+                                    {/* Color Preview */}
+                                    <div className="flex gap-1.5 mb-3">
+                                        <div
+                                            className="w-8 h-8 rounded-lg shadow-inner"
+                                            style={{ backgroundColor: theme.colors.primary }}
+                                            title="Ana renk"
+                                        />
+                                        <div
+                                            className="w-8 h-8 rounded-lg shadow-inner"
+                                            style={{ backgroundColor: theme.colors.accent }}
+                                            title="Vurgu rengi"
+                                        />
+                                        <div
+                                            className="w-8 h-8 rounded-lg shadow-inner border border-gray-200 dark:border-slate-600"
+                                            style={{ backgroundColor: isDark ? theme.colors.sidebarBgDark : theme.colors.sidebarBg }}
+                                            title="Kenar çubuğu"
+                                        />
+                                        <div
+                                            className="w-8 h-8 rounded-lg shadow-inner"
+                                            style={{ backgroundColor: theme.colors.fabBg }}
+                                            title="FAB rengi"
+                                        />
+                                    </div>
+
+                                    <div className="font-semibold text-slate-800 dark:text-white text-sm">
+                                        {theme.name}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                                        {theme.description}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Current Theme Info */}
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-700/50 dark:to-slate-700/30 p-4 rounded-xl border border-gray-100 dark:border-slate-600">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-xs text-gray-400 uppercase font-semibold mb-1">Aktif Tema</div>
+                                <div className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <div
+                                        className="w-4 h-4 rounded-full"
+                                        style={{ backgroundColor: currentTheme.colors.primary }}
+                                    />
+                                    {currentTheme.name}
+                                </div>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                                {isDark ? 'Karanlık' : 'Aydınlık'} mod
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

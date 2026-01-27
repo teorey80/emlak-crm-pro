@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Phone, MessageCircle, X, Check, User, Clock, FileText, PhoneIncoming, PhoneOutgoing, Building2, Calendar, ClipboardList, Info } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 import { Customer, Activity, Property } from '../types';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ interface QuickActionsFABProps {
 
 export const QuickActionsFAB: React.FC<QuickActionsFABProps> = ({ onCallClick, onMessageClick }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { currentTheme } = useTheme();
 
   return (
     <div className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-[100] flex flex-col items-end gap-3">
@@ -42,11 +44,12 @@ export const QuickActionsFAB: React.FC<QuickActionsFABProps> = ({ onCallClick, o
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${
-          isOpen
-            ? 'bg-gray-600 hover:bg-gray-700 rotate-45'
-            : 'bg-sky-500 hover:bg-sky-600 animate-pulse'
+          isOpen ? 'bg-gray-600 hover:bg-gray-700 rotate-45' : 'animate-pulse'
         }`}
-        style={{ boxShadow: isOpen ? undefined : '0 0 20px rgba(14, 165, 233, 0.5)' }}
+        style={{
+          backgroundColor: isOpen ? undefined : currentTheme.colors.fabBg,
+          boxShadow: isOpen ? undefined : `0 0 20px ${currentTheme.colors.fabGlow}`
+        }}
       >
         <Plus className="w-8 h-8 text-white" />
       </button>

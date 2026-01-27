@@ -27,6 +27,7 @@ import Register from './pages/Register';
 import Team from './pages/Team';
 import PublicSite from './pages/PublicSite';
 import { DataProvider, useData } from './context/DataContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
 import { keepSupabaseAlive } from './services/keepAliveService';
 
@@ -272,9 +273,11 @@ const App: React.FC = () => {
 
   // This is the main CRM domain - render full app with auth
   return (
-    <DataProvider>
-      <CRMApp />
-    </DataProvider>
+    <ThemeProvider>
+      <DataProvider>
+        <CRMApp />
+      </DataProvider>
+    </ThemeProvider>
   );
 };
 

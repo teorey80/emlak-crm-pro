@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Users, Building2, BarChart3, Settings, LayoutDashboard, Building, CalendarCheck, SearchCheck, Moon, Sun, Globe, LogOut, Briefcase, Calendar, Menu, X } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,19 +12,8 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
   const location = useLocation();
-  const [darkMode, setDarkMode] = useState(false);
   const { userProfile, signOut } = useData();
-
-  useEffect(() => {
-    // Check local storage or system preference
-    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setDarkMode(false);
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
+  const { isDark, toggleDark, currentTheme } = useTheme();
 
   // Close sidebar on route change (mobile only, and only if open)
   useEffect(() => {
@@ -31,18 +21,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
       onToggle();
     }
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggleTheme = () => {
-    if (darkMode) {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      setDarkMode(false);
-    } else {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      setDarkMode(true);
-    }
-  };
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
@@ -78,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
         {/* Header with close button for mobile */}
         <div className="p-6 flex items-center justify-between border-b border-gray-100 dark:border-slate-700">
           <div className="flex items-center gap-3">
-            <div className="bg-sky-600 p-2 rounded-lg">
+            <div className="p-2 rounded-lg" style={{ backgroundColor: currentTheme.colors.primary }}>
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <span className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Emlak CRM</span>
@@ -94,19 +72,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
         <div className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
           <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3 px-3">Menü</div>
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive(item.path)
-                ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
-                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-slate-200'
+          {navItems.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? ''
+                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-slate-200'
                 }`}
-            >
-              <item.icon className={`w-5 h-5 ${isActive(item.path) ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-500'}`} />
-              {item.label}
-            </Link>
-          ))}
+                style={active ? {
+                  backgroundColor: isDark ? currentTheme.colors.sidebarActiveBgDark : currentTheme.colors.sidebarActiveBg,
+                  color: isDark ? currentTheme.colors.sidebarActiveDark : currentTheme.colors.sidebarActive
+                } : undefined}
+              >
+                <item.icon
+                  className="w-5 h-5"
+                  style={active ? {
+                    color: isDark ? currentTheme.colors.sidebarActiveDark : currentTheme.colors.sidebarActive
+                  } : undefined}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
 
           <div className="mt-8 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase mb-3 px-3">Ayarlar</div>
           <Link
@@ -123,11 +114,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
             <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Görünüm & Çıkış</span>
             <div className="flex gap-2">
               <button
-                onClick={toggleTheme}
+                onClick={toggleDark}
                 className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-yellow-400 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                 title="Tema Değiştir"
               >
-                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               <button
                 onClick={signOut}
@@ -153,6 +144,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
 // Mobile Header Component
 export const MobileHeader: React.FC<{ onMenuClick: () => void }> = ({ onMenuClick }) => {
+  const { currentTheme } = useTheme();
+
   return (
     <header className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3">
       <button
@@ -162,7 +155,7 @@ export const MobileHeader: React.FC<{ onMenuClick: () => void }> = ({ onMenuClic
         <Menu className="w-6 h-6 text-gray-600 dark:text-slate-300" />
       </button>
       <div className="flex items-center gap-2">
-        <div className="bg-sky-600 p-1.5 rounded-lg">
+        <div className="p-1.5 rounded-lg" style={{ backgroundColor: currentTheme.colors.primary }}>
           <Building2 className="w-5 h-5 text-white" />
         </div>
         <span className="text-lg font-bold text-slate-800 dark:text-slate-100">Emlak CRM</span>
