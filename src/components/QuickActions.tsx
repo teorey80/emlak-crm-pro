@@ -562,6 +562,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [propertySearch, setPropertySearch] = useState('');
   const [topic, setTopic] = useState('');
   const [messageContent, setMessageContent] = useState('');
+  const [messageDate, setMessageDate] = useState(new Date().toISOString().split('T')[0]);
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
   const [propertySuggestions, setPropertySuggestions] = useState<Property[]>([]);
@@ -586,6 +587,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setPropertySearch('');
       setTopic('');
       setMessageContent('');
+      setMessageDate(new Date().toISOString().split('T')[0]);
       setMatchedCustomer(null);
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
@@ -682,7 +684,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
         customerName: customerName!,
         propertyId: selectedProperty?.id,
         propertyTitle: selectedProperty?.title,
-        date: now.toISOString().split('T')[0],
+        date: messageDate,
         time: now.toTimeString().slice(0, 5),
         description: `${channel} - ${propertyInfo}${topic || 'Mesajlaşma'}${messageContent ? '\n\nİçerik: ' + messageContent : ''}`,
         status: 'Tamamlandı'
@@ -860,6 +862,19 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                 )}
               </>
             )}
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Mesaj Tarihi
+            </label>
+            <input
+              type="date"
+              value={messageDate}
+              onChange={(e) => setMessageDate(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-slate-700 dark:text-white"
+            />
           </div>
 
           {/* Topic */}
