@@ -29,7 +29,7 @@ interface DataContextType {
   // CRUD operations
   addProperty: (property: Property) => Promise<void>;
   updateProperty: (property: Property) => Promise<void>;
-  addCustomer: (customer: Customer) => Promise<void>;
+  addCustomer: (customer: Customer) => Promise<Customer>;
   updateCustomer: (customer: Customer) => Promise<void>;
   addSite: (site: Site) => Promise<void>;
   deleteSite: (id: string) => Promise<void>;
@@ -274,10 +274,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addCustomer = async (customer: Customer) => {
+  const addCustomer = async (customer: Customer): Promise<Customer> => {
+    // Generate ID if not provided
+    const customerId = customer.id || crypto.randomUUID();
+
     // Attach current user ID and Office ID
-    const customerWithUser = {
+    const customerWithUser: Customer = {
       ...customer,
+      id: customerId,
       user_id: session?.user.id,
       office_id: userProfile.officeId || customer.office_id
     };
@@ -290,8 +294,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('customers').insert([customerWithUser]);
     if (error) {
       console.error('Error adding customer:', error);
+      // Rollback optimistic update on error
+      setCustomers((prev) => prev.filter(c => c.id !== customerId));
       throw error;
     }
+
+    return customerWithUser;
   };
 
   const updateCustomer = async (customer: Customer) => {
@@ -322,9 +330,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addActivity = async (activity: Activity) => {
+    // Generate ID if not provided
+    const activityId = activity.id || crypto.randomUUID();
+
     // Attach current user ID
-    const activityWithUser = {
+    const activityWithUser: Activity = {
       ...activity,
+      id: activityId,
       user_id: session?.user.id,
       office_id: userProfile.officeId
     };
@@ -333,6 +345,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('activities').insert([activityWithUser]);
     if (error) {
       console.error('Error adding activity:', error);
+      // Rollback optimistic update on error
+      setActivities((prev) => prev.filter(a => a.id !== activityId));
       throw error;
     }
   };

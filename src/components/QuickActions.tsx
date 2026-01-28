@@ -262,9 +262,10 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
 
       toast.success('Arama kaydedildi');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving call:', error);
-      toast.error('Kayıt sırasında hata oluştu');
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      toast.error(`Kayıt sırasında hata oluştu: ${error?.message || error?.code || 'Bilinmeyen hata'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -693,9 +694,10 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       await addActivity(activity as Activity);
       toast.success('Mesaj kaydı eklendi');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving message:', error);
-      toast.error('Kayıt sırasında hata oluştu');
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      toast.error(`Kayıt sırasında hata oluştu: ${error?.message || error?.code || 'Bilinmeyen hata'}`);
     } finally {
       setIsSubmitting(false);
     }
