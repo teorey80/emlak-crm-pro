@@ -15,6 +15,7 @@ const PropertyDetail: React.FC = () => {
     const [showSaleForm, setShowSaleForm] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
     const [inactiveReason, setInactiveReason] = useState('');
+    const [customReason, setCustomReason] = useState('');
     const [kaporaAmount, setKaporaAmount] = useState('');
     const [kaporaDate, setKaporaDate] = useState(new Date().toISOString().split('T')[0]);
     const [kaporaBuyerId, setKaporaBuyerId] = useState('');
@@ -609,6 +610,18 @@ const PropertyDetail: React.FC = () => {
                                     <option value="Diğer">Diğer</option>
                                 </select>
                             </div>
+                            {inactiveReason === 'Diğer' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Diğer Neden</label>
+                                    <input
+                                        type="text"
+                                        value={customReason}
+                                        onChange={(e) => setCustomReason(e.target.value)}
+                                        placeholder="Pasif yapma nedenini yazınız..."
+                                        className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                    />
+                                </div>
+                            )}
                             <div className="flex gap-3 pt-4">
                                 <button
                                     onClick={() => setShowStatusModal(null)}
@@ -618,20 +631,20 @@ const PropertyDetail: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        if (!inactiveReason) {
-                                            toast.error('Lütfen pasif nedeni seçiniz.');
+                                        const finalReason = inactiveReason === 'Diğer' ? customReason : inactiveReason;
+                                        if (!finalReason) {
+                                            toast.error('Lütfen pasif nedeni seçiniz veya yazınız.');
                                             return;
                                         }
                                         try {
                                             await updateProperty({
                                                 ...property,
-                                                listingStatus: 'Pasif',
                                                 listing_status: 'Pasif',
-                                                inactiveReason: inactiveReason,
-                                                inactive_reason: inactiveReason
+                                                inactive_reason: finalReason
                                             });
                                             setShowStatusModal(null);
                                             setInactiveReason('');
+                                            setCustomReason('');
                                             toast.success('İlan pasife alındı.');
                                         } catch (error) {
                                             console.error('Pasife alma hatası:', error);
@@ -721,17 +734,11 @@ const PropertyDetail: React.FC = () => {
                                             const selectedCustomer = customers.find(c => c.id === kaporaBuyerId);
                                             await updateProperty({
                                                 ...property,
-                                                listingStatus: 'Kapora Alındı',
                                                 listing_status: 'Kapora Alındı',
-                                                depositAmount: parseFloat(kaporaAmount),
                                                 deposit_amount: parseFloat(kaporaAmount),
-                                                depositDate: kaporaDate,
                                                 deposit_date: kaporaDate,
-                                                depositBuyerId: kaporaBuyerId,
                                                 deposit_buyer_id: kaporaBuyerId,
-                                                depositBuyerName: selectedCustomer?.name || '',
                                                 deposit_buyer_name: selectedCustomer?.name || '',
-                                                depositNotes: kaporaNotes,
                                                 deposit_notes: kaporaNotes
                                             });
                                             setShowStatusModal(null);
