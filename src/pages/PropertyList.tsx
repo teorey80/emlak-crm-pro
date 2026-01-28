@@ -200,6 +200,7 @@ const PropertyList: React.FC = () => {
                         >
                             <option value="Aktif">Aktif</option>
                             <option value="Pasif">Pasif</option>
+                            <option value="Kapora Alındı">Kapora Alındı</option>
                             <option value="Satıldı">Satıldı</option>
                             <option value="Kiralandı">Kiralandı</option>
                             <option value="Tümü">Tümü</option>

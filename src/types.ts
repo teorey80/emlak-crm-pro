@@ -110,8 +110,20 @@ export interface Property {
   visibility?: 'public' | 'private' | 'office_only';
 
   // Listing Status Management
-  listingStatus?: 'Aktif' | 'Pasif' | 'Satıldı' | 'Kiralandı';
+  listingStatus?: 'Aktif' | 'Pasif' | 'Satıldı' | 'Kiralandı' | 'Kapora Alındı';
   listing_status?: string;
+
+  // Kapora (Deposit) Tracking
+  depositAmount?: number;        // Kapora miktarı
+  deposit_amount?: number;       // DB field
+  depositDate?: string;          // Kapora tarihi
+  deposit_date?: string;         // DB field
+  depositBuyerId?: string;       // Kapora veren müşteri ID
+  deposit_buyer_id?: string;     // DB field
+  depositBuyerName?: string;     // Kapora veren müşteri adı
+  deposit_buyer_name?: string;   // DB field
+  depositNotes?: string;         // Kapora notları
+  deposit_notes?: string;        // DB field
   inactiveReason?: string;
   inactive_reason?: string;
   soldDate?: string;

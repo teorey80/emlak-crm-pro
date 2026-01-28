@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3 } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
@@ -13,6 +13,12 @@ const PropertyDetail: React.FC = () => {
     const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale } = useData();
     const property = properties.find(p => p.id === id);
     const [showSaleForm, setShowSaleForm] = useState(false);
+    const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
+    const [inactiveReason, setInactiveReason] = useState('');
+    const [kaporaAmount, setKaporaAmount] = useState('');
+    const [kaporaDate, setKaporaDate] = useState(new Date().toISOString().split('T')[0]);
+    const [kaporaBuyerId, setKaporaBuyerId] = useState('');
+    const [kaporaNotes, setKaporaNotes] = useState('');
 
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
@@ -107,6 +113,23 @@ const PropertyDetail: React.FC = () => {
                                     {property.price.toLocaleString('tr-TR')} ₺
                                 </p>
                             </div>
+                            {/* Status Badge */}
+                            {(() => {
+                                const status = property.listingStatus || property.listing_status || 'Aktif';
+                                const statusColors: Record<string, string> = {
+                                    'Aktif': 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+                                    'Pasif': 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600',
+                                    'Kapora Alındı': 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800',
+                                    'Satıldı': 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+                                    'Kiralandı': 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800'
+                                };
+                                return (
+                                    <span className={`mt-2 inline-block px-3 py-1 text-xs font-bold rounded-full border ${statusColors[status] || statusColors['Aktif']}`}>
+                                        {status}
+                                        {status === 'Kapora Alındı' && property.depositAmount && ` - ${property.depositAmount.toLocaleString('tr-TR')} ₺`}
+                                    </span>
+                                );
+                            })()}
                         </div>
                     </div>
 
@@ -244,6 +267,62 @@ const PropertyDetail: React.FC = () => {
                                     </div>
                                 </li>
                             ))}
+
+                            {/* Status Change Events */}
+                            {(property.listingStatus === 'Satıldı' || property.listing_status === 'Satıldı') && property.soldDate && (
+                                <li className="mb-8 ml-6">
+                                    <span className="absolute flex items-center justify-center w-8 h-8 bg-red-100 dark:bg-red-900/50 rounded-full -left-4 ring-4 ring-white dark:ring-slate-800 text-red-600 dark:text-red-400">
+                                        <DollarSign className="w-4 h-4" />
+                                    </span>
+                                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg shadow-sm">
+                                        <div className="flex justify-between mb-1">
+                                            <h4 className="text-sm font-semibold text-red-800 dark:text-red-300">İlan Satıldı</h4>
+                                            <time className="text-xs text-red-500 dark:text-red-400">{property.soldDate || property.sold_date}</time>
+                                        </div>
+                                        <p className="text-sm text-red-700 dark:text-red-400">Emlak satışı tamamlandı ve portföyden çıkarıldı.</p>
+                                    </div>
+                                </li>
+                            )}
+
+                            {(property.listingStatus === 'Kapora Alındı' || property.listing_status === 'Kapora Alındı') && (
+                                <li className="mb-8 ml-6">
+                                    <span className="absolute flex items-center justify-center w-8 h-8 bg-orange-100 dark:bg-orange-900/50 rounded-full -left-4 ring-4 ring-white dark:ring-slate-800 text-orange-600 dark:text-orange-400">
+                                        <Banknote className="w-4 h-4" />
+                                    </span>
+                                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 rounded-lg shadow-sm">
+                                        <div className="flex justify-between mb-1">
+                                            <h4 className="text-sm font-semibold text-orange-800 dark:text-orange-300">Kapora Alındı</h4>
+                                            <time className="text-xs text-orange-500 dark:text-orange-400">{property.depositDate || property.deposit_date || '-'}</time>
+                                        </div>
+                                        <p className="text-sm text-orange-700 dark:text-orange-400">
+                                            <span className="font-bold">{(property.depositAmount || property.deposit_amount || 0).toLocaleString('tr-TR')} ₺</span> kapora alındı.
+                                            {(property.depositBuyerName || property.deposit_buyer_name) && (
+                                                <span> Müşteri: <strong>{property.depositBuyerName || property.deposit_buyer_name}</strong></span>
+                                            )}
+                                        </p>
+                                        {(property.depositNotes || property.deposit_notes) && (
+                                            <p className="text-xs text-orange-600 dark:text-orange-500 mt-1 italic">Not: {property.depositNotes || property.deposit_notes}</p>
+                                        )}
+                                    </div>
+                                </li>
+                            )}
+
+                            {(property.listingStatus === 'Pasif' || property.listing_status === 'Pasif') && (
+                                <li className="mb-8 ml-6">
+                                    <span className="absolute flex items-center justify-center w-8 h-8 bg-gray-200 dark:bg-gray-600 rounded-full -left-4 ring-4 ring-white dark:ring-slate-800 text-gray-600 dark:text-gray-300">
+                                        <Ban className="w-4 h-4" />
+                                    </span>
+                                    <div className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm">
+                                        <div className="flex justify-between mb-1">
+                                            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">İlan Pasife Alındı</h4>
+                                            <time className="text-xs text-gray-500 dark:text-gray-400">-</time>
+                                        </div>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            Neden: <strong>{property.inactiveReason || property.inactive_reason || 'Belirtilmedi'}</strong>
+                                        </p>
+                                    </div>
+                                </li>
+                            )}
 
                             {/* Standard System Events */}
                             <li className="mb-8 ml-6">
@@ -400,6 +479,20 @@ const PropertyDetail: React.FC = () => {
                                         <DollarSign className="w-4 h-4 inline-block mr-1" />
                                         Satış Yapıldı Olarak İşaretle
                                     </button>
+                                    <button
+                                        onClick={() => setShowStatusModal('kapora')}
+                                        className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 py-3 rounded-xl font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border border-orange-100 dark:border-orange-900/50"
+                                    >
+                                        <Banknote className="w-4 h-4 inline-block mr-1" />
+                                        Kapora Alındı
+                                    </button>
+                                    <button
+                                        onClick={() => setShowStatusModal('pasif')}
+                                        className="w-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-3 rounded-xl font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                                    >
+                                        <Ban className="w-4 h-4 inline-block mr-1" />
+                                        Pasif Yap
+                                    </button>
                                 </>
                             ) : (
                                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-xl text-sm border border-blue-100 dark:border-blue-900">
@@ -488,6 +581,177 @@ const PropertyDetail: React.FC = () => {
                         }
                     }}
                 />
+            )}
+
+            {/* Pasif Modal */}
+            {showStatusModal === 'pasif' && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">İlanı Pasife Al</h3>
+                            <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Pasif Nedeni</label>
+                                <select
+                                    value={inactiveReason}
+                                    onChange={(e) => setInactiveReason(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                >
+                                    <option value="">Neden seçiniz...</option>
+                                    <option value="Sahibi İstedi">Sahibi İstedi</option>
+                                    <option value="Fiyat Değişikliği">Fiyat Değişikliği</option>
+                                    <option value="Taşındı">Taşındı</option>
+                                    <option value="Sözleşme Bitti">Sözleşme Bitti</option>
+                                    <option value="Diğer">Diğer</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowStatusModal(null)}
+                                    className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!inactiveReason) {
+                                            toast.error('Lütfen pasif nedeni seçiniz.');
+                                            return;
+                                        }
+                                        try {
+                                            await updateProperty({
+                                                ...property,
+                                                listingStatus: 'Pasif',
+                                                listing_status: 'Pasif',
+                                                inactiveReason: inactiveReason,
+                                                inactive_reason: inactiveReason
+                                            });
+                                            setShowStatusModal(null);
+                                            setInactiveReason('');
+                                            toast.success('İlan pasife alındı.');
+                                        } catch (error) {
+                                            console.error('Pasife alma hatası:', error);
+                                            toast.error('İşlem başarısız oldu.');
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700"
+                                >
+                                    Pasife Al
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Kapora Modal */}
+            {showStatusModal === 'kapora' && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <Banknote className="w-5 h-5 text-orange-500" />
+                                Kapora Alındı
+                            </h3>
+                            <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Miktarı (₺)</label>
+                                <input
+                                    type="number"
+                                    value={kaporaAmount}
+                                    onChange={(e) => setKaporaAmount(e.target.value)}
+                                    placeholder="Örn: 50000"
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Tarihi</label>
+                                <input
+                                    type="date"
+                                    value={kaporaDate}
+                                    onChange={(e) => setKaporaDate(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Veren Müşteri</label>
+                                <select
+                                    value={kaporaBuyerId}
+                                    onChange={(e) => setKaporaBuyerId(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                >
+                                    <option value="">Müşteri seçiniz...</option>
+                                    {customers.filter(c => c.customerType === 'Alıcı' || c.customerType === 'Kiracı Adayı').map(customer => (
+                                        <option key={customer.id} value={customer.id}>{customer.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Notlar (Opsiyonel)</label>
+                                <textarea
+                                    value={kaporaNotes}
+                                    onChange={(e) => setKaporaNotes(e.target.value)}
+                                    placeholder="Kapora ile ilgili notlar..."
+                                    rows={2}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white resize-none"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowStatusModal(null)}
+                                    className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!kaporaAmount || !kaporaBuyerId) {
+                                            toast.error('Lütfen kapora miktarı ve müşteri seçiniz.');
+                                            return;
+                                        }
+                                        try {
+                                            const selectedCustomer = customers.find(c => c.id === kaporaBuyerId);
+                                            await updateProperty({
+                                                ...property,
+                                                listingStatus: 'Kapora Alındı',
+                                                listing_status: 'Kapora Alındı',
+                                                depositAmount: parseFloat(kaporaAmount),
+                                                deposit_amount: parseFloat(kaporaAmount),
+                                                depositDate: kaporaDate,
+                                                deposit_date: kaporaDate,
+                                                depositBuyerId: kaporaBuyerId,
+                                                deposit_buyer_id: kaporaBuyerId,
+                                                depositBuyerName: selectedCustomer?.name || '',
+                                                deposit_buyer_name: selectedCustomer?.name || '',
+                                                depositNotes: kaporaNotes,
+                                                deposit_notes: kaporaNotes
+                                            });
+                                            setShowStatusModal(null);
+                                            setKaporaAmount('');
+                                            setKaporaBuyerId('');
+                                            setKaporaNotes('');
+                                            toast.success('Kapora kaydedildi!');
+                                        } catch (error) {
+                                            console.error('Kapora kaydetme hatası:', error);
+                                            toast.error('İşlem başarısız oldu.');
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600"
+                                >
+                                    Kaydet
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
