@@ -561,6 +561,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [propertySearch, setPropertySearch] = useState('');
   const [topic, setTopic] = useState('');
+  const [messageContent, setMessageContent] = useState('');
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
   const [propertySuggestions, setPropertySuggestions] = useState<Property[]>([]);
@@ -584,6 +585,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setSelectedProperty(null);
       setPropertySearch('');
       setTopic('');
+      setMessageContent('');
       setMatchedCustomer(null);
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
@@ -682,7 +684,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
         propertyTitle: selectedProperty?.title,
         date: now.toISOString().split('T')[0],
         time: now.toTimeString().slice(0, 5),
-        description: `${channel} - ${propertyInfo}${topic || 'Mesajlaşma'}`,
+        description: `${channel} - ${propertyInfo}${topic || 'Mesajlaşma'}${messageContent ? '\n\nİçerik: ' + messageContent : ''}`,
         status: 'Tamamlandı'
       };
 
@@ -878,6 +880,20 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
               <option value="Takip">Takip</option>
               <option value="Diğer">Diğer</option>
             </select>
+          </div>
+
+          {/* Message Content */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Mesaj İçeriği
+            </label>
+            <textarea
+              value={messageContent}
+              onChange={(e) => setMessageContent(e.target.value)}
+              placeholder="Gelen veya gönderilen mesajı buraya yazınız..."
+              rows={3}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-slate-700 dark:text-white resize-none"
+            />
           </div>
         </div>
 
