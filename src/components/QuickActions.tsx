@@ -75,6 +75,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [actionType, setActionType] = useState<'info' | 'appointment' | 'request'>('info');
   const [callResult, setCallResult] = useState<'Olumlu' | 'Olumsuz' | 'Düşünüyor'>('Olumlu');
   const [note, setNote] = useState('');
+  const [callDate, setCallDate] = useState(new Date().toISOString().split('T')[0]);
 
   // UI state
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
@@ -108,6 +109,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setCallDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
 
@@ -193,7 +195,6 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       }
 
       const now = new Date();
-      const date = now.toISOString().split('T')[0];
       const time = now.toTimeString().slice(0, 5);
 
       // Build description based on action type
@@ -219,7 +220,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
         customerName: customerName!,
         propertyId: selectedProperty?.id,
         propertyTitle: selectedProperty?.title,
-        date,
+        date: callDate,
         time,
         description,
         status: callResult
@@ -514,6 +515,19 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
               placeholder="Görüşme hakkında kısa not..."
               rows={2}
               className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white resize-none"
+            />
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              <Clock className="w-4 h-4 inline mr-1" /> Arama Tarihi
+            </label>
+            <input
+              type="date"
+              value={callDate}
+              onChange={(e) => setCallDate(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
             />
           </div>
         </div>
