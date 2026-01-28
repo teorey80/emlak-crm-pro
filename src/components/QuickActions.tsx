@@ -43,9 +43,8 @@ export const QuickActionsFAB: React.FC<QuickActionsFABProps> = ({ onCallClick, o
       {/* Main FAB Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${
-          isOpen ? 'bg-gray-600 hover:bg-gray-700 rotate-45' : 'animate-pulse'
-        }`}
+        className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${isOpen ? 'bg-gray-600 hover:bg-gray-700 rotate-45' : 'animate-pulse'
+          }`}
         style={{
           backgroundColor: isOpen ? undefined : currentTheme.colors.fabBg,
           boxShadow: isOpen ? undefined : `0 0 20px ${currentTheme.colors.fabGlow}`
@@ -83,6 +82,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [propertySuggestions, setPropertySuggestions] = useState<Property[]>([]);
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +107,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
       setShowPropertySearch(false);
+      setNewCustomerName('');
     }
   }, [isOpen]);
 
@@ -171,10 +172,11 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       let customerId = matchedCustomer?.id;
       let customerName = matchedCustomer?.name;
 
-      // If no match, create potential customer
+      // If no match, create new customer
       if (!matchedCustomer) {
+        const customerDisplayName = newCustomerName.trim() || `Potansiyel - ${phone}`;
         const newCustomer: Partial<Customer> = {
-          name: `Potansiyel - ${phone}`,
+          name: customerDisplayName,
           phone: phone,
           email: '',
           status: 'Potansiyel',
@@ -182,12 +184,12 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
           source: 'Telefon',
           createdAt: new Date().toISOString(),
           interactions: [],
-          avatar: `https://ui-avatars.com/api/?name=P&background=f59e0b&color=fff`
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerDisplayName)}&background=f59e0b&color=fff`
         };
         const created = await addCustomer(newCustomer as Customer);
         customerId = created.id;
         customerName = created.name;
-        toast.success('Yeni potansiyel müşteri oluşturuldu');
+        toast.success(`Yeni müşteri oluşturuldu: ${customerName}`);
       }
 
       const now = new Date();
@@ -295,22 +297,20 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setCallDirection('incoming')}
-                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                  callDirection === 'incoming'
-                    ? 'bg-blue-500 text-white ring-2 ring-blue-300'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                }`}
+                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${callDirection === 'incoming'
+                  ? 'bg-blue-500 text-white ring-2 ring-blue-300'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                  }`}
               >
                 <PhoneIncoming className="w-5 h-5" />
                 Gelen Arama
               </button>
               <button
                 onClick={() => setCallDirection('outgoing')}
-                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                  callDirection === 'outgoing'
-                    ? 'bg-green-500 text-white ring-2 ring-green-300'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                }`}
+                className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${callDirection === 'outgoing'
+                  ? 'bg-green-500 text-white ring-2 ring-green-300'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                  }`}
               >
                 <PhoneOutgoing className="w-5 h-5" />
                 Giden Arama
@@ -359,11 +359,20 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
               </div>
             )}
 
-            {/* No Match Info */}
+            {/* No Match Info - New Customer Registration */}
             {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
-              <div className="mt-2 flex items-center gap-2 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-2 rounded-lg">
-                <User className="w-4 h-4" />
-                <span className="text-sm">Yeni potansiyel müşteri olarak kaydedilecek</span>
+              <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+                  <User className="w-4 h-4" />
+                  <span className="text-sm font-medium">Yeni Müşteri Kaydı</span>
+                </div>
+                <input
+                  type="text"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  placeholder="Müşteri adını giriniz..."
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                />
               </div>
             )}
           </div>
@@ -434,33 +443,30 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setActionType('info')}
-                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${
-                  actionType === 'info'
-                    ? 'bg-blue-500 text-white ring-2 ring-blue-300'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                }`}
+                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${actionType === 'info'
+                  ? 'bg-blue-500 text-white ring-2 ring-blue-300'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                  }`}
               >
                 <Info className="w-5 h-5" />
                 Bilgi Verildi
               </button>
               <button
                 onClick={() => setActionType('appointment')}
-                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${
-                  actionType === 'appointment'
-                    ? 'bg-purple-500 text-white ring-2 ring-purple-300'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                }`}
+                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${actionType === 'appointment'
+                  ? 'bg-purple-500 text-white ring-2 ring-purple-300'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                  }`}
               >
                 <Calendar className="w-5 h-5" />
                 Randevu
               </button>
               <button
                 onClick={() => setActionType('request')}
-                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${
-                  actionType === 'request'
-                    ? 'bg-amber-500 text-white ring-2 ring-amber-300'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                }`}
+                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl text-xs font-medium transition-all ${actionType === 'request'
+                  ? 'bg-amber-500 text-white ring-2 ring-amber-300'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                  }`}
               >
                 <ClipboardList className="w-5 h-5" />
                 Talep Alındı
@@ -482,13 +488,12 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
                 <button
                   key={opt.value}
                   onClick={() => setCallResult(opt.value as any)}
-                  className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                    callResult === opt.value
-                      ? opt.color === 'green' ? 'bg-green-500 text-white ring-2 ring-green-300' :
-                        opt.color === 'red' ? 'bg-red-500 text-white ring-2 ring-red-300' :
+                  className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${callResult === opt.value
+                    ? opt.color === 'green' ? 'bg-green-500 text-white ring-2 ring-green-300' :
+                      opt.color === 'red' ? 'bg-red-500 text-white ring-2 ring-red-300' :
                         'bg-amber-500 text-white ring-2 ring-amber-300'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                  }`}
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                    }`}
                 >
                   <span className="mr-1">{opt.icon}</span>
                   {opt.value}
@@ -561,6 +566,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [propertySuggestions, setPropertySuggestions] = useState<Property[]>([]);
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when modal opens
@@ -582,6 +588,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
       setShowPropertySearch(false);
+      setNewCustomerName('');
     }
   }, [isOpen]);
 
@@ -644,10 +651,11 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       let customerId = matchedCustomer?.id;
       let customerName = matchedCustomer?.name;
 
-      // If no match, create potential customer
+      // If no match, create new customer
       if (!matchedCustomer) {
+        const customerDisplayName = newCustomerName.trim() || `Potansiyel - ${phone}`;
         const newCustomer: Partial<Customer> = {
-          name: `Potansiyel - ${phone}`,
+          name: customerDisplayName,
           phone: phone,
           email: '',
           status: 'Potansiyel',
@@ -655,12 +663,12 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
           source: channel,
           createdAt: new Date().toISOString(),
           interactions: [],
-          avatar: `https://ui-avatars.com/api/?name=P&background=10b981&color=fff`
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerDisplayName)}&background=10b981&color=fff`
         };
         const created = await addCustomer(newCustomer as Customer);
         customerId = created.id;
         customerName = created.name;
-        toast.success('Yeni potansiyel müşteri oluşturuldu');
+        toast.success(`Yeni müşteri oluşturuldu: ${customerName}`);
       }
 
       const now = new Date();
@@ -721,13 +729,12 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                 <button
                   key={opt.value}
                   onClick={() => setChannel(opt.value as any)}
-                  className={`py-3 px-3 rounded-xl text-sm font-medium transition-all ${
-                    channel === opt.value
-                      ? opt.color === 'green' ? 'bg-green-500 text-white' :
-                        opt.color === 'blue' ? 'bg-blue-500 text-white' :
+                  className={`py-3 px-3 rounded-xl text-sm font-medium transition-all ${channel === opt.value
+                    ? opt.color === 'green' ? 'bg-green-500 text-white' :
+                      opt.color === 'blue' ? 'bg-blue-500 text-white' :
                         'bg-purple-500 text-white'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
-                  }`}
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+                    }`}
                 >
                   <span className="mr-1">{opt.icon}</span>
                   {opt.value}
@@ -774,6 +781,23 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
               <div className="mt-2 flex items-center gap-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-2 rounded-lg">
                 <Check className="w-4 h-4" />
                 <span className="text-sm font-medium">{matchedCustomer.name}</span>
+              </div>
+            )}
+
+            {/* No Match - New Customer Registration */}
+            {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
+              <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+                  <User className="w-4 h-4" />
+                  <span className="text-sm font-medium">Yeni Müşteri Kaydı</span>
+                </div>
+                <input
+                  type="text"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  placeholder="Müşteri adını giriniz..."
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                />
               </div>
             )}
           </div>
