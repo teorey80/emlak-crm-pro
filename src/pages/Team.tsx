@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
@@ -23,7 +24,7 @@ const Team: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'performance' | 'targets'>('grid');
     const [editingTarget, setEditingTarget] = useState<string | null>(null);
-    const [targetValues, setTargetValues] = useState<{salesTarget: number; revenueTarget: number; commissionTarget: number}>({
+    const [targetValues, setTargetValues] = useState<{ salesTarget: number; revenueTarget: number; commissionTarget: number }>({
         salesTarget: 3,
         revenueTarget: 5000000,
         commissionTarget: 150000
@@ -170,31 +171,28 @@ const Team: React.FC = () => {
                     <div className="bg-gray-100 dark:bg-slate-700 rounded-lg p-1 flex">
                         <button
                             onClick={() => setViewMode('grid')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                viewMode === 'grid'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'grid'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                                }`}
                         >
                             Ekip
                         </button>
                         <button
                             onClick={() => setViewMode('performance')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                viewMode === 'performance'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'performance'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                                }`}
                         >
                             Performans
                         </button>
                         <button
                             onClick={() => setViewMode('targets')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                viewMode === 'targets'
-                                    ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'targets'
+                                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                                }`}
                         >
                             Hedefler
                         </button>
@@ -243,12 +241,11 @@ const Team: React.FC = () => {
                         {rankedTeam.map((member, index) => (
                             <div key={member.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                                 {/* Rank */}
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                    index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                                     index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
-                                    index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                    'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                                }`}>
+                                        index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                                            'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                                    }`}>
                                     {index + 1}
                                 </div>
 
@@ -415,53 +412,65 @@ const Team: React.FC = () => {
 
             {/* Grid View */}
             {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTeam.map((member) => (
-                    <div key={member.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
-                        <div className="p-6 flex flex-col items-center border-b border-gray-100 dark:border-slate-700">
-                            <div className="relative mb-4">
-                                <img src={member.avatar} alt={member.name} className="w-20 h-20 rounded-full object-cover border-4 border-gray-50 dark:border-slate-700" />
-                                <span className={`absolute bottom-0 right-0 p-1.5 rounded-full border-2 border-white dark:border-slate-800 ${member.role === 'broker' ? 'bg-amber-500' : 'bg-blue-500'}`}>
-                                    {member.role === 'broker' ? <Shield className="w-3 h-3 text-white" /> : <Briefcase className="w-3 h-3 text-white" />}
-                                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredTeam.map((member) => (
+                        <div key={member.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
+                            <div className="p-6 flex flex-col items-center border-b border-gray-100 dark:border-slate-700">
+                                <div className="relative mb-4">
+                                    <img src={member.avatar} alt={member.name} className="w-20 h-20 rounded-full object-cover border-4 border-gray-50 dark:border-slate-700" />
+                                    <span className={`absolute bottom-0 right-0 p-1.5 rounded-full border-2 border-white dark:border-slate-800 ${member.role === 'broker' ? 'bg-amber-500' : 'bg-blue-500'}`}>
+                                        {member.role === 'broker' ? <Shield className="w-3 h-3 text-white" /> : <Briefcase className="w-3 h-3 text-white" />}
+                                    </span>
+                                </div>
+                                <h3 className="font-bold text-lg text-slate-800 dark:text-white">{member.name}</h3>
+                                <p className="text-slate-500 text-sm">{member.title}</p>
+                                {member.role === 'broker' && (
+                                    <span className="mt-2 px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+                                        Ofis Yöneticisi
+                                    </span>
+                                )}
                             </div>
-                            <h3 className="font-bold text-lg text-slate-800 dark:text-white">{member.name}</h3>
-                            <p className="text-slate-500 text-sm">{member.title}</p>
-                            {member.role === 'broker' && (
-                                <span className="mt-2 px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
-                                    Ofis Yöneticisi
-                                </span>
-                            )}
+                            {/* Performance Stats */}
+                            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-slate-700 text-center py-3 bg-slate-50 dark:bg-slate-700/30">
+                                <Link
+                                    to={`/properties?user=${member.id}`}
+                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                    title={`${member.name} ilanlarını görüntüle`}
+                                >
+                                    <p className="font-bold text-indigo-600 dark:text-indigo-400">{member.propertyCount}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">İlan</p>
+                                </Link>
+                                <Link
+                                    to={`/sales?user=${member.id}`}
+                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                    title={`${member.name} satışlarını görüntüle`}
+                                >
+                                    <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">Satış</p>
+                                </Link>
+                                <Link
+                                    to={`/activities?user=${member.id}`}
+                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                    title={`${member.name} aktivitelerini görüntüle`}
+                                >
+                                    <p className="font-bold text-sky-600 dark:text-sky-400">{member.activityCount}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
+                                </Link>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-slate-700/30 p-4 flex justify-between text-sm">
+                                <button className="flex items-center text-slate-600 dark:text-slate-300 hover:text-[#1193d4] transition-colors">
+                                    <Mail className="w-4 h-4 mr-2" />
+                                    E-posta
+                                </button>
+                                <div className="w-px bg-gray-200 dark:bg-slate-600 h-5 self-center"></div>
+                                <button className="flex items-center text-slate-600 dark:text-slate-300 hover:text-[#1193d4] transition-colors">
+                                    <Phone className="w-4 h-4 mr-2" />
+                                    Ara
+                                </button>
+                            </div>
                         </div>
-                        {/* Performance Stats */}
-                        <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-slate-700 text-center py-3 bg-slate-50 dark:bg-slate-700/30">
-                            <div>
-                                <p className="font-bold text-indigo-600 dark:text-indigo-400">{member.propertyCount}</p>
-                                <p className="text-[10px] text-slate-400 uppercase">İlan</p>
-                            </div>
-                            <div>
-                                <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount}</p>
-                                <p className="text-[10px] text-slate-400 uppercase">Satış</p>
-                            </div>
-                            <div>
-                                <p className="font-bold text-sky-600 dark:text-sky-400">{member.activityCount}</p>
-                                <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
-                            </div>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-slate-700/30 p-4 flex justify-between text-sm">
-                            <button className="flex items-center text-slate-600 dark:text-slate-300 hover:text-[#1193d4] transition-colors">
-                                <Mail className="w-4 h-4 mr-2" />
-                                E-posta
-                            </button>
-                            <div className="w-px bg-gray-200 dark:bg-slate-600 h-5 self-center"></div>
-                            <button className="flex items-center text-slate-600 dark:text-slate-300 hover:text-[#1193d4] transition-colors">
-                                <Phone className="w-4 h-4 mr-2" />
-                                Ara
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
             )}
         </div>
     );
