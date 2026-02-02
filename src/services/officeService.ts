@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from './supabaseClient';
 
 // Types
 export interface OfficeInvitation {

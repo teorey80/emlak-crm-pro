@@ -29,6 +29,7 @@ import PublicSite from './pages/PublicSite';
 import LandingPage from './pages/LandingPage';
 import AdminPanel from './pages/AdminPanel';
 import ResetPassword from './pages/ResetPassword';
+import JoinOffice from './pages/JoinOffice';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -167,6 +168,7 @@ const CRMApp: React.FC = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/join/:token" element={<JoinOffice />} />
           <Route path="/web-preview" element={<WebPreview />} />
           <Route path="/admin/*" element={<AdminPanel />} />
 
