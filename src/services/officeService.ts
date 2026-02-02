@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { sendRoleChangeEmail, sendTeamJoinEmail } from './emailService';
 
 // Types
 export interface OfficeInvitation {
@@ -302,7 +303,7 @@ export async function changeUserRole(
 
         if (error) throw error;
 
-        // Notify user
+        // Notify user (in-app)
         await supabase.from('notifications').insert({
             user_id: targetUserId,
             type: 'role_changed',
@@ -310,6 +311,35 @@ export async function changeUserRole(
             message: `Rolünüz ${newRole === 'broker' ? 'Broker' : 'Danışman'} olarak güncellendi.`,
             data: { new_role: newRole }
         });
+
+        // Send email notifications
+        try {
+            // Get full user details for email
+            const { data: targetUser } = await supabase
+                .from('profiles')
+                .select('email, full_name')
+                .eq('id', targetUserId)
+                .single();
+
+            const { data: brokerUser } = await supabase
+                .from('profiles')
+                .select('email, full_name')
+                .eq('id', userAuth.user.id)
+                .single();
+
+            if (targetUser?.email && brokerUser?.email) {
+                await sendRoleChangeEmail(
+                    targetUser.email,
+                    targetUser.full_name || 'Kullanıcı',
+                    newRole,
+                    brokerUser.full_name || 'Broker',
+                    brokerUser.email
+                );
+            }
+        } catch (emailError) {
+            console.error('Email notification failed:', emailError);
+            // Don't fail the operation if email fails
+        }
 
         return { success: true };
     } catch (error) {
