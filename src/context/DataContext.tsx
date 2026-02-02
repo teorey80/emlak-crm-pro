@@ -1,7 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale } from '../types';
+import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale, Subscription, PlanLimits } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { getSubscription, getPlanLimits, checkPropertyLimit, checkCustomerLimit } from '../services/subscriptionService';
+import toast from 'react-hot-toast';
 
 import { Session } from '@supabase/supabase-js';
 
@@ -21,6 +23,12 @@ interface DataContextType {
   userProfile: UserProfile;
   office: Office | null;
   loading: boolean;
+  // Subscription
+  subscription: Subscription | null;
+  planLimits: PlanLimits | null;
+  canAddProperty: () => Promise<{ allowed: boolean; message?: string }>;
+  canAddCustomer: () => Promise<{ allowed: boolean; message?: string }>;
+  getUsageStats: () => { propertyCount: number; customerCount: number; propertyLimit: number; customerLimit: number };
   // Pagination states
   hasMoreProperties: boolean;
   hasMoreCustomers: boolean;
@@ -62,6 +70,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [requests, setRequests] = useState<Request[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+
+  // Subscription states
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [planLimits, setPlanLimits] = useState<PlanLimits | null>(null);
 
   // Pagination states
   const [hasMoreProperties, setHasMoreProperties] = useState(true);
@@ -173,6 +185,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             siteConfig: data.offices.site_config
           });
         }
+
+        // Fetch Subscription
+        try {
+          const sub = await getSubscription(userId);
+          setSubscription(sub);
+
+          // Get plan limits
+          const plan = sub?.plan || 'free';
+          const limits = await getPlanLimits(plan);
+          setPlanLimits(limits);
+        } catch (subError) {
+          console.error('Error fetching subscription:', subError);
+          // Default to free plan limits
+          setPlanLimits({ plan: 'free', maxProperties: 20, maxCustomers: 50, priceMonthly: 0 });
+        }
       } else if (error) {
         console.error('Error fetching profile data:', error);
       }
@@ -240,9 +267,43 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // --- Subscription Limit Checks ---
+
+  const canAddProperty = async (): Promise<{ allowed: boolean; message?: string }> => {
+    if (!session?.user.id) return { allowed: false, message: 'Oturum bulunamadı' };
+
+    const result = await checkPropertyLimit(session.user.id, properties.length);
+    return { allowed: result.allowed, message: result.message };
+  };
+
+  const canAddCustomer = async (): Promise<{ allowed: boolean; message?: string }> => {
+    if (!session?.user.id) return { allowed: false, message: 'Oturum bulunamadı' };
+
+    const result = await checkCustomerLimit(session.user.id, customers.length);
+    return { allowed: result.allowed, message: result.message };
+  };
+
+  const getUsageStats = () => {
+    const propertyLimit = planLimits?.maxProperties ?? 20;
+    const customerLimit = planLimits?.maxCustomers ?? 50;
+
+    return {
+      propertyCount: properties.length,
+      customerCount: customers.length,
+      propertyLimit: propertyLimit === -1 ? Infinity : propertyLimit,
+      customerLimit: customerLimit === -1 ? Infinity : customerLimit
+    };
+  };
+
   // --- Actions ---
 
   const addProperty = async (property: Property) => {
+    // Check limit before adding
+    const { allowed, message } = await canAddProperty();
+    if (!allowed) {
+      toast.error(message || 'Portföy limitinize ulaştınız. Pro plana yükseltin.');
+      throw new Error('LIMIT_REACHED');
+    }
     // Attach current user ID and Office ID
     const propertyWithUser = {
       ...property,
@@ -275,6 +336,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addCustomer = async (customer: Customer): Promise<Customer> => {
+    // Check limit before adding
+    const { allowed, message } = await canAddCustomer();
+    if (!allowed) {
+      toast.error(message || 'Müşteri limitinize ulaştınız. Pro plana yükseltin.');
+      throw new Error('LIMIT_REACHED');
+    }
+
     // Generate ID if not provided
     const customerId = customer.id || crypto.randomUUID();
 
@@ -561,6 +629,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider value={{
       session, signOut,
       properties, customers, sites, activities, requests, sales, teamMembers, webConfig, userProfile, office, loading,
+      subscription, planLimits, canAddProperty, canAddCustomer, getUsageStats,
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,

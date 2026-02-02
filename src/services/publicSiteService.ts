@@ -147,21 +147,12 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         const profiles = profilesResult.data;
         const offices = officesResult.data;
 
-        // Debug: Log query results and errors
-        console.log('[PublicSite] DEBUG - profilesResult error:', profilesResult.error);
-        console.log('[PublicSite] DEBUG - officesResult error:', officesResult.error);
-
         // Check profiles for domain match
-        console.log('[PublicSite] DEBUG - Profiles found:', profiles?.length || 0);
-        console.log('[PublicSite] DEBUG - Looking for domain:', cleanDomain);
-
         if (profiles) {
             for (const profile of profiles) {
                 const config = profile.site_config as WebSiteConfig | null;
-                console.log('[PublicSite] DEBUG - Profile:', profile.full_name, 'domain:', config?.domain, 'isActive:', config?.isActive);
                 if (config?.domain && config.isActive) {
                     const configDomain = cleanDomainString(config.domain);
-                    console.log('[PublicSite] DEBUG - Comparing:', configDomain, '===', cleanDomain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
 
@@ -193,15 +184,11 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
             }
         }
 
-        console.log('[PublicSite] DEBUG - Offices found:', offices?.length || 0);
-
         if (offices) {
             for (const office of offices) {
                 const config = office.site_config as WebSiteConfig | null;
-                console.log('[PublicSite] DEBUG - Office:', office.name, 'domain:', config?.domain, 'isActive:', config?.isActive);
                 if (config?.domain && config.isActive) {
                     const configDomain = cleanDomainString(config.domain);
-                    console.log('[PublicSite] DEBUG - Comparing:', configDomain, '===', cleanDomain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Office site:', office.name);
 

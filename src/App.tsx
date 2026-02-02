@@ -26,6 +26,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Team from './pages/Team';
 import PublicSite from './pages/PublicSite';
+import LandingPage from './pages/LandingPage';
+import AdminPanel from './pages/AdminPanel';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -160,9 +162,11 @@ const CRMApp: React.FC = () => {
       <Router>
       <Routes>
         {/* Public Routes */}
+        <Route path="/home" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/web-preview" element={<WebPreview />} />
+        <Route path="/admin/*" element={<AdminPanel />} />
 
         {/* Protected Routes */}
         <Route path="/" element={

@@ -262,6 +262,11 @@ export interface UserProfile {
     revenueTarget?: number;    // Aylık ciro hedefi (TL)
     commissionTarget?: number; // Aylık komisyon hedefi (TL)
   };
+  // Subscription
+  subscriptionPlan?: PlanType;
+  subscription_plan?: string;
+  isIndividual?: boolean;
+  is_individual?: boolean;
 }
 
 export interface Office {
@@ -371,4 +376,49 @@ export interface Document {
   uploaded_by_name?: string;
   created_at?: string;
   office_id?: string;
+}
+
+// ==================== SUBSCRIPTION SYSTEM ====================
+
+export type PlanType = 'free' | 'pro';
+export type SubscriptionStatus = 'active' | 'cancelled' | 'expired';
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  user_id?: string;
+  officeId?: string;
+  office_id?: string;
+  plan: PlanType;
+  status: SubscriptionStatus;
+  startedAt: string;
+  started_at?: string;
+  expiresAt?: string;
+  expires_at?: string;
+  adminNotes?: string;
+  admin_notes?: string;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+}
+
+export interface PlanLimits {
+  plan: PlanType;
+  maxProperties: number; // -1 = sınırsız
+  max_properties?: number;
+  maxCustomers: number;  // -1 = sınırsız
+  max_customers?: number;
+  priceMonthly: number;
+  price_monthly?: number;
+  description?: string;
+}
+
+export interface AdminUser {
+  id: string;
+  userId: string;
+  user_id?: string;
+  role: 'admin' | 'super_admin';
+  createdAt?: string;
+  created_at?: string;
 }

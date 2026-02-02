@@ -12,7 +12,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
   const location = useLocation();
-  const { userProfile, signOut } = useData();
+  const { userProfile, signOut, subscription } = useData();
   const { isDark, toggleDark, currentTheme } = useTheme();
 
   // Close sidebar on route change (mobile only, and only if open)
@@ -59,7 +59,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
             <div className="p-2 rounded-lg" style={{ backgroundColor: currentTheme.colors.primary }}>
               <Building2 className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Emlak CRM</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Emlak CRM</span>
+              {subscription?.plan === 'pro' && (
+                <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[10px] font-bold rounded uppercase">
+                  Pro
+                </span>
+              )}
+            </div>
           </div>
           {/* Close button - only visible on mobile */}
           <button
