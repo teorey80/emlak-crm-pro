@@ -3,9 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
-import { changeUserRole } from '../services/officeService';
+import { changeUserRole, createInviteLink, getOfficeInvitations, OfficeInvitation } from '../services/officeService';
 import { UserProfile } from '../types';
-import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar, MoreVertical, UserCog, ChevronDown } from 'lucide-react';
+import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar, MoreVertical, UserCog, ChevronDown, Copy, Link as LinkIcon, X, Clock, Users } from 'lucide-react';
 
 interface TeamMemberWithStats extends UserProfile {
     propertyCount: number;
@@ -32,6 +32,11 @@ const Team: React.FC = () => {
     });
     const [roleMenuOpen, setRoleMenuOpen] = useState<string | null>(null);
     const [changingRole, setChangingRole] = useState<string | null>(null);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [inviteLink, setInviteLink] = useState<string | null>(null);
+    const [inviteRole, setInviteRole] = useState<'consultant' | 'broker'>('consultant');
+    const [creatingInvite, setCreatingInvite] = useState(false);
+    const [existingInvites, setExistingInvites] = useState<OfficeInvitation[]>([]);
 
     // Get current month range
     const currentMonthRange = useMemo(() => {
@@ -175,6 +180,47 @@ const Team: React.FC = () => {
         }
     };
 
+    // Invite Modal Functions
+    const handleOpenInviteModal = async () => {
+        setShowInviteModal(true);
+        setInviteLink(null);
+        if (userProfile.officeId) {
+            const invites = await getOfficeInvitations(userProfile.officeId);
+            setExistingInvites(invites.slice(0, 5)); // Show last 5
+        }
+    };
+
+    const handleCreateInvite = async () => {
+        if (!userProfile.officeId) return;
+        setCreatingInvite(true);
+        try {
+            const result = await createInviteLink(userProfile.officeId, inviteRole, 10, 7);
+            if (result) {
+                setInviteLink(result.link);
+                toast.success('Davet linki oluşturuldu!');
+                // Refresh existing invites
+                const invites = await getOfficeInvitations(userProfile.officeId);
+                setExistingInvites(invites.slice(0, 5));
+            } else {
+                toast.error('Link oluşturulamadı');
+            }
+        } catch (error) {
+            console.error('Error creating invite:', error);
+            toast.error('Bir hata oluştu');
+        } finally {
+            setCreatingInvite(false);
+        }
+    };
+
+    const copyToClipboard = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success('Link kopyalandı!');
+        } catch (err) {
+            prompt('Linki kopyalayın:', text);
+        }
+    };
+
     if (!userProfile.officeId) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center h-[50vh]">
@@ -229,17 +275,11 @@ const Team: React.FC = () => {
                     </div>
                     {userProfile.role === 'broker' && (
                         <button
-                            onClick={() => {
-                                const isHashRouter = window.location.hash.length > 0;
-                                const baseUrl = window.location.origin;
-                                const registerPath = isHashRouter ? '/#/register' : '/register';
-                                const link = `${baseUrl}${registerPath}?officeId=${userProfile.officeId}`;
-                                prompt("Davet Linkiniz (Kopyala):", link);
-                            }}
+                            onClick={handleOpenInviteModal}
                             className="bg-[#1193d4] hover:bg-[#0e7db5] text-white px-4 py-2.5 rounded-lg flex items-center shadow-lg shadow-blue-500/30 transition-all active:scale-95"
                         >
                             <Plus className="w-5 h-5 mr-1.5" />
-                            <span className="font-medium">Davet Linki Al</span>
+                            <span className="font-medium">Davet Linki</span>
                         </button>
                     )}
                 </div>
@@ -540,6 +580,133 @@ const Team: React.FC = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Invite Modal */}
+            {showInviteModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl">
+                        <div className="p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <LinkIcon className="w-5 h-5 text-[#1193d4]" />
+                                Davet Linki Oluştur
+                            </h3>
+                            <button
+                                onClick={() => setShowInviteModal(false)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {/* Role Selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Davet Rolü
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setInviteRole('consultant')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'consultant'
+                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600'
+                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        <Briefcase className="w-4 h-4" />
+                                        Danışman
+                                    </button>
+                                    <button
+                                        onClick={() => setInviteRole('broker')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'broker'
+                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-600'
+                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        <Shield className="w-4 h-4" />
+                                        Broker
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Generated Link */}
+                            {inviteLink ? (
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-green-600 font-medium text-sm">Link Hazır!</span>
+                                        <span className="text-xs text-green-500">7 gün geçerli</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={inviteLink}
+                                            readOnly
+                                            className="flex-1 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm"
+                                        />
+                                        <button
+                                            onClick={() => copyToClipboard(inviteLink)}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-1"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                            Kopyala
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleCreateInvite}
+                                    disabled={creatingInvite}
+                                    className="w-full bg-[#1193d4] hover:bg-[#0e7db5] text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {creatingInvite ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Oluşturuluyor...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-5 h-5" />
+                                            Link Oluştur
+                                        </>
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Existing Invites */}
+                            {existingInvites.length > 0 && (
+                                <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
+                                    <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        Aktif Davetler
+                                    </h4>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                        {existingInvites.map(inv => (
+                                            <div key={inv.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${inv.role === 'broker' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {inv.role === 'broker' ? 'Broker' : 'Danışman'}
+                                                    </span>
+                                                    <span className="text-slate-500">
+                                                        {inv.current_uses}/{inv.max_uses} kullanım
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const link = `${window.location.origin}${window.location.hash ? '/#' : ''}/join/${inv.token}`;
+                                                        copyToClipboard(link);
+                                                    }}
+                                                    className="text-[#1193d4] hover:text-[#0e7db5]"
+                                                >
+                                                    <Copy className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

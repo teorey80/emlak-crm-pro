@@ -216,6 +216,98 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
+            {/* Office Membership Section */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
+                <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                        <Building className="w-5 h-5 text-violet-600" />
+                        Ofis Üyeliği
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                        Bağlı olduğunuz ofis bilgileri ve üyelik yönetimi.
+                    </p>
+                </div>
+
+                <div className="p-6">
+                    {userProfile.officeId ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
+                                        <Building className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-800 dark:text-white">
+                                            {userProfile.officeName || 'Ofis'}
+                                        </p>
+                                        <p className="text-sm text-gray-500 dark:text-slate-400">
+                                            Rol: {userProfile.role === 'broker' ? 'Broker (Yönetici)' : 'Danışman'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className={`px-3 py-1 rounded-full text-xs font-medium ${userProfile.role === 'broker'
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                    }`}>
+                                    {userProfile.role === 'broker' ? 'Broker' : 'Danışman'}
+                                </div>
+                            </div>
+
+                            {userProfile.role !== 'broker' && (
+                                <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
+                                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+                                        Ofisten ayrılırsanız verileriniz (portföy, müşteri, aktivite) sizinle kalır ve yeni bir ofise katıldığınızda taşınır.
+                                    </p>
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm('Ofisten ayrılmak istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+                                                const { leaveOffice } = await import('../services/officeService');
+                                                const result = await leaveOffice();
+                                                if (result.success) {
+                                                    toast.success('Ofisten başarıyla ayrıldınız');
+                                                    window.location.reload();
+                                                } else {
+                                                    toast.error(result.error || 'Bir hata oluştu');
+                                                }
+                                            }
+                                        }}
+                                        className="text-red-600 hover:text-red-700 text-sm font-medium hover:underline"
+                                    >
+                                        Ofisten Ayrıl
+                                    </button>
+                                </div>
+                            )}
+
+                            {userProfile.role === 'broker' && (
+                                <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
+                                    <p className="text-sm text-gray-500 dark:text-slate-400">
+                                        Broker olarak ofisten ayrılmak için önce başka bir broker atamanız gerekmektedir.
+                                        <a href="/team" className="text-[#1193d4] hover:underline ml-1">
+                                            Ekip sayfasına git →
+                                        </a>
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Building className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
+                                Bağımsız Kullanıcı
+                            </h4>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+                                Henüz bir ofise bağlı değilsiniz. Bir broker'dan davet linki alarak ekibe katılabilirsiniz.
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-slate-500">
+                                Davet linki aldığınızda, linke tıklayarak ofise katılabilirsiniz.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Subscription & Plan Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
                 <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
@@ -230,11 +322,10 @@ const Settings: React.FC = () => {
 
                 <div className="p-6 space-y-6">
                     {/* Current Plan */}
-                    <div className={`p-6 rounded-xl border-2 ${
-                        subscription?.plan === 'pro'
+                    <div className={`p-6 rounded-xl border-2 ${subscription?.plan === 'pro'
                             ? 'bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800'
                             : 'bg-gradient-to-br from-gray-50 to-slate-50 dark:from-slate-700/50 dark:to-slate-700/30 border-gray-200 dark:border-slate-600'
-                    }`}>
+                        }`}>
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 {subscription?.plan === 'pro' ? (
@@ -271,13 +362,12 @@ const Settings: React.FC = () => {
                                 </div>
                                 <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div
-                                        className={`h-full rounded-full transition-all ${
-                                            usageStats.propertyLimit !== Infinity && usageStats.propertyCount / usageStats.propertyLimit >= 0.9
+                                        className={`h-full rounded-full transition-all ${usageStats.propertyLimit !== Infinity && usageStats.propertyCount / usageStats.propertyLimit >= 0.9
                                                 ? 'bg-red-500'
                                                 : usageStats.propertyLimit !== Infinity && usageStats.propertyCount / usageStats.propertyLimit >= 0.7
                                                     ? 'bg-amber-500'
                                                     : 'bg-blue-500'
-                                        }`}
+                                            }`}
                                         style={{
                                             width: usageStats.propertyLimit === Infinity
                                                 ? '10%'
@@ -296,13 +386,12 @@ const Settings: React.FC = () => {
                                 </div>
                                 <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div
-                                        className={`h-full rounded-full transition-all ${
-                                            usageStats.customerLimit !== Infinity && usageStats.customerCount / usageStats.customerLimit >= 0.9
+                                        className={`h-full rounded-full transition-all ${usageStats.customerLimit !== Infinity && usageStats.customerCount / usageStats.customerLimit >= 0.9
                                                 ? 'bg-red-500'
                                                 : usageStats.customerLimit !== Infinity && usageStats.customerCount / usageStats.customerLimit >= 0.7
                                                     ? 'bg-amber-500'
                                                     : 'bg-emerald-500'
-                                        }`}
+                                            }`}
                                         style={{
                                             width: usageStats.customerLimit === Infinity
                                                 ? '10%'
@@ -429,14 +518,12 @@ const Settings: React.FC = () => {
                         </div>
                         <button
                             onClick={toggleDark}
-                            className={`relative w-14 h-7 rounded-full transition-colors ${
-                                isDark ? 'bg-indigo-600' : 'bg-gray-300'
-                            }`}
+                            className={`relative w-14 h-7 rounded-full transition-colors ${isDark ? 'bg-indigo-600' : 'bg-gray-300'
+                                }`}
                         >
                             <div
-                                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                                    isDark ? 'translate-x-8' : 'translate-x-1'
-                                }`}
+                                className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${isDark ? 'translate-x-8' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
@@ -452,11 +539,10 @@ const Settings: React.FC = () => {
                                         setTheme(theme.id);
                                         toast.success(`${theme.name} teması uygulandı`);
                                     }}
-                                    className={`relative p-4 rounded-xl border-2 transition-all text-left hover:shadow-md ${
-                                        currentTheme.id === theme.id
+                                    className={`relative p-4 rounded-xl border-2 transition-all text-left hover:shadow-md ${currentTheme.id === theme.id
                                             ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
                                             : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                                    }`}
+                                        }`}
                                 >
                                     {currentTheme.id === theme.id && (
                                         <div className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
