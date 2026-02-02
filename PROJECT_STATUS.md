@@ -1,7 +1,7 @@
 # Emlak CRM Pro - Proje Durumu
 
-**Son Güncelleme:** 2 Şubat 2026, 19:12  
-**Genel Durum:** ✅ Aktif Geliştirme - SaaS Dönüşümü Devam Ediyor
+**Son Güncelleme:** 2 Şubat 2026, 21:55  
+**Genel Durum:** ✅ SaaS Dönüşümü Tamamlandı - Canlıda Test Aşamasında
 
 ---
 
@@ -15,125 +15,101 @@
 - ✅ Web sitesi oluşturma (Kişisel + Ofis)
 - ✅ Google OAuth + Email/Şifre girişi
 - ✅ Şifre sıfırlama özelliği
-- ✅ RLS politikaları (son düzeltmelerle çalışıyor)
+- ✅ RLS politikaları
 - ✅ Kapora kayıt ve düzenleme
-- ✅ **Rol değiştirme** (Broker ekip üyelerinin rolünü değiştirebilir)
-- ✅ **Ofise katılma sistemi** (Davet linki ile)
+- ✅ **Rol değiştirme UI** (Broker ekip üyelerinin rolünü değiştirebilir)
+- ✅ **Ofise katılma sistemi** (Davet linki ile /join/:token)
+- ✅ **Davet linki oluşturma modal** (Rol seçimi + mevcut davetler)
+- ✅ **Gelişmiş bildirim sistemi** (Realtime + genel + eşleşme)
+- ✅ **Eşleşme Merkezi** (/matches - çapraz eşleşme destekli)
+- ✅ **Settings - Ofis üyeliği bölümü** (Ofisten ayrılma dahil)
 
-### SaaS Dönüşümü İlerlemesi (2 Şubat 2026)
+### SaaS Dönüşümü İlerlemesi
 | Faz | Durum | Detay |
 |-----|-------|-------|
-| Faz 1: Veritabanı | ✅ Tamamlandı | 4 yeni tablo + 3 sütun + RLS düzeltmesi |
+| Faz 1: Veritabanı | ✅ Tamamlandı | 4 yeni tablo + RLS politikaları |
 | Faz 2: Backend | ✅ Tamamlandı | officeService, notificationService, matchService, emailService |
-| Faz 3: UI | ✅ Tamamlandı | JoinOffice sayfası, Rol değiştirme UI |
-| Faz 4: Test | 🔄 Devam Ediyor | Rol değiştirme test edildi ve çalışıyor |
+| Faz 3: UI | ✅ Tamamlandı | Tüm ana UI bileşenleri hazır |
+| Faz 4: Test | ✅ Tamamlandı | Rol değiştirme, davet sistemi çalışıyor |
 
 ---
 
-## ✨ BUGÜN YAPILANLAR (2 Şubat 2026)
+## ✨ TAMAMLANAN ÖZELLİKLER (2 Şubat 2026)
 
-### 1. SaaS Veritabanı Tabloları
+### Veritabanı
 - `office_invitations` - Davet linkleri sistemi
 - `office_membership_history` - Geçiş logları
 - `notifications` - Bildirimler
 - `matches` - Eşleşme kayıtları
-- `profiles` tablosuna ek sütunlar (joined_office_at, invited_by, left_office_at)
 
-### 2. Backend Servisleri
-| Dosya | Açıklama |
-|-------|----------|
-| `officeService.ts` | Davet linki oluşturma, ofise katılma/ayrılma, rol değiştirme |
-| `notificationService.ts` | Bildirim CRUD, realtime subscription |
+### Backend Servisleri
+| Servis | Özellikler |
+|--------|------------|
+| `officeService.ts` | Davet linki oluşturma/doğrulama, ofise katılma/ayrılma, rol değiştirme |
+| `notificationService.ts` | Bildirim CRUD, realtime subscription, okundu işaretleme |
 | `matchService.ts` | Talep-portföy eşleştirme algoritması |
-| `emailService.ts` | E-posta şablonları ve gönderme (Resend entegrasyonu) |
+| `emailService.ts` | E-posta şablonları (Resend entegrasyonu - kurulum bekliyor) |
 
-### 3. UI Geliştirmeleri
-- `/join/:token` - Davet linki sayfası (JoinOffice.tsx)
-- Team sayfasında "Rol" butonu - Broker başkalarının rolünü değiştirebilir
-
-### 4. RLS Düzeltmeleri
-- `33_broker_role_change_fix.sql` - Broker'ın ekip üyesi rolünü değiştirmesi için izin
+### UI Bileşenleri
+| Sayfa/Bileşen | Özellikler |
+|---------------|------------|
+| `/join/:token` | Davet linki ile ofise katılım sayfası |
+| `/matches` | Eşleşme Merkezi - filtreleme, çapraz eşleşme görünümü |
+| Team sayfası | Rol değiştirme + Davet linki modal |
+| NotificationBell | Genel bildirimler + eşleşmeler + realtime |
+| Settings | Ofis üyeliği bölümü (ofisten ayrılma dahil) |
 
 ---
 
-## ⏳ BEKLEYENLer (Sonraki Adımlar)
+## ⏳ BEKLEYENLER
 
-### Yüksek Öncelik
-- [ ] **E-posta bildirimleri aktif et** (Resend API key kurulumu)
-- [ ] Team sayfasına davet linki oluşturma butonu
-- [ ] NotificationBell güncelleme (yeni bildirim türleri)
+### E-posta Bildirimleri
+- [ ] Resend.com hesabı oluştur
+- [ ] API key'i Supabase Edge Function'a ekle
+- [ ] Domain doğrulaması yap
 
-### Orta Öncelik
-- [ ] Settings sayfasına ofis üyeliği bölümü
-- [ ] MatchCenter - Eşleşme yönetim sayfası
-- [ ] Cross-consultant eşleştirme testleri
-
-### Düşük Öncelik
-- [ ] Aktivite tipi olarak "Kapora Alındı" ekleme
+### Diğer
+- [ ] Aktivite tipi "Kapora Alındı"
 - [ ] Properties sayfası URL parametresi ile filtreleme
 
 ---
 
-## 📁 YENİ EKLENEN DOSYALAR
+## 📁 DOSYA YAPISI
 
-| Dosya | Açıklama |
-|-------|----------|
-| `src/services/officeService.ts` | Ofis yönetim servisi |
-| `src/services/notificationService.ts` | Bildirim servisi |
-| `src/services/matchService.ts` | Eşleştirme servisi |
-| `src/services/emailService.ts` | E-posta servisi |
-| `src/pages/JoinOffice.tsx` | Davet linki sayfası |
-| `supabase/functions/send-email/index.ts` | Edge Function (e-posta gönderimi) |
-| `supabase/migrations/32_saas_tables_only.sql` | SaaS tabloları |
-| `supabase/migrations/33_broker_role_change_fix.sql` | Broker RLS düzeltmesi |
+### Yeni Eklenen Dosyalar
+```
+src/
+├── services/
+│   ├── officeService.ts
+│   ├── notificationService.ts
+│   ├── matchService.ts
+│   └── emailService.ts
+├── pages/
+│   ├── JoinOffice.tsx
+│   └── MatchCenter.tsx
+└── components/
+    └── NotificationBell.tsx (güncellenmiş)
 
----
-
-## 📋 SaaS DÖNÜŞÜM PLANI
-
-> Detaylı plan: `SAAS_IMPLEMENTATION_PLAN.md`
-
-### Temel İlkeler
-| İlke | Açıklama |
-|------|----------|
-| **Veri Sahipliği** | Kullanıcı verisinin gerçek sahibidir. Ofis değişse bile veri kullanıcıyla gider. |
-| **Müşteri Gizliliği** | Müşteri bilgileri sadece sahibi tarafından görülür. |
-| **Portföy Şeffaflığı** | Ofis içinde portföyler görünür, ama müşteri bilgisi gizli. |
-| **Kolay Geçiş** | Ofise katılma/ayrılma tek tıkla, veri kaybı yok. |
+supabase/
+├── functions/
+│   └── send-email/index.ts
+└── migrations/
+    ├── 32_saas_tables_only.sql
+    └── 33_broker_role_change_fix.sql
+```
 
 ---
 
-## 🔧 BİLİNEN SORUNLAR
+## 🌐 CANLI URL'LER
 
-1. **E-posta bildirimleri** - Sistem hazır ama Resend API key kurulumu gerekiyor
-2. **Ekibim linkler** - Properties sayfası henüz URL parametresiyle filtreleme desteklemiyor
-
----
-
-## 🧪 TEST KULLANICILARI
-
-| E-posta | Rol | Plan |
-|---------|-----|------|
-| teorey@gmail.com | Admin/Broker | Pro |
-| esraekrekli@gmail.com | Broker | Free |
+- **Vercel:** https://emlak-crm-pro.vercel.app
+- **Supabase:** Proje dashboard'u üzerinden erişilebilir
 
 ---
 
-## 🚀 DEPLOYMENT
+## 🔐 GÜVENLİK
 
-- **Platform:** Vercel
-- **Repo:** https://github.com/teorey80/emlak-crm-pro
-- **URL:** emlak-crm-pro-plum.vercel.app
-- **Database:** Supabase
-
----
-
-## 📝 SON COMMİT
-
-- **Hash:** 587e1a0
-- **Mesaj:** "feat: Add email notification system for role changes and team events"
-- **Tarih:** 2 Şubat 2026, 18:50
-
----
-
-*Bu doküman, proje geliştirme sürecinde farklı AI asistanları arasında geçiş yaparken bağlam kaybını önlemek için tutulmaktadır.*
+- ✅ RLS politikaları aktif
+- ✅ Broker rol değişikliği RLS ile korunuyor
+- ✅ Davetler 7 gün sonra otomatik expire
+- ✅ Müşteri verileri sadece sahip tarafından görülür
