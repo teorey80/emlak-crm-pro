@@ -1,159 +1,134 @@
-# CLAUDE / CHATGPT / BAŞKA AI'YA AKTARILABİLİR PROJE DURUMU
-**Son Güncelleme:** 2026-01-29
+# Emlak CRM Pro - Proje Durumu
+
+**Tarih:** 2 Şubat 2026  
+**Durum:** 🔴 Kritik RLS Sorunları Mevcut
 
 ---
 
-## PROJE ÖZETİ
+## 🚨 ACİL SORUNLAR
 
-| Alan | Değer |
-|------|-------|
-| **Proje Adı** | Emlak CRM Pro |
-| **Repo** | https://github.com/teorey80/emlak-crm-pro |
-| **Deploy** | Vercel (production) |
-| **Veritabanı** | Supabase (PostgreSQL + Auth + RLS) |
-| **Amaç** | Emlak danışmanları için müşteri, portföy ve aktivite yönetim sistemi |
-| **Hedef Kullanıcı** | Emlak ofisleri, bireysel emlak danışmanları |
-| **Temel Problem** | Müşteri takibi, ilan yönetimi, arama/mesaj kayıtları, satış takibi |
+### 1. RLS Politikaları Bozuk
+Son uygulanan `30_complete_rls_reset.sql` migration'ı tüm verileri görünmez yaptı.
 
----
+**Belirtiler:**
+- Hiçbir veri görünmüyor (emlaklar, müşteriler, vs.)
+- Subscription/plan bilgisi görünmüyor
+- Akıllı eşleştirme yanlış veri gösteriyor
 
-## TEKNİK MİMARİ
+**Çözüm İçin Bakılması Gerekenler:**
+- `supabase/migrations/30_complete_rls_reset.sql` - Bu dosya ÇALIŞTIRILDI
+- Supabase Dashboard → Authentication → Users → Kullanıcıların `user_id` değerleri
+- Supabase Dashboard → Table Editor → `profiles` tablosu → `office_id` değerleri
 
-| Katman | Teknoloji |
-|--------|-----------|
-| Frontend | React + TypeScript + Vite |
-| Styling | Tailwind CSS (CDN - dev), PostCSS (prod) |
-| State | React Context (DataContext) |
-| Backend | Supabase (BaaS) |
-| Auth | Supabase Auth |
-| Güvenlik | Row Level Security (RLS) |
-| Hosting | Vercel |
+**Potansiyel Sorun:** 
+Policy'lerdeki `auth.uid()` ile tablolardaki `user_id` eşleşmiyor olabilir.
 
 ---
 
-## MEVCUT ÇALIŞAN ÖZELLİKLER
+## ✅ TAMAMLANAN ÖZELLİKLER
 
-### Temel Modüller
-- ✅ Kullanıcı kaydı ve girişi (Supabase Auth)
-- ✅ Ofis bazlı çoklu kullanıcı desteği
-- ✅ Portföy (Property) CRUD
-- ✅ Müşteri (Customer) CRUD
-- ✅ Aktivite (Activity) CRUD
-- ✅ Talep (Request) CRUD
-- ✅ Satış (Sale) takibi
+### SaaS Dönüşümü
+- [x] Landing Page (`/home`)
+- [x] Login/Register sayfaları
+- [x] Google OAuth entegrasyonu
+- [x] "Şifremi Unuttum" özelliği
+- [x] Şifre sıfırlama sayfası (`/reset-password`)
+- [x] Admin Panel (`/admin`) - Kullanıcı yönetimi UI'ı hazır
 
-### Hızlı Kayıt Sistemi
-- ✅ Hızlı Arama Kaydı (QuickCallModal)
-  - Gelen/Giden arama seçimi
-  - Telefon ile müşteri eşleştirme
-  - Yeni müşteri otomatik oluşturma
-  - Portföy ilişkilendirme
-  - Aksiyon tipi (Bilgi/Randevu/Talep)
-  - Görüşme sonucu (Olumlu/Olumsuz/Düşünüyor)
-  - **Tarih seçici** (varsayılan: bugün)
-  - Not alanı
+### Veritabanı
+- [x] `subscriptions` tablosu oluşturuldu
+- [x] `plan_limits` tablosu oluşturuldu  
+- [x] `admin_users` tablosu oluşturuldu
+- [x] Trigger: Yeni kullanıcılara otomatik free plan
 
-- ✅ Hızlı Mesaj Kaydı (QuickMessageModal)
-  - Kanal seçimi (WhatsApp/SMS/Email)
-  - Tarih seçici
-  - Konu ve içerik alanları
-
-### Public Site
-- ✅ Domain bazlı public site routing
-- ✅ 3 layout: standard, map, grid
-- ✅ Aktif ilanların listelenmesi
-- ✅ İlan detay modal
-- ✅ WhatsApp iletişim butonu
+### Kod Değişiklikleri
+- [x] `src/services/subscriptionService.ts` - Plan yönetimi
+- [x] `src/pages/LandingPage.tsx` - Pazarlama sayfası
+- [x] `src/pages/AdminPanel.tsx` - Admin yönetimi
+- [x] `src/pages/ResetPassword.tsx` - Şifre sıfırlama
+- [x] `src/pages/Settings.tsx` - Plan gösterimi eklendi
+- [x] `src/pages/Login.tsx` - Google login + şifremi unuttum
 
 ---
 
-## BU SOHBETTE YAPILAN DEĞİŞİKLİKLER
+## 🔧 YAPILMASI GEREKENLER
 
-### 1. Kayıt Hatası Düzeltmesi
-**Problem:** "Kayıt sırasında hata oluştu" hatası
-
-**Kök Nedenler:**
-1. `addCustomer` fonksiyonu `Promise<void>` döndürüyordu, ama çağıran kod `Customer` objesi bekliyordu
-2. Yeni kayıtlar için `id` otomatik oluşturulmuyordu
-3. RLS politikalarında INSERT için `WITH CHECK` clause eksikti
-
-**Çözümler:**
-
-`src/context/DataContext.tsx`:
-- `addCustomer` artık `Promise<Customer>` döndürüyor
-- `crypto.randomUUID()` ile auto ID generation eklendi
-- Hata durumunda optimistic update rollback eklendi
-- Aynı düzeltmeler `addActivity` için de yapıldı
-
-### 2. RLS Politika Düzeltmesi
-**Dosya:** `supabase/migrations/27_fix_insert_rls_policies.sql`
-
-Her tablo için ayrı politikalar:
-- SELECT: USING (user_id = auth.uid())
-- UPDATE: USING (user_id = auth.uid())
-- DELETE: USING (user_id = auth.uid())
-- INSERT: WITH CHECK (user_id = auth.uid()) -- KRİTİK
-
-**Etkilenen tablolar:** customers, activities, requests
-
-### 3. Hızlı Arama Kaydına Tarih Alanı
-**Dosya:** `src/components/QuickActions.tsx`
-
-- `callDate` state eklendi (varsayılan: bugün)
-- Tarih input'u UI'a eklendi
-- Aktivite kaydında seçilen tarih kullanılıyor
-
----
-
-## DOSYA YAPISI (ÖNEMLİ DOSYALAR)
-
+### 1. RLS Politikalarını Düzelt (ÖNCELİK 1)
+```sql
+-- Önce mevcut durumu kontrol et
+SELECT id, email, office_id FROM profiles LIMIT 10;
+SELECT * FROM properties LIMIT 5;
+SELECT * FROM subscriptions LIMIT 5;
 ```
-src/
-├── context/DataContext.tsx      # Ana state yönetimi, CRUD fonksiyonları
-├── components/QuickActions.tsx  # FAB + QuickCallModal + QuickMessageModal
-├── pages/
-│   ├── PropertyList.tsx
-│   ├── PropertyDetail.tsx
-│   └── PublicSite.tsx
-├── services/
-│   ├── supabaseClient.ts
-│   └── publicSiteService.ts
-└── types.ts                     # Tüm type tanımları
 
-supabase/migrations/
-├── 07_nuclear_privacy_fix.sql   # Ana RLS politikaları
-├── 20_public_site_access.sql    # Public site erişim
-├── 26_deposit_tracking.sql      # Kapora takibi
-└── 27_fix_insert_rls_policies.sql  # INSERT politika düzeltmesi (YENİ)
+Policy'lerin çalışması için:
+- `properties.user_id` = `auth.uid()` eşleşmeli
+- `profiles.id` = `auth.uid()` eşleşmeli  
+- `office_id` değerleri tutarlı olmalı
+
+### 2. Veritabanı İlişkilerini Kontrol Et
+- `profiles.id` → `auth.users.id` (UUID)
+- `properties.user_id` → `profiles.id`
+- `properties.office_id` → `offices.id`
+- `customers.user_id` → `profiles.id`
+- `subscriptions.user_id` → `profiles.id`
+
+### 3. Test Kullanıcıları
+| E-posta | Rol | Plan |
+|---------|-----|------|
+| teorey@gmail.com | Admin/Broker | Pro |
+| esraekrekli@gmail.com | Danışman | Free |
+
+---
+
+## 📁 ÖNEMLİ DOSYALAR
+
+### Migration Dosyaları (Supabase)
+- `supabase/migrations/28_subscription_system.sql` - SaaS tabloları
+- `supabase/migrations/29_fix_rls_policies.sql` - İlk RLS denemesi
+- `supabase/migrations/30_complete_rls_reset.sql` - ⚠️ BU SORUNLU
+
+### Frontend
+- `src/context/DataContext.tsx` - Veri yönetimi ve subscription fetch
+- `src/services/subscriptionService.ts` - Plan servisleri
+- `src/pages/Settings.tsx` - Plan gösterimi (Line 234-260)
+
+---
+
+## 🔍 DEBUG İÇİN
+
+### Supabase Console'da Kontrol
+1. Authentication → Users → Her kullanıcının UUID'si
+2. Table Editor → `profiles` → `id` ve `office_id` kontrol
+3. Table Editor → `properties` → `user_id` ve `office_id` kontrol
+4. SQL Editor → RLS test:
+```sql
+-- Bu kullanıcının görmesi gereken verileri test et
+SELECT * FROM properties 
+WHERE user_id = 'KULLANICI_UUID' 
+   OR office_id = 'OFFICE_UUID';
+```
+
+### Browser Console'da Kontrol
+```javascript
+// Supabase session bilgisi
+const { data } = await supabase.auth.getSession();
+console.log('User ID:', data.session?.user?.id);
 ```
 
 ---
 
-## VERİTABANI ŞEMASI (ANA TABLOLAR)
+## 📌 NOTLAR
 
-| Tablo | Amaç | RLS |
-|-------|------|-----|
-| profiles | Kullanıcı profilleri | office_id bazlı |
-| offices | Ofis bilgileri | owner/member bazlı |
-| properties | Emlak ilanları | office geniş görünüm, user düzenleme |
-| customers | Müşteriler | sadece kendi user_id |
-| activities | Aktiviteler | sadece kendi user_id |
-| requests | Talepler | sadece kendi user_id |
-| sales | Satışlar | office bazlı |
+1. **RLS Disable etmek GEÇİCİ çözüm olabilir** (güvenlik riski):
+```sql
+ALTER TABLE properties DISABLE ROW LEVEL SECURITY;
+ALTER TABLE customers DISABLE ROW LEVEL SECURITY;
+-- Test et, çalışıyorsa tekrar ENABLE et ve policy'leri düzelt
+```
 
----
+2. **Vercel URL:** https://emlak-crm-pro-plum.vercel.app/
 
-## AÇIK KONULAR / RİSKLER
+3. **GitHub Repo:** https://github.com/teorey80/emlak-crm-pro
 
-1. **Tailwind CDN uyarısı** - Development'ta CDN kullanılıyor, production'da PostCSS olmalı
-2. **Bundle size** - index.js 831KB, code splitting önerilir
-3. **Chrome extension hatası** - "message port closed" hatası uygulamadan kaynaklanmıyor
-
----
-
-## DEPLOY SÜRECİ
-
-1. Kod değişikliği yap
-2. `git add -A && git commit -m "mesaj" && git push`
-3. Vercel otomatik deploy eder
-4. SQL değişikliği varsa → Supabase Dashboard → SQL Editor'da çalıştır
+4. **Son Commit:** `5d2d44c` - "fix: Complete RLS policy reset for all tables"
