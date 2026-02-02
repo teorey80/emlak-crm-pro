@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
-import { Mail, Lock, User, ArrowRight, Building2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Building2, AlertCircle, KeyRound } from 'lucide-react';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
-    const [mode, setMode] = useState<'login' | 'signup'>('login');
+    const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
 
@@ -15,8 +15,35 @@ const Login: React.FC = () => {
         fullName: ''
     });
 
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setMessage(null);
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+                redirectTo: `${window.location.origin}/#/login`,
+            });
+
+            if (error) throw error;
+            setMessage({
+                type: 'success',
+                text: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi. Lütfen e-postanızı kontrol edin.'
+            });
+        } catch (error: any) {
+            setMessage({ type: 'error', text: error.message || 'Şifre sıfırlama isteği gönderilemedi.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (mode === 'forgot') {
+            return handleForgotPassword(e);
+        }
+
         setLoading(true);
         setMessage(null);
 
@@ -75,27 +102,37 @@ const Login: React.FC = () => {
 
                 <div className="p-8 bg-sky-600 text-center">
                     <div className="bg-white/20 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                        <Building2 className="w-8 h-8 text-white" />
+                        {mode === 'forgot' ? (
+                            <KeyRound className="w-8 h-8 text-white" />
+                        ) : (
+                            <Building2 className="w-8 h-8 text-white" />
+                        )}
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Emlak CRM</h1>
-                    <p className="text-sky-100 text-sm">Profesyonel Emlak Yönetim Platformu</p>
+                    <h1 className="text-2xl font-bold text-white mb-2">
+                        {mode === 'forgot' ? 'Şifre Sıfırlama' : 'Emlak CRM'}
+                    </h1>
+                    <p className="text-sky-100 text-sm">
+                        {mode === 'forgot' ? 'E-posta adresinizi girin' : 'Profesyonel Emlak Yönetim Platformu'}
+                    </p>
                 </div>
 
                 <div className="p-8">
-                    <div className="flex gap-4 mb-8 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-lg">
-                        <button
-                            onClick={() => { setMode('login'); setMessage(null); }}
-                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'login' ? 'bg-white dark:bg-slate-600 shadow-sm text-sky-600 dark:text-sky-400' : 'text-gray-500 dark:text-slate-400'}`}
-                        >
-                            Giriş Yap
-                        </button>
-                        <button
-                            onClick={() => { setMode('signup'); setMessage(null); }}
-                            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'signup' ? 'bg-white dark:bg-slate-600 shadow-sm text-sky-600 dark:text-sky-400' : 'text-gray-500 dark:text-slate-400'}`}
-                        >
-                            Kayıt Ol
-                        </button>
-                    </div>
+                    {mode !== 'forgot' && (
+                        <div className="flex gap-4 mb-8 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-lg">
+                            <button
+                                onClick={() => { setMode('login'); setMessage(null); }}
+                                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'login' ? 'bg-white dark:bg-slate-600 shadow-sm text-sky-600 dark:text-sky-400' : 'text-gray-500 dark:text-slate-400'}`}
+                            >
+                                Giriş Yap
+                            </button>
+                            <button
+                                onClick={() => { setMode('signup'); setMessage(null); }}
+                                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === 'signup' ? 'bg-white dark:bg-slate-600 shadow-sm text-sky-600 dark:text-sky-400' : 'text-gray-500 dark:text-slate-400'}`}
+                            >
+                                Kayıt Ol
+                            </button>
+                        </div>
+                    )}
 
                     {message && (
                         <div className={`mb-6 p-3 rounded-lg flex items-start gap-3 text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
@@ -137,30 +174,55 @@ const Login: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Şifre</label>
-                            <div className="relative">
-                                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="password"
-                                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-colors"
-                                    placeholder="••••••••"
-                                    value={formData.password}
-                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                    required
-                                    minLength={6}
-                                />
+                        {mode !== 'forgot' && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Şifre</label>
+                                <div className="relative">
+                                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-colors"
+                                        placeholder="••••••••"
+                                        value={formData.password}
+                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        required
+                                        minLength={6}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <button
                             type="submit"
                             disabled={loading}
                             className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-all mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? 'İşlem yapılıyor...' : (mode === 'login' ? 'Giriş Yap' : 'Hesap Oluştur')}
+                            {loading ? 'İşlem yapılıyor...' : (
+                                mode === 'forgot' ? 'Şifre Sıfırlama Linki Gönder' :
+                                    mode === 'login' ? 'Giriş Yap' : 'Hesap Oluştur'
+                            )}
                             {!loading && <ArrowRight className="w-4 h-4" />}
                         </button>
+
+                        {mode === 'login' && (
+                            <button
+                                type="button"
+                                onClick={() => { setMode('forgot'); setMessage(null); }}
+                                className="w-full text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 mt-3"
+                            >
+                                Şifremi Unuttum
+                            </button>
+                        )}
+
+                        {mode === 'forgot' && (
+                            <button
+                                type="button"
+                                onClick={() => { setMode('login'); setMessage(null); }}
+                                className="w-full text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-300 mt-3"
+                            >
+                                ← Giriş Ekranına Dön
+                            </button>
+                        )}
                     </form>
                 </div>
             </div>
@@ -169,3 +231,4 @@ const Login: React.FC = () => {
 };
 
 export default Login;
+
