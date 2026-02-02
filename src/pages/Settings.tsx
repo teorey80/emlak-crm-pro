@@ -1,18 +1,15 @@
 
 import React, { useState } from 'react';
-import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, CreditCard, Crown, Zap } from 'lucide-react';
+import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 
 const Settings: React.FC = () => {
-    const { properties, customers, activities, requests, userProfile, updateUserProfile, session, subscription, planLimits, getUsageStats } = useData();
+    const { properties, customers, activities, requests, userProfile, updateUserProfile, session } = useData();
     const { currentTheme, setTheme, allThemes, isDark, toggleDark } = useTheme();
-    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-    // Get usage stats
-    const usageStats = getUsageStats();
     const [exportStatus, setExportStatus] = useState<string | null>(null);
     const [profileForm, setProfileForm] = useState(userProfile);
     const [savedStatus, setSavedStatus] = useState(false);
@@ -246,8 +243,8 @@ const Settings: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className={`px-3 py-1 rounded-full text-xs font-medium ${userProfile.role === 'broker'
-                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                                     }`}>
                                     {userProfile.role === 'broker' ? 'Broker' : 'Danışman'}
                                 </div>
@@ -308,189 +305,6 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
-            {/* Subscription & Plan Section */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
-                <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-                        <CreditCard className="w-5 h-5 text-purple-600" />
-                        Abonelik ve Plan
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                        Mevcut planınızı ve kullanım durumunuzu görüntüleyin.
-                    </p>
-                </div>
-
-                <div className="p-6 space-y-6">
-                    {/* Current Plan */}
-                    <div className={`p-6 rounded-xl border-2 ${subscription?.plan === 'pro'
-                            ? 'bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800'
-                            : 'bg-gradient-to-br from-gray-50 to-slate-50 dark:from-slate-700/50 dark:to-slate-700/30 border-gray-200 dark:border-slate-600'
-                        }`}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                {subscription?.plan === 'pro' ? (
-                                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                                        <Crown className="w-6 h-6 text-white" />
-                                    </div>
-                                ) : (
-                                    <div className="w-12 h-12 bg-gray-200 dark:bg-slate-600 rounded-xl flex items-center justify-center">
-                                        <Zap className="w-6 h-6 text-gray-500 dark:text-slate-400" />
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-sm text-gray-500 dark:text-slate-400">Mevcut Plan</p>
-                                    <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                                        {subscription?.plan === 'pro' ? 'Pro' : 'Ücretsiz'}
-                                    </p>
-                                </div>
-                            </div>
-                            {subscription?.plan === 'pro' && (
-                                <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full text-sm font-medium">
-                                    Aktif
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Usage Stats */}
-                        <div className="grid grid-cols-2 gap-4 mt-6">
-                            <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-100 dark:border-slate-700">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-slate-400">Portföy</span>
-                                    <span className="text-sm font-medium text-slate-800 dark:text-white">
-                                        {usageStats.propertyCount} / {usageStats.propertyLimit === Infinity ? '∞' : usageStats.propertyLimit}
-                                    </span>
-                                </div>
-                                <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full transition-all ${usageStats.propertyLimit !== Infinity && usageStats.propertyCount / usageStats.propertyLimit >= 0.9
-                                                ? 'bg-red-500'
-                                                : usageStats.propertyLimit !== Infinity && usageStats.propertyCount / usageStats.propertyLimit >= 0.7
-                                                    ? 'bg-amber-500'
-                                                    : 'bg-blue-500'
-                                            }`}
-                                        style={{
-                                            width: usageStats.propertyLimit === Infinity
-                                                ? '10%'
-                                                : `${Math.min((usageStats.propertyCount / usageStats.propertyLimit) * 100, 100)}%`
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-gray-100 dark:border-slate-700">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-slate-400">Müşteri</span>
-                                    <span className="text-sm font-medium text-slate-800 dark:text-white">
-                                        {usageStats.customerCount} / {usageStats.customerLimit === Infinity ? '∞' : usageStats.customerLimit}
-                                    </span>
-                                </div>
-                                <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full transition-all ${usageStats.customerLimit !== Infinity && usageStats.customerCount / usageStats.customerLimit >= 0.9
-                                                ? 'bg-red-500'
-                                                : usageStats.customerLimit !== Infinity && usageStats.customerCount / usageStats.customerLimit >= 0.7
-                                                    ? 'bg-amber-500'
-                                                    : 'bg-emerald-500'
-                                            }`}
-                                        style={{
-                                            width: usageStats.customerLimit === Infinity
-                                                ? '10%'
-                                                : `${Math.min((usageStats.customerCount / usageStats.customerLimit) * 100, 100)}%`
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Upgrade CTA (for Free users) */}
-                    {subscription?.plan !== 'pro' && (
-                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 rounded-xl text-white">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h4 className="text-lg font-bold mb-2">Pro'ya Yükselt</h4>
-                                    <p className="text-purple-100 text-sm mb-4">
-                                        Sınırsız portföy ve müşteri, özel domain desteği, öncelikli destek ve daha fazlası.
-                                    </p>
-                                    <ul className="text-sm text-purple-100 space-y-1 mb-4">
-                                        <li className="flex items-center gap-2">
-                                            <Check className="w-4 h-4" /> Sınırsız Portföy
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <Check className="w-4 h-4" /> Sınırsız Müşteri
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <Check className="w-4 h-4" /> Öncelikli Destek
-                                        </li>
-                                    </ul>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-3xl font-bold">199₺</p>
-                                    <p className="text-purple-200 text-sm">/ay</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowUpgradeModal(true)}
-                                className="w-full mt-4 bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-purple-50 transition"
-                            >
-                                Pro'ya Yükselt
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Pro user info */}
-                    {subscription?.plan === 'pro' && (
-                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-900/30">
-                            <p className="text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
-                                <CheckCircle className="w-4 h-4" />
-                                Pro planınız aktif. Tüm özelliklere sınırsız erişiminiz var.
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Upgrade Modal */}
-            {showUpgradeModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
-                        <div className="text-center mb-6">
-                            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <Crown className="w-8 h-8 text-white" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">Pro'ya Yükselt</h3>
-                            <p className="text-gray-500 dark:text-slate-400 mt-2">
-                                Aylık 199₺ ile sınırsız kullanım
-                            </p>
-                        </div>
-
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6">
-                            <p className="text-blue-800 dark:text-blue-200 text-sm">
-                                <strong>Ödeme Yöntemi:</strong> Şu an için ödeme sistemi entegre değil.
-                                Pro plana geçmek için bizimle iletişime geçin:
-                            </p>
-                            <p className="text-blue-600 dark:text-blue-300 font-medium mt-2">
-                                destek@emlakcrm.com
-                            </p>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowUpgradeModal(false)}
-                                className="flex-1 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition"
-                            >
-                                Kapat
-                            </button>
-                            <a
-                                href="mailto:destek@emlakcrm.com?subject=Pro%20Plan%20Talebi"
-                                className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition text-center"
-                            >
-                                E-posta Gönder
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Theme Settings Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
@@ -540,8 +354,8 @@ const Settings: React.FC = () => {
                                         toast.success(`${theme.name} teması uygulandı`);
                                     }}
                                     className={`relative p-4 rounded-xl border-2 transition-all text-left hover:shadow-md ${currentTheme.id === theme.id
-                                            ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
-                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                                        ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                                         }`}
                                 >
                                     {currentTheme.id === theme.id && (
