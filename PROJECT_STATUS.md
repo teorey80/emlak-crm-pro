@@ -1,7 +1,7 @@
 # Emlak CRM Pro - Proje Durumu
 
-**Son Güncelleme:** 2 Şubat 2026, 17:21  
-**Genel Durum:** ✅ Aktif Geliştirme - SaaS Dönüşümü
+**Son Güncelleme:** 2 Şubat 2026, 18:05  
+**Genel Durum:** ✅ Aktif Geliştirme - SaaS Dönüşümü Devam Ediyor
 
 ---
 
@@ -18,11 +18,13 @@
 - ✅ RLS politikaları (son düzeltmelerle çalışıyor)
 - ✅ Kapora kayıt ve düzenleme
 
-### Son Düzeltmeler (2 Şubat 2026)
-1. **Kapora aktivite oluşturma** - Kapora kaydedildiğinde aktivite listesi, takvim ve müşteri geçmişinde görünüyor
-2. **Kapora iptal/düzenleme** - Mevcut kaporayı iptal edebilme veya düzenleyebilme
-3. **Rakam formatı** - Türkçe binlik ayracı (50.000 gibi)
-4. **Ekibim tıklanabilir** - Portföy sayılarına tıklayınca ilgili ilanlar filtreleniyor
+### SaaS Dönüşümü İlerlemesi (2 Şubat 2026)
+| Faz | Durum | Detay |
+|-----|-------|-------|
+| Faz 1: Veritabanı | ✅ Tamamlandı | 4 yeni tablo + 3 sütun |
+| Faz 2: Backend | ✅ Tamamlandı | 3 servis dosyası |
+| Faz 3: UI | 🔄 Devam Ediyor | JoinOffice sayfası hazır |
+| Faz 4: Test | ⏳ Bekliyor | - |
 
 ---
 
