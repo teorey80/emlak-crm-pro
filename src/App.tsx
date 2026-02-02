@@ -28,6 +28,7 @@ import Team from './pages/Team';
 import PublicSite from './pages/PublicSite';
 import LandingPage from './pages/LandingPage';
 import AdminPanel from './pages/AdminPanel';
+import ResetPassword from './pages/ResetPassword';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -160,51 +161,52 @@ const CRMApp: React.FC = () => {
         }}
       />
       <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/home" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/web-preview" element={<WebPreview />} />
-        <Route path="/admin/*" element={<AdminPanel />} />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/home" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/web-preview" element={<WebPreview />} />
+          <Route path="/admin/*" element={<AdminPanel />} />
 
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="calendar" element={<CalendarPage />} />
+          {/* Protected Routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="calendar" element={<CalendarPage />} />
 
-          <Route path="activities" element={<ActivityList />} />
-          <Route path="activities/new" element={<ActivityForm />} />
-          <Route path="activities/edit/:id" element={<ActivityForm />} />
+            <Route path="activities" element={<ActivityList />} />
+            <Route path="activities/new" element={<ActivityForm />} />
+            <Route path="activities/edit/:id" element={<ActivityForm />} />
 
-          <Route path="requests" element={<RequestList />} />
-          <Route path="requests/new" element={<RequestForm />} />
-          <Route path="requests/edit/:id" element={<RequestForm />} />
-          <Route path="requests/:id" element={<RequestDetail />} />
+            <Route path="requests" element={<RequestList />} />
+            <Route path="requests/new" element={<RequestForm />} />
+            <Route path="requests/edit/:id" element={<RequestForm />} />
+            <Route path="requests/:id" element={<RequestDetail />} />
 
-          <Route path="properties" element={<PropertyList />} />
-          <Route path="properties/new" element={<PropertyForm />} />
-          <Route path="properties/:id" element={<PropertyDetail />} />
-          <Route path="properties/edit/:id" element={<PropertyForm />} />
+            <Route path="properties" element={<PropertyList />} />
+            <Route path="properties/new" element={<PropertyForm />} />
+            <Route path="properties/:id" element={<PropertyDetail />} />
+            <Route path="properties/edit/:id" element={<PropertyForm />} />
 
-          <Route path="customers" element={<CustomerList />} />
-          <Route path="customers/new" element={<CustomerForm />} />
-          <Route path="customers/:id" element={<CustomerDetail />} />
-          <Route path="customers/edit/:id" element={<CustomerForm />} />
+            <Route path="customers" element={<CustomerList />} />
+            <Route path="customers/new" element={<CustomerForm />} />
+            <Route path="customers/:id" element={<CustomerDetail />} />
+            <Route path="customers/edit/:id" element={<CustomerForm />} />
 
-          <Route path="sites" element={<SiteManagement />} />
-          <Route path="web-builder" element={<WebBuilder />} />
+            <Route path="sites" element={<SiteManagement />} />
+            <Route path="web-builder" element={<WebBuilder />} />
 
-          <Route path="reports" element={<Reports />} />
-          <Route path="team" element={<Team />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
-      </Routes>
-    </Router>
+            <Route path="reports" element={<Reports />} />
+            <Route path="team" element={<Team />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </Router>
     </>
   );
 };
