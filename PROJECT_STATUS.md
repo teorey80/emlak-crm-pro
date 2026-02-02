@@ -1,79 +1,129 @@
 # Emlak CRM Pro - Proje Durumu
 
-**Tarih:** 2 Şubat 2026  
-**Durum:** 🔴 Kritik RLS Sorunları Mevcut
+**Son Güncelleme:** 2 Şubat 2026, 17:21  
+**Genel Durum:** ✅ Aktif Geliştirme - SaaS Dönüşümü
 
 ---
 
-## 🚨 ACİL SORUNLAR
+## 🎯 MEVCUT DURUM ÖZETİ
 
-### 1. RLS Politikaları Bozuk
-Son uygulanan `30_complete_rls_reset.sql` migration'ı tüm verileri görünmez yaptı.
+### Çalışan Özellikler
+- ✅ Temel CRM işlevleri (Portföy, Müşteri, Aktivite)
+- ✅ Ofis/Ekip yapısı (Broker/Danışman rolleri)
+- ✅ Satış ve Komisyon takibi
+- ✅ Talep yönetimi ve akıllı eşleştirme
+- ✅ Web sitesi oluşturma (Kişisel + Ofis)
+- ✅ Google OAuth + Email/Şifre girişi
+- ✅ Şifre sıfırlama özelliği
+- ✅ RLS politikaları (son düzeltmelerle çalışıyor)
+- ✅ Kapora kayıt ve düzenleme
 
-**Belirtiler:**
-- Hiçbir veri görünmüyor (emlaklar, müşteriler, vs.)
-- Subscription/plan bilgisi görünmüyor
-- Akıllı eşleştirme yanlış veri gösteriyor
-
-**Çözüm İçin Bakılması Gerekenler:**
-- `supabase/migrations/30_complete_rls_reset.sql` - Bu dosya ÇALIŞTIRILDI
-- Supabase Dashboard → Authentication → Users → Kullanıcıların `user_id` değerleri
-- Supabase Dashboard → Table Editor → `profiles` tablosu → `office_id` değerleri
-
-**Potansiyel Sorun:** 
-Policy'lerdeki `auth.uid()` ile tablolardaki `user_id` eşleşmiyor olabilir.
-
----
-
-## ✅ TAMAMLANAN ÖZELLİKLER
-
-### SaaS Dönüşümü
-- [x] Landing Page (`/home`)
-- [x] Login/Register sayfaları
-- [x] Google OAuth entegrasyonu
-- [x] "Şifremi Unuttum" özelliği
-- [x] Şifre sıfırlama sayfası (`/reset-password`)
-- [x] Admin Panel (`/admin`) - Kullanıcı yönetimi UI'ı hazır
-
-### Veritabanı
-- [x] `subscriptions` tablosu oluşturuldu
-- [x] `plan_limits` tablosu oluşturuldu  
-- [x] `admin_users` tablosu oluşturuldu
-- [x] Trigger: Yeni kullanıcılara otomatik free plan
-
-### Kod Değişiklikleri
-- [x] `src/services/subscriptionService.ts` - Plan yönetimi
-- [x] `src/pages/LandingPage.tsx` - Pazarlama sayfası
-- [x] `src/pages/AdminPanel.tsx` - Admin yönetimi
-- [x] `src/pages/ResetPassword.tsx` - Şifre sıfırlama
-- [x] `src/pages/Settings.tsx` - Plan gösterimi eklendi
-- [x] `src/pages/Login.tsx` - Google login + şifremi unuttum
+### Son Düzeltmeler (2 Şubat 2026)
+1. **Kapora aktivite oluşturma** - Kapora kaydedildiğinde aktivite listesi, takvim ve müşteri geçmişinde görünüyor
+2. **Kapora iptal/düzenleme** - Mevcut kaporayı iptal edebilme veya düzenleyebilme
+3. **Rakam formatı** - Türkçe binlik ayracı (50.000 gibi)
+4. **Ekibim tıklanabilir** - Portföy sayılarına tıklayınca ilgili ilanlar filtreleniyor
 
 ---
 
-## 🔧 YAPILMASI GEREKENLER
+## 📋 SaaS DÖNÜŞÜM PLANI
 
-### 1. RLS Politikalarını Düzelt (ÖNCELİK 1)
-```sql
--- Önce mevcut durumu kontrol et
-SELECT id, email, office_id FROM profiles LIMIT 10;
-SELECT * FROM properties LIMIT 5;
-SELECT * FROM subscriptions LIMIT 5;
+> Claude tarafından oluşturulan detaylı plan: `SAAS_IMPLEMENTATION_PLAN.md`
+
+### Vizyon
+Emlak sektöründe bireysel danışmandan büyük ofislere kadar herkesin kullanabileceği, **veri taşınabilirliği** olan, güvenli ve ölçeklenebilir bir SaaS platformu.
+
+### Temel İlkeler
+| İlke | Açıklama |
+|------|----------|
+| **Veri Sahipliği** | Kullanıcı verisinin gerçek sahibidir. Ofis değişse bile veri kullanıcıyla gider. |
+| **Müşteri Gizliliği** | Müşteri bilgileri sadece sahibi tarafından görülür. |
+| **Portföy Şeffaflığı** | Ofis içinde portföyler görünür, ama müşteri bilgisi gizli. |
+| **Kolay Geçiş** | Ofise katılma/ayrılma tek tıkla, veri kaybı yok. |
+
+### Kritik Mimari Değişiklik
+```
+ESKİ MODEL (Sorunlu):
+  properties.office_id = 'ofis-uuid'  -- SABİT değer
+  → Kullanıcı ayrılınca veri ofiste kalıyor
+
+YENİ MODEL (Taşınabilir):
+  properties.user_id = 'kullanici-uuid'  -- ASLA DEĞİŞMEZ
+  → Görünürlük = Kullanıcının GÜNCEL office_id'si (dinamik)
+  → Kullanıcı nereye giderse verileri onunla gider
 ```
 
-Policy'lerin çalışması için:
-- `properties.user_id` = `auth.uid()` eşleşmeli
-- `profiles.id` = `auth.uid()` eşleşmeli  
-- `office_id` değerleri tutarlı olmalı
+---
 
-### 2. Veritabanı İlişkilerini Kontrol Et
-- `profiles.id` → `auth.users.id` (UUID)
-- `properties.user_id` → `profiles.id`
-- `properties.office_id` → `offices.id`
-- `customers.user_id` → `profiles.id`
-- `subscriptions.user_id` → `profiles.id`
+## 📊 UYGULAMA FAZLARI
 
-### 3. Test Kullanıcıları
+### Faz 1: Veritabanı Hazırlığı (1-2 gün)
+- [ ] `office_invitations` tablosu - Davet linkleri
+- [ ] `office_membership_history` tablosu - Geçiş logları
+- [ ] `notifications` tablosu - Bildirimler
+- [ ] `matches` tablosu - Eşleşme kayıtları
+- [ ] RLS politikaları güncelleme (dinamik ofis görünürlüğü)
+
+### Faz 2: Backend Servisleri (2-3 gün)
+- [ ] `officeService.ts` - Davet linki oluşturma, ofise katılma/ayrılma
+- [ ] `notificationService.ts` - Bildirim gönderme, realtime
+- [ ] `matchingService.ts` - Cross-consultant eşleştirme
+- [ ] `DataContext.tsx` - Bildirim ve ofis state
+
+### Faz 3: UI Geliştirme (3-4 gün)
+- [ ] `/join/:token` - Davet linki sayfası
+- [ ] `/team/invite` - Broker davet yönetimi
+- [ ] `NotificationBell` - Realtime bildirimler
+- [ ] `NotificationCenter` - Bildirim merkezi
+- [ ] `MatchCenter` - Eşleşme yönetimi
+- [ ] Settings güncelleme - Ofis üyeliği bölümü
+
+### Faz 4: Test (2-3 gün)
+- [ ] Bireysel kayıt ve kullanım
+- [ ] Ofise katılım senaryosu
+- [ ] Cross-consultant eşleşme
+- [ ] Ofisten ayrılma
+- [ ] Ofis değişikliği
+
+---
+
+## 📁 ÖNEMLİ DOSYALAR
+
+### Dokümantasyon
+| Dosya | Açıklama |
+|-------|----------|
+| `PROJECT_STATUS.md` | Bu dosya - güncel durum özeti |
+| `SAAS_IMPLEMENTATION_PLAN.md` | Detaylı SaaS dönüşüm planı (823 satır) |
+
+### Migration Dosyaları
+| Dosya | Durum | Açıklama |
+|-------|-------|----------|
+| `28_subscription_system.sql` | ✅ Uygulandı | SaaS tabloları |
+| `29_fix_subscription_rls.sql` | ✅ Uygulandı | Subscription RLS düzeltmesi |
+| `30_complete_rls_fix.sql` | ✅ Uygulandı | Kapsamlı RLS düzeltmesi |
+| `31_secure_rls_policies.sql` | ✅ Uygulandı | Güvenli RLS politikaları |
+
+### Önemli Frontend Dosyaları
+| Dosya | Açıklama |
+|-------|----------|
+| `src/context/DataContext.tsx` | Veri yönetimi ve state |
+| `src/pages/PropertyDetail.tsx` | Portföy detay + kapora modal |
+| `src/pages/Team.tsx` | Ekip yönetimi |
+| `src/pages/Settings.tsx` | Ayarlar + plan bilgisi |
+| `src/services/subscriptionService.ts` | Plan servisleri |
+
+---
+
+## 🔧 BİLİNEN SORUNLAR
+
+1. **Ekibim linkler** - Properties sayfası henüz URL parametresiyle filtreleme desteklemiyor (tıklanabilir linkler eklendi ama filtreleme eksik)
+
+2. **Aktivite tipi** - "Kapora Alındı" aktivite tipi standart tip listesinde yok, dropdown'da görünmeyebilir
+
+---
+
+## 🧪 TEST KULLANICILARI
+
 | E-posta | Rol | Plan |
 |---------|-----|------|
 | teorey@gmail.com | Admin/Broker | Pro |
@@ -81,54 +131,45 @@ Policy'lerin çalışması için:
 
 ---
 
-## 📁 ÖNEMLİ DOSYALAR
+## 🚀 DEPLOYMENT
 
-### Migration Dosyaları (Supabase)
-- `supabase/migrations/28_subscription_system.sql` - SaaS tabloları
-- `supabase/migrations/29_fix_rls_policies.sql` - İlk RLS denemesi
-- `supabase/migrations/30_complete_rls_reset.sql` - ⚠️ BU SORUNLU
-
-### Frontend
-- `src/context/DataContext.tsx` - Veri yönetimi ve subscription fetch
-- `src/services/subscriptionService.ts` - Plan servisleri
-- `src/pages/Settings.tsx` - Plan gösterimi (Line 234-260)
+- **Platform:** Vercel
+- **Repo:** https://github.com/teorey80/emlak-crm-pro
+- **URL:** emlak-crm-pro.vercel.app
+- **Database:** Supabase
 
 ---
 
-## 🔍 DEBUG İÇİN
+## 📝 NOTLAR (Claude ↔ Antigravity Geçişi İçin)
 
-### Supabase Console'da Kontrol
-1. Authentication → Users → Her kullanıcının UUID'si
-2. Table Editor → `profiles` → `id` ve `office_id` kontrol
-3. Table Editor → `properties` → `user_id` ve `office_id` kontrol
-4. SQL Editor → RLS test:
-```sql
--- Bu kullanıcının görmesi gereken verileri test et
-SELECT * FROM properties 
-WHERE user_id = 'KULLANICI_UUID' 
-   OR office_id = 'OFFICE_UUID';
+### Çalışma Dizinleri
+- **Antigravity repo:** `/Users/ademaslan/.gemini/antigravity/scratch/emlak-crm-pro`
+- **Claude repo:** `/Users/ademaslan/emlak-crm-pro`
+
+### Git Senkronizasyonu
+İki repo arasında geçiş yaparken:
+```bash
+# Önce pull yap
+git pull --rebase origin main
+
+# Sonra push yap
+git push origin main
 ```
 
-### Browser Console'da Kontrol
-```javascript
-// Supabase session bilgisi
-const { data } = await supabase.auth.getSession();
-console.log('User ID:', data.session?.user?.id);
-```
+### Son Commit
+- **Hash:** d6c3aca
+- **Mesaj:** "fix: Improve deposit modal close behavior and make team stats clickable"
+- **Tarih:** 2 Şubat 2026
 
 ---
 
-## 📌 NOTLAR
+## 🎯 SIRADAKI ADIMLAR
 
-1. **RLS Disable etmek GEÇİCİ çözüm olabilir** (güvenlik riski):
-```sql
-ALTER TABLE properties DISABLE ROW LEVEL SECURITY;
-ALTER TABLE customers DISABLE ROW LEVEL SECURITY;
--- Test et, çalışıyorsa tekrar ENABLE et ve policy'leri düzelt
-```
+1. **Veritabanı tabloları oluştur** - `office_invitations`, `notifications`, `matches`
+2. **RLS politikalarını dinamik yap** - Görünürlük profiles.office_id'den hesaplansın
+3. **Davet linki sistemi** - Broker'ın link oluşturup paylaşması
+4. **Bildirim sistemi** - Realtime bildirimler
 
-2. **Vercel URL:** https://emlak-crm-pro-plum.vercel.app/
+---
 
-3. **GitHub Repo:** https://github.com/teorey80/emlak-crm-pro
-
-4. **Son Commit:** `5d2d44c` - "fix: Complete RLS policy reset for all tables"
+*Bu doküman, proje geliştirme sürecinde farklı AI asistanları (Claude, Antigravity) arasında geçiş yaparken bağlam kaybını önlemek için tutulmaktadır.*
