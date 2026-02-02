@@ -2,7 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2, Users, Calendar, BarChart3, Globe, Shield,
-  Check, ArrowRight, Phone, Mail, MapPin, Star
+  Check, ArrowRight, Phone, Mail, MapPin, Star, Sparkles,
+  Bell, Link as LinkIcon, UserPlus, Target, PieChart
 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
@@ -10,67 +11,62 @@ const LandingPage: React.FC = () => {
     {
       icon: Building2,
       title: 'Portföy Yönetimi',
-      description: 'Tüm gayrimenkul portföyünüzü tek bir yerden yönetin. Detaylı ilan bilgileri, fotoğraflar ve konum.'
+      description: 'Tüm gayrimenkul portföyünüzü tek bir yerden yönetin. Detaylı ilan bilgileri, fotoğraflar, kapora takibi ve konum.'
     },
     {
       icon: Users,
       title: 'Müşteri Takibi',
-      description: 'Müşterilerinizi kategorize edin, notlar ekleyin ve iletişim geçmişini takip edin.'
+      description: 'Kiracı, alıcı ve mal sahiplerini kategorize edin, talepler oluşturun ve iletişim geçmişini takip edin.'
     },
     {
       icon: Calendar,
       title: 'Aktivite Yönetimi',
-      description: 'Görüşmeler, yer gösterimleri ve randevularınızı planlayın, takip edin.'
+      description: 'Görüşmeler, yer gösterimleri, kapora alımları ve randevularınızı planlayın, takip edin.'
     },
     {
       icon: BarChart3,
-      title: 'Raporlama',
-      description: 'Satış performansınızı, komisyon gelirlerinizi ve hedeflerinizi analiz edin.'
+      title: 'Satış ve Komisyon',
+      description: 'Satış süreçlerinizi yönetin, komisyonları hesaplayın ve finansal takip yapın.'
     },
     {
       icon: Globe,
       title: 'Kişisel Web Sitesi',
-      description: 'Kendi domain\'inizle profesyonel bir emlak web sitesi oluşturun.'
+      description: 'Kendi domain\'inizle profesyonel bir emlak web sitesi oluşturun. Ofis ve kişisel site desteği.'
     },
     {
       icon: Shield,
       title: 'Güvenli Altyapı',
-      description: 'Verileriniz güvenli sunucularda, şifreli bağlantılarla korunur.'
+      description: 'Verileriniz güvenli sunucularda, şifreli bağlantılarla korunur. RLS ile veri izolasyonu.'
+    },
+    {
+      icon: UserPlus,
+      title: 'Ekip Yönetimi',
+      description: 'Broker olarak ekibinizi yönetin, davet linki ile yeni danışman ekleyin, roller atayın.'
+    },
+    {
+      icon: Sparkles,
+      title: 'Akıllı Eşleştirme',
+      description: 'Müşteri talepleri ile portföyleriniz arasında otomatik eşleştirme. Çapraz danışman desteği.'
+    },
+    {
+      icon: Bell,
+      title: 'Bildirim Sistemi',
+      description: 'Gerçek zamanlı bildirimler, eşleşme uyarıları ve ekip aktiviteleri hakkında anlık bilgi.'
     }
   ];
 
-  const plans = [
+  const saasFeatures = [
     {
-      name: 'Ücretsiz',
-      price: '0',
-      period: '',
-      description: 'Başlangıç için ideal',
-      features: [
-        '20 Portföy',
-        '50 Müşteri',
-        'Sınırsız Aktivite',
-        'Kişisel Web Sitesi',
-        'Temel Raporlar'
-      ],
-      cta: 'Hemen Başla',
-      highlighted: false
+      title: 'Ofis Yapısı',
+      items: ['Broker ve Danışman rolleri', 'Davet linki ile ekibe katılım', 'Rol değiştirme yetkisi', 'Ofis içi veri paylaşımı']
     },
     {
-      name: 'Pro',
-      price: '199',
-      period: '/ay',
-      description: 'Profesyonel danışmanlar için',
-      features: [
-        'Sınırsız Portföy',
-        'Sınırsız Müşteri',
-        'Sınırsız Aktivite',
-        'Özel Domain Desteği',
-        'Gelişmiş Raporlar',
-        'Öncelikli Destek',
-        'Ofis Yönetimi'
-      ],
-      cta: 'Pro\'ya Yükselt',
-      highlighted: true
+      title: 'Gizlilik',
+      items: ['Müşteri bilgileri sadece sahibine', 'Portföyler ofis içinde görünür', 'Veri sahipliği kullanıcıda', 'Ofis değişse veri taşınır']
+    },
+    {
+      title: 'Eşleştirme',
+      items: ['Talep-portföy eşleştirme', 'Çapraz danışman eşleşme', 'Skor bazlı sıralama', 'Eşleşme merkezi sayfası']
     }
   ];
 
@@ -84,11 +80,12 @@ const LandingPage: React.FC = () => {
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">Emlak CRM</span>
+              <span className="text-xl font-bold text-gray-900">Emlak CRM Pro</span>
             </div>
 
             <nav className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-gray-600 hover:text-gray-900 transition">Özellikler</a>
+              <a href="#saas" className="text-gray-600 hover:text-gray-900 transition">SaaS</a>
               <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition">Fiyatlandırma</a>
               <a href="#contact" className="text-gray-600 hover:text-gray-900 transition">İletişim</a>
             </nav>
@@ -115,19 +112,19 @@ const LandingPage: React.FC = () => {
       <section className="pt-32 pb-20 bg-gradient-to-br from-slate-50 via-blue-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-              <Star className="w-4 h-4" />
-              Türkiye'nin Emlak CRM'i
+            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <Check className="w-4 h-4" />
+              SaaS Dönüşümü Tamamlandı - Canlıda!
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Emlak Danışmanları İçin
+              Emlak Ofisleri İçin
               <span className="text-blue-600"> Profesyonel CRM</span>
             </h1>
 
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Portföyünüzü yönetin, müşterilerinizi takip edin, satışlarınızı analiz edin.
-              Tek platformda tüm emlak operasyonlarınız.
+              Portföyünüzü yönetin, ekibinizi koordine edin, akıllı eşleştirmelerle satışları artırın.
+              Türkiye'nin modern emlak yönetim platformu.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -138,28 +135,36 @@ const LandingPage: React.FC = () => {
                 Ücretsiz Hesap Oluştur
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <a
-                href="#features"
+              <Link
+                to="/login"
                 className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg transition border border-gray-200"
               >
-                Özellikleri Keşfet
-              </a>
+                Demo Giriş Yap
+              </Link>
             </div>
 
             <p className="mt-6 text-sm text-gray-500">
-              Kredi kartı gerekmez • 20 portföy ücretsiz • Hemen başlayın
+              ✓ Sınırsız kullanım • ✓ Ekip yönetimi • ✓ Akıllı eşleştirme • ✓ Hemen başlayın
             </p>
           </div>
 
-          {/* Hero Image/Screenshot Placeholder */}
-          <div className="mt-16 relative">
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl p-4 max-w-5xl mx-auto">
-              <div className="bg-gray-100 rounded-lg aspect-video flex items-center justify-center">
-                <div className="text-center text-gray-400">
-                  <Building2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg">Dashboard Önizleme</p>
-                </div>
-              </div>
+          {/* Stats */}
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-blue-600">9+</div>
+              <div className="text-gray-600 mt-1">Temel Özellik</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-blue-600">100%</div>
+              <div className="text-gray-600 mt-1">Türkçe</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-blue-600">SaaS</div>
+              <div className="text-gray-600 mt-1">Multi-tenant</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-blue-600">24/7</div>
+              <div className="text-gray-600 mt-1">Erişilebilir</div>
             </div>
           </div>
         </div>
@@ -170,10 +175,10 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              İhtiyacınız Olan Her Şey
+              Tüm İhtiyaçlarınız Tek Platformda
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Emlak danışmanlığı süreçlerinizi baştan sona yönetmek için tasarlandı
+              Portföy yönetiminden ekip koordinasyonuna, müşteri takibinden akıllı eşleştirmeye
             </p>
           </div>
 
@@ -194,91 +199,129 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-gradient-to-br from-slate-50 to-white">
+      {/* SaaS Features Section */}
+      <section id="saas" className="py-20 bg-gradient-to-br from-violet-50 to-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 bg-violet-100 text-violet-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
+              <Sparkles className="w-4 h-4" />
+              SaaS Özellikleri
+            </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Basit ve Şeffaf Fiyatlandırma
+              Ofis Yönetimi ve Ekip İşbirliği
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              İhtiyacınıza göre plan seçin, istediğiniz zaman yükseltin
+              Modern SaaS altyapısı ile ofis ve ekip yönetimi
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {plans.map((plan, index) => (
-              <div
-                key={index}
-                className={`rounded-2xl p-8 ${
-                  plan.highlighted
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-xl shadow-blue-600/25 scale-105'
-                    : 'bg-white border border-gray-200'
-                }`}
-              >
-                {plan.highlighted && (
-                  <div className="inline-block bg-white/20 text-white text-sm font-medium px-3 py-1 rounded-full mb-4">
-                    En Popüler
-                  </div>
-                )}
+          <div className="grid md:grid-cols-3 gap-8">
+            {saasFeatures.map((section, index) => (
+              <div key={index} className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">{section.title}</h3>
+                <ul className="space-y-3">
+                  {section.items.map((item, i) => (
+                    <li key={i} className="flex items-center gap-3 text-gray-600">
+                      <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
 
-                <h3 className={`text-2xl font-bold mb-2 ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
-                  {plan.name}
-                </h3>
-                <p className={`mb-4 ${plan.highlighted ? 'text-blue-100' : 'text-gray-600'}`}>
-                  {plan.description}
-                </p>
+          <div className="mt-12 text-center">
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-xl font-semibold transition"
+            >
+              <UserPlus className="w-5 h-5" />
+              Hemen Ekibinizi Oluşturun
+            </Link>
+          </div>
+        </div>
+      </section>
 
-                <div className="mb-6">
-                  <span className={`text-5xl font-bold ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.price}₺
-                  </span>
-                  <span className={plan.highlighted ? 'text-blue-100' : 'text-gray-500'}>
-                    {plan.period}
-                  </span>
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Ücretsiz Kullanın
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Tüm özellikler şu anda ücretsiz! Hemen başlayın.
+            </p>
+          </div>
+
+          <div className="max-w-lg mx-auto">
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl p-8 shadow-xl shadow-blue-600/25">
+              <div className="text-center">
+                <div className="inline-block bg-white/20 text-white text-sm font-medium px-3 py-1 rounded-full mb-4">
+                  Tam Erişim
+                </div>
+                <h3 className="text-3xl font-bold mb-2">Tüm Özellikler</h3>
+                <p className="text-blue-100 mb-6">Sınırsız kullanım, sınırsız ekip</p>
+
+                <div className="mb-8">
+                  <span className="text-6xl font-bold">0₺</span>
+                  <span className="text-blue-200">/ay</span>
                 </div>
 
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((feature, fIndex) => (
-                    <li key={fIndex} className="flex items-center gap-3">
-                      <Check className={`w-5 h-5 ${plan.highlighted ? 'text-blue-200' : 'text-blue-600'}`} />
-                      <span className={plan.highlighted ? 'text-white' : 'text-gray-700'}>{feature}</span>
+                <ul className="text-left space-y-3 mb-8">
+                  {[
+                    'Sınırsız Portföy',
+                    'Sınırsız Müşteri',
+                    'Ekip Yönetimi',
+                    'Akıllı Eşleştirme',
+                    'Kişisel Web Sitesi',
+                    'Tüm Raporlar',
+                    'Bildirim Sistemi'
+                  ].map((feature, i) => (
+                    <li key={i} className="flex items-center gap-3">
+                      <Check className="w-5 h-5 text-blue-200" />
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
                 <Link
                   to="/register"
-                  className={`block w-full text-center py-3 px-6 rounded-xl font-semibold transition ${
-                    plan.highlighted
-                      ? 'bg-white text-blue-600 hover:bg-blue-50'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                  className="block w-full text-center py-4 px-6 bg-white text-blue-600 rounded-xl font-bold text-lg hover:bg-blue-50 transition"
                 >
-                  {plan.cta}
+                  Ücretsiz Başla
                 </Link>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-blue-700">
+      <section className="py-20 bg-gradient-to-br from-gray-900 to-gray-800">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Hemen Başlayın
           </h2>
-          <p className="text-xl text-blue-100 mb-8">
-            Ücretsiz hesap oluşturun, dakikalar içinde portföyünüzü yönetmeye başlayın.
+          <p className="text-xl text-gray-300 mb-8">
+            Ücretsiz hesap oluşturun, dakikalar içinde ekibinizi kurun ve portföyünüzü yönetmeye başlayın.
           </p>
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-2 bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-blue-50 transition"
-          >
-            Ücretsiz Hesap Oluştur
-            <ArrowRight className="w-5 h-5" />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/register"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition"
+            >
+              Ücretsiz Hesap Oluştur
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-semibold text-lg transition border border-white/20"
+            >
+              Giriş Yap
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -291,10 +334,11 @@ const LandingPage: React.FC = () => {
                 <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
                   <Building2 className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold text-white">Emlak CRM</span>
+                <span className="text-xl font-bold text-white">Emlak CRM Pro</span>
               </div>
               <p className="text-gray-400 mb-4 max-w-md">
                 Emlak danışmanları ve ofisleri için profesyonel müşteri ilişkileri yönetim sistemi.
+                SaaS altyapısı ile modern, güvenli ve ölçeklenebilir.
               </p>
             </div>
 
@@ -302,6 +346,7 @@ const LandingPage: React.FC = () => {
               <h4 className="text-white font-semibold mb-4">Hızlı Linkler</h4>
               <ul className="space-y-2">
                 <li><a href="#features" className="hover:text-white transition">Özellikler</a></li>
+                <li><a href="#saas" className="hover:text-white transition">SaaS</a></li>
                 <li><a href="#pricing" className="hover:text-white transition">Fiyatlandırma</a></li>
                 <li><Link to="/login" className="hover:text-white transition">Giriş Yap</Link></li>
                 <li><Link to="/register" className="hover:text-white transition">Kayıt Ol</Link></li>
@@ -313,7 +358,7 @@ const LandingPage: React.FC = () => {
               <ul className="space-y-2">
                 <li className="flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  <span>destek@emlakcrm.com</span>
+                  <a href="mailto:destek@emlakcrm.com" className="hover:text-white transition">destek@emlakcrm.com</a>
                 </li>
                 <li className="flex items-center gap-2">
                   <Phone className="w-4 h-4" />
@@ -328,7 +373,7 @@ const LandingPage: React.FC = () => {
           </div>
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm">
-            <p>&copy; {new Date().getFullYear()} Emlak CRM. Tüm hakları saklıdır.</p>
+            <p>&copy; {new Date().getFullYear()} Emlak CRM Pro. Tüm hakları saklıdır.</p>
           </div>
         </div>
       </footer>
