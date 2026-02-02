@@ -678,11 +678,16 @@ const PropertyDetail: React.FC = () => {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Miktarı (₺)</label>
                                 <input
-                                    type="number"
-                                    value={kaporaAmount}
-                                    onChange={(e) => setKaporaAmount(e.target.value)}
-                                    placeholder="Örn: 50000"
-                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={kaporaAmount ? parseInt(kaporaAmount.replace(/\./g, '') || '0').toLocaleString('tr-TR') : ''}
+                                    onChange={(e) => {
+                                        // Remove dots and non-numeric characters, keep only digits
+                                        const rawValue = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                                        setKaporaAmount(rawValue);
+                                    }}
+                                    placeholder="Örn: 50.000"
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-right font-semibold text-lg"
                                 />
                             </div>
                             <div>
