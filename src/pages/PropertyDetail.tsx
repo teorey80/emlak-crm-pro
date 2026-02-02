@@ -480,13 +480,58 @@ const PropertyDetail: React.FC = () => {
                                         <DollarSign className="w-4 h-4 inline-block mr-1" />
                                         Satış Yapıldı Olarak İşaretle
                                     </button>
-                                    <button
-                                        onClick={() => setShowStatusModal('kapora')}
-                                        className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 py-3 rounded-xl font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border border-orange-100 dark:border-orange-900/50"
-                                    >
-                                        <Banknote className="w-4 h-4 inline-block mr-1" />
-                                        Kapora Alındı
-                                    </button>
+                                    {/* Kapora buttons - show different options based on status */}
+                                    {(property.listingStatus === 'Kapora Alındı' || property.listing_status === 'Kapora Alındı') ? (
+                                        <>
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm('Kaporayı iptal etmek istediğinize emin misiniz? İlan tekrar Aktif duruma geçecek.')) {
+                                                        try {
+                                                            await updateProperty({
+                                                                ...property,
+                                                                listing_status: 'Aktif',
+                                                                deposit_amount: null,
+                                                                deposit_date: null,
+                                                                deposit_buyer_id: null,
+                                                                deposit_buyer_name: null,
+                                                                deposit_notes: null
+                                                            });
+                                                            toast.success('Kapora iptal edildi! İlan tekrar aktif.');
+                                                        } catch (error) {
+                                                            console.error('Kapora iptal hatası:', error);
+                                                            toast.error('İşlem başarısız oldu.');
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 py-3 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-100 dark:border-red-900/50"
+                                            >
+                                                <X className="w-4 h-4 inline-block mr-1" />
+                                                Kaporayı İptal Et
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    // Pre-fill form with existing deposit data
+                                                    setKaporaAmount(String(property.depositAmount || property.deposit_amount || ''));
+                                                    setKaporaDate(property.depositDate || property.deposit_date || new Date().toISOString().split('T')[0]);
+                                                    setKaporaBuyerId(property.depositBuyerId || property.deposit_buyer_id || '');
+                                                    setKaporaNotes(property.depositNotes || property.deposit_notes || '');
+                                                    setShowStatusModal('kapora');
+                                                }}
+                                                className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 py-3 rounded-xl font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border border-orange-100 dark:border-orange-900/50"
+                                            >
+                                                <Edit className="w-4 h-4 inline-block mr-1" />
+                                                Kaporayı Düzenle
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowStatusModal('kapora')}
+                                            className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 py-3 rounded-xl font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border border-orange-100 dark:border-orange-900/50"
+                                        >
+                                            <Banknote className="w-4 h-4 inline-block mr-1" />
+                                            Kapora Alındı
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => setShowStatusModal('pasif')}
                                         className="w-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-3 rounded-xl font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
