@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
+import { changeUserRole } from '../services/officeService';
 import { UserProfile } from '../types';
-import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar } from 'lucide-react';
+import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar, MoreVertical, UserCog, ChevronDown } from 'lucide-react';
 
 interface TeamMemberWithStats extends UserProfile {
     propertyCount: number;
@@ -29,6 +30,8 @@ const Team: React.FC = () => {
         revenueTarget: 5000000,
         commissionTarget: 150000
     });
+    const [roleMenuOpen, setRoleMenuOpen] = useState<string | null>(null);
+    const [changingRole, setChangingRole] = useState<string | null>(null);
 
     // Get current month range
     const currentMonthRange = useMemo(() => {
@@ -142,6 +145,33 @@ const Team: React.FC = () => {
             console.error('Clipboard failed', err);
             // Fallback for browsers blocking clipboard or non-secure contexts
             prompt("Otomatik kopyalama yapılamadı. Lütfen linki aşağıdan kopyalayın:", inviteLink);
+        }
+    };
+
+    const handleRoleChange = async (memberId: string, newRole: 'consultant' | 'broker') => {
+        if (userProfile.role !== 'broker') {
+            toast.error('Bu işlem için broker yetkisi gerekli');
+            return;
+        }
+
+        setChangingRole(memberId);
+        try {
+            const result = await changeUserRole(memberId, newRole);
+            if (result.success) {
+                toast.success(`Rol başarıyla ${newRole === 'broker' ? 'Broker' : 'Danışman'} olarak güncellendi`);
+                // Update local state
+                setTeamMembers(prev => prev.map(m =>
+                    m.id === memberId ? { ...m, role: newRole } : m
+                ));
+            } else {
+                toast.error(result.error || 'Rol değiştirilemedi');
+            }
+        } catch (error) {
+            console.error('Role change error:', error);
+            toast.error('Bir hata oluştu');
+        } finally {
+            setChangingRole(null);
+            setRoleMenuOpen(null);
         }
     };
 
@@ -467,6 +497,46 @@ const Team: React.FC = () => {
                                     <Phone className="w-4 h-4 mr-2" />
                                     Ara
                                 </button>
+                                {/* Role Management - Only for Broker */}
+                                {userProfile.role === 'broker' && member.id !== userProfile.id && (
+                                    <>
+                                        <div className="w-px bg-gray-200 dark:bg-slate-600 h-5 self-center"></div>
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setRoleMenuOpen(roleMenuOpen === member.id ? null : member.id)}
+                                                className="flex items-center text-slate-600 dark:text-slate-300 hover:text-amber-600 transition-colors"
+                                            >
+                                                <UserCog className="w-4 h-4 mr-1" />
+                                                Rol
+                                                <ChevronDown className="w-3 h-3 ml-1" />
+                                            </button>
+                                            {roleMenuOpen === member.id && (
+                                                <div className="absolute right-0 bottom-full mb-2 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 overflow-hidden z-50">
+                                                    <button
+                                                        onClick={() => handleRoleChange(member.id, 'consultant')}
+                                                        disabled={changingRole === member.id || member.role === 'consultant'}
+                                                        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 ${member.role === 'consultant' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'text-slate-700 dark:text-slate-300'
+                                                            }`}
+                                                    >
+                                                        <Briefcase className="w-4 h-4" />
+                                                        Danışman
+                                                        {member.role === 'consultant' && <span className="ml-auto text-xs">✓</span>}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRoleChange(member.id, 'broker')}
+                                                        disabled={changingRole === member.id || member.role === 'broker'}
+                                                        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 ${member.role === 'broker' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600' : 'text-slate-700 dark:text-slate-300'
+                                                            }`}
+                                                    >
+                                                        <Shield className="w-4 h-4" />
+                                                        Broker
+                                                        {member.role === 'broker' && <span className="ml-auto text-xs">✓</span>}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     ))}
