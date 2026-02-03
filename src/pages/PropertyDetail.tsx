@@ -4,6 +4,7 @@ import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Cloc
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
+import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
 
@@ -13,6 +14,7 @@ const PropertyDetail: React.FC = () => {
     const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, addActivity } = useData();
     const property = properties.find(p => p.id === id);
     const [showSaleForm, setShowSaleForm] = useState(false);
+    const [showRentalForm, setShowRentalForm] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
     const [inactiveReason, setInactiveReason] = useState('');
     const [customReason, setCustomReason] = useState('');
@@ -473,13 +475,24 @@ const PropertyDetail: React.FC = () => {
                                         <Edit className="w-4 h-4" />
                                         Emlağı Düzenle
                                     </Link>
-                                    <button
-                                        onClick={() => setShowSaleForm(true)}
-                                        className="w-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 py-3 rounded-xl font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors border border-emerald-100 dark:border-emerald-900/50"
-                                    >
-                                        <DollarSign className="w-4 h-4 inline-block mr-1" />
-                                        Satış Yapıldı Olarak İşaretle
-                                    </button>
+                                    {/* Show Sale or Rental button based on property status */}
+                                    {property.status === 'Kiralık' ? (
+                                        <button
+                                            onClick={() => setShowRentalForm(true)}
+                                            className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 py-3 rounded-xl font-medium hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-100 dark:border-blue-900/50"
+                                        >
+                                            <DollarSign className="w-4 h-4 inline-block mr-1" />
+                                            Kiraya Verildi Olarak İşaretle
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowSaleForm(true)}
+                                            className="w-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 py-3 rounded-xl font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors border border-emerald-100 dark:border-emerald-900/50"
+                                        >
+                                            <DollarSign className="w-4 h-4 inline-block mr-1" />
+                                            Satış Yapıldı Olarak İşaretle
+                                        </button>
+                                    )}
                                     {/* Kapora buttons - show different options based on status */}
                                     {(property.listingStatus === 'Kapora Alındı' || property.listing_status === 'Kapora Alındı') ? (
                                         <>
@@ -609,12 +622,13 @@ const PropertyDetail: React.FC = () => {
                     onSave={async (sale: Sale) => {
                         try {
                             // Save sale to database
-                            await addSale(sale);
+                            await addSale({ ...sale, transactionType: 'sale' });
 
                             // Update property status to Satıldı
                             await updateProperty({
                                 ...property,
                                 listingStatus: 'Satıldı',
+                                listing_status: 'Satıldı',
                                 soldDate: sale.saleDate
                             });
 
@@ -624,6 +638,52 @@ const PropertyDetail: React.FC = () => {
                         } catch (error) {
                             console.error('Satış kaydetme hatası:', error);
                             toast.error('Satış kaydedilemedi. Lütfen tekrar deneyin.');
+                        }
+                    }}
+                />
+            )}
+
+            {/* RentalForm Modal */}
+            {showRentalForm && property && (
+                <RentalForm
+                    property={property}
+                    onClose={() => setShowRentalForm(false)}
+                    onSave={async (sale: Sale) => {
+                        try {
+                            // Save rental to database (as sale with transactionType='rental')
+                            await addSale(sale);
+
+                            // Update property status to Kiralandı
+                            await updateProperty({
+                                ...property,
+                                listingStatus: 'Kiralandı',
+                                listing_status: 'Kiralandı',
+                                rentedDate: sale.saleDate,
+                                tenantId: sale.buyerId,
+                                tenantName: sale.buyerName,
+                                monthlyRent: sale.monthlyRent,
+                                leaseEndDate: sale.leaseEndDate
+                            });
+
+                            // Create activity record for the rental
+                            await addActivity({
+                                id: `rental-activity-${Date.now()}`,
+                                type: 'Diğer',
+                                customerId: sale.buyerId || '',
+                                customerName: sale.buyerName || 'Kiracı',
+                                propertyId: property.id,
+                                propertyTitle: property.title,
+                                date: sale.saleDate,
+                                description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
+                                status: 'Tamamlandı'
+                            });
+
+                            setShowRentalForm(false);
+                            toast.success('Kiralama başarıyla kaydedildi!');
+                            navigate('/properties');
+                        } catch (error) {
+                            console.error('Kiralama kaydetme hatası:', error);
+                            toast.error('Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
                         }
                     }}
                 />

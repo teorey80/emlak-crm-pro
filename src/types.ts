@@ -304,15 +304,29 @@ export interface Sale {
   createdAt?: string;
   created_at?: string; // DB field
 
-  // Sale info
-  salePrice: number;
+  // Transaction type: sale or rental
+  transactionType: 'sale' | 'rental';
+  transaction_type?: string; // DB field
+
+  // Sale info (used for both sale and rental)
+  salePrice: number; // For rental: total commission amount
   sale_price?: number; // DB field
-  saleDate: string;
+  saleDate: string; // For rental: lease start date
   sale_date?: string; // DB field
-  buyerId?: string;
+  buyerId?: string; // For rental: tenant ID
   buyer_id?: string; // DB field
-  buyerName?: string;
+  buyerName?: string; // For rental: tenant name
   buyer_name?: string; // DB field
+
+  // Rental specific fields
+  monthlyRent?: number; // Aylık kira bedeli
+  monthly_rent?: number; // DB field
+  depositAmount?: number; // Depozito tutarı
+  deposit_amount?: number; // DB field
+  leaseDuration?: number; // Kira süresi (ay)
+  lease_duration?: number; // DB field
+  leaseEndDate?: string; // Kira bitiş tarihi
+  lease_end_date?: string; // DB field
 
   // Commission
   commissionRate: number;  // Percentage (e.g., 3)

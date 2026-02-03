@@ -101,6 +101,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
         const sale: Sale = {
             id: Date.now().toString(),
             propertyId: property.id,
+            transactionType: 'sale',
             consultantId: formData.consultantId,
             consultantName: formData.consultantName,
             salePrice: formData.salePrice,
