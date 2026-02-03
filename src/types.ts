@@ -342,6 +342,14 @@ export interface Sale {
   commission_rate?: number; // DB field
   commissionAmount: number;
   commission_amount?: number; // DB field
+  buyerCommissionAmount?: number;
+  buyer_commission_amount?: number; // DB field
+  buyerCommissionRate?: number;
+  buyer_commission_rate?: number; // DB field
+  sellerCommissionAmount?: number;
+  seller_commission_amount?: number; // DB field
+  sellerCommissionRate?: number;
+  seller_commission_rate?: number; // DB field
 
   // Expenses
   expenses: SaleExpense[];

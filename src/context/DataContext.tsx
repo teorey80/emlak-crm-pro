@@ -462,21 +462,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       property_id: sale.propertyId,
       user_id: session?.user.id,
       office_id: userProfile.officeId,
+      transaction_type: sale.transactionType || 'sale',
       sale_price: sale.salePrice,
       sale_date: sale.saleDate,
-      buyer_id: sale.buyerId,
-      buyer_name: sale.buyerName,
-      commission_rate: sale.commissionRate,
-      commission_amount: sale.commissionAmount,
-      expenses: sale.expenses,
-      total_expenses: sale.totalExpenses,
-      office_share_rate: sale.officeShareRate,
-      consultant_share_rate: sale.consultantShareRate,
-      office_share_amount: sale.officeShareAmount,
-      consultant_share_amount: sale.consultantShareAmount,
-      net_profit: sale.netProfit,
-      notes: sale.notes
+      buyer_id: sale.buyerId || null,
+      buyer_name: sale.buyerName || null,
+
+      // Commission fields
+      commission_rate: sale.commissionRate || 0,
+      commission_amount: sale.commissionAmount, // MUST be provided
+      buyer_commission_amount: sale.buyerCommissionAmount || 0,
+      buyer_commission_rate: sale.buyerCommissionRate || 0,
+      seller_commission_amount: sale.sellerCommissionAmount || 0,
+      seller_commission_rate: sale.sellerCommissionRate || 0,
+
+      // Expenses & Profit
+      expenses: sale.expenses || [],
+      total_expenses: sale.totalExpenses || 0,
+      office_share_rate: sale.officeShareRate || 50,
+      consultant_share_rate: sale.consultantShareRate || 50,
+      office_share_amount: sale.officeShareAmount || 0,
+      consultant_share_amount: sale.consultantShareAmount || 0,
+      net_profit: sale.netProfit || 0,
+      notes: sale.notes || null
     };
+
+    console.log('Adding sale to DB:', JSON.stringify(saleForDB, null, 2));
 
     // Optimistic update
     setSales((prev) => [sale, ...prev]);
