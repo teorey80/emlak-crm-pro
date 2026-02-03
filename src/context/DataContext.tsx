@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale, Subscription, PlanLimits } from '../types';
+import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, OfficePerformanceSettings, Sale, Subscription, PlanLimits } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { getSubscription, getPlanLimits, checkPropertyLimit, checkCustomerLimit } from '../services/subscriptionService';
 import toast from 'react-hot-toast';
@@ -48,6 +48,7 @@ interface DataContextType {
   addSale: (sale: Sale) => Promise<void>;
   updateWebConfig: (config: Partial<WebSiteConfig>, target?: 'personal' | 'office') => Promise<void>;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
+  updateOfficeSettings: (settings: OfficePerformanceSettings) => Promise<void>;
   deleteProperty: (id: string) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   deleteActivity: (id: string) => Promise<void>;
@@ -182,7 +183,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             logoUrl: data.offices.logo_url,
             address: data.offices.address,
             phone: data.offices.phone,
-            siteConfig: data.offices.site_config
+            siteConfig: data.offices.site_config,
+            performance_settings: data.offices.performance_settings
           });
         }
 
@@ -518,6 +520,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateOfficeSettings = async (settings: OfficePerformanceSettings) => {
+    if (!office) return;
+
+    // Optimistic update
+    setOffice({ ...office, performance_settings: settings });
+
+    // DB update
+    const { error } = await supabase.from('offices').update({
+      performance_settings: settings
+    }).eq('id', office.id);
+
+    if (error) {
+      console.error('Error updating office settings:', error);
+      // Rollback
+      setOffice(office);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -633,7 +654,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,
-      addSale, updateWebConfig, updateUserProfile,
+      addSale, updateWebConfig, updateUserProfile, updateOfficeSettings,
       loadMoreProperties, loadMoreCustomers, loadMoreActivities
     }}>
       {children}

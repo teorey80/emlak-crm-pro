@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
-import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check } from 'lucide-react';
+import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 
 const Settings: React.FC = () => {
-    const { properties, customers, activities, requests, userProfile, updateUserProfile, session } = useData();
+    const { properties, customers, activities, requests, userProfile, updateUserProfile, session, office, updateOfficeSettings } = useData();
     const { currentTheme, setTheme, allThemes, isDark, toggleDark } = useTheme();
 
     const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -212,6 +212,78 @@ const Settings: React.FC = () => {
                     </form>
                 </div>
             </div>
+
+            {/* DEBUG INFO - REMOVE LATER */}
+            <div className="bg-gray-100 dark:bg-slate-800 p-2 mb-4 rounded border border-gray-300 dark:border-slate-700 font-mono text-xs">
+                DEBUG: Role = {userProfile.role} | Office ID = {userProfile.officeId} | Office Loaded = {office ? 'YES' : 'NO'} | Is Broker? = {userProfile.role === 'broker' ? 'YES' : 'NO'}
+            </div>
+
+            {/* Office Visual Settings - BROKER ONLY */}
+            {userProfile.role === 'broker' && (
+                !office ? (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700 mb-6">
+                        <h3 className="text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
+                            <AlertCircle className="w-5 h-5" />
+                            Ofis Verisi Yüklenemedi
+                        </h3>
+                        <p className="text-amber-700 dark:text-amber-300 text-sm mt-1">
+                            Broker yetkisine sahipsiniz ancak ofis verilerine erişilemedi. Ofis kaydınızın silinmiş veya RLS kuralları tarafından engellenmiş olması muhtemeldir.
+                            <br />
+                            <span className="font-mono text-xs mt-1 block">Ofis ID: {userProfile.officeId || 'Tanımsız'}</span>
+                        </p>
+                    </div>
+                ) : (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
+                        <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                                <Eye className="w-5 h-5 text-indigo-600" />
+                                Ekip Performans Görünürlüğü
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                                Danışmanların ekip sayfasında birbirlerinin hangi metriklerini görebileceğini belirleyin.
+                            </p>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="space-y-4">
+                                {[
+                                    { key: 'showListingCount', label: 'İlan Sayısı', desc: 'Danışmanlar birbirlerinin ilan sayılarını görebilir' },
+                                    { key: 'showSalesCount', label: 'Satış Sayısı', desc: 'Danışmanlar birbirlerinin satış sayılarını görebilir' },
+                                    { key: 'showRentalCount', label: 'Kiralama Sayısı', desc: 'Danışmanlar birbirlerinin kiralama sayılarını görebilir' },
+                                    { key: 'showRevenue', label: 'Ciro / Hasılat', desc: 'Danışmanlar birbirlerinin cirosunu görebilir (Hassas Veri)' },
+                                    { key: 'showCommission', label: 'Komisyon', desc: 'Danışmanlar birbirlerinin ne kadar kazandığını görebilir (Hassas Veri)' }
+                                ].map((item) => {
+                                    const settings = office.performance_settings || {
+                                        showListingCount: true,
+                                        showSalesCount: true,
+                                        showRentalCount: true,
+                                        showRevenue: false,
+                                        showCommission: false
+                                    };
+                                    const isEnabled = settings[item.key as keyof typeof settings];
+
+                                    return (
+                                        <div key={item.key} className="flex items-start justify-between p-4 border border-gray-100 dark:border-slate-700 rounded-lg bg-gray-50/50 dark:bg-slate-800/50">
+                                            <div>
+                                                <h4 className="font-medium text-slate-800 dark:text-white">{item.label}</h4>
+                                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{item.desc}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => updateOfficeSettings && updateOfficeSettings({ ...settings, [item.key]: !isEnabled })}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isEnabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-600'}`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                                />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )
+            )}
 
             {/* Office Membership Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">

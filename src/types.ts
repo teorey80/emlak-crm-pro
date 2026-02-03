@@ -1,4 +1,12 @@
 
+export interface OfficePerformanceSettings {
+  showListingCount: boolean;
+  showSalesCount: boolean;
+  showRentalCount: boolean;
+  showRevenue: boolean;
+  showCommission: boolean;
+}
+
 export interface Property {
   id: string;
   title: string;
@@ -279,6 +287,7 @@ export interface Office {
   address?: string;
   phone?: string;
   siteConfig?: WebSiteConfig;
+  performance_settings?: OfficePerformanceSettings;
 }
 
 // Sale/Income Tracking

@@ -7,6 +7,7 @@ import SaleForm from '../components/SaleForm';
 import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
+import { notifyDeposit } from '../services/notificationService';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -869,6 +870,21 @@ const PropertyDetail: React.FC = () => {
                                                 });
                                             } catch (activityError) {
                                                 console.warn('Aktivite oluşturulamadı:', activityError);
+                                            }
+
+                                            // 3. Notify Broker
+                                            try {
+                                                const broker = teamMembers.find(m => m.role === 'broker');
+                                                if (broker) {
+                                                    await notifyDeposit(
+                                                        broker.id,
+                                                        userProfile.name,
+                                                        property.title,
+                                                        parseFloat(kaporaAmount)
+                                                    );
+                                                }
+                                            } catch (notifyError) {
+                                                console.warn('Bildirim gönderilemedi:', notifyError);
                                             }
 
                                             // Close modal and reset form

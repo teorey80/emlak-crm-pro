@@ -20,7 +20,7 @@ interface TeamMemberWithStats extends UserProfile {
 }
 
 const Team: React.FC = () => {
-    const { userProfile, session, properties, activities, sales } = useData();
+    const { userProfile, session, properties, activities, sales, office } = useData();
     const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +38,30 @@ const Team: React.FC = () => {
     const [inviteRole, setInviteRole] = useState<'consultant' | 'broker'>('consultant');
     const [creatingInvite, setCreatingInvite] = useState(false);
     const [existingInvites, setExistingInvites] = useState<OfficeInvitation[]>([]);
+
+    // Visibility Settings (Default: Show All)
+    const showSettings = useMemo(() => {
+        // Broker always sees everything
+        if (userProfile.role === 'broker') {
+            return {
+                showListingCount: true,
+                showSalesCount: true,
+                showRentalCount: true,
+                showRevenue: true,
+                showCommission: true
+            };
+        }
+        // Consultants see what's allowed in office settings
+        return office?.performance_settings || {
+            showListingCount: true,
+            showSalesCount: true,
+            showRentalCount: true,
+            showRevenue: false, // Default hidden for consultants
+            showCommission: false // Default hidden for consultants
+        };
+    }, [userProfile.role, office]);
+
+    // Get current month range
 
     // Get current month range
     const currentMonthRange = useMemo(() => {
@@ -328,27 +352,30 @@ const Team: React.FC = () => {
                                         <div className="flex items-center gap-2 text-xs text-slate-500">
                                             <span>{member.title}</span>
                                             <span className="text-gray-300">•</span>
-                                            <span className="text-[#1193d4] font-medium">{member.saleCount} Satış, {member.rentalCount} Kiralama</span>
+                                            <span className="text-[#1193d4] font-medium">
+                                                {showSettings.showSalesCount ? `${member.saleCount} Satış` : ''}
+                                                {(showSettings.showSalesCount && showSettings.showRentalCount) ? ', ' : ''}
+                                                {showSettings.showRentalCount ? `${member.rentalCount} Kiralama` : ''}
+                                                {!showSettings.showSalesCount && !showSettings.showRentalCount ? 'Performans Gizli' : ''}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Stats */}
                                 <div className="flex items-center gap-6 text-center">
-                                    <div>
-                                        <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
-                                            <Home className="w-4 h-4" />
-                                            <span className="font-bold">{member.propertyCount}</span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 uppercase">İlan</p>
+                                    <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                                        <Home className="w-4 h-4" />
+                                        <span className="font-bold">{showSettings.showListingCount ? member.propertyCount : '-'}</span>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                            <DollarSign className="w-4 h-4" />
-                                            <span className="font-bold">{member.saleCount + member.rentalCount}</span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">İlan</p>
+                                    <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                        <DollarSign className="w-4 h-4" />
+                                        <span className="font-bold">
+                                            {((showSettings.showSalesCount ? member.saleCount : 0) + (showSettings.showRentalCount ? member.rentalCount : 0))}
+                                        </span>
                                     </div>
+                                    <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
                                     <div className="hidden sm:block">
                                         <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
                                             <Activity className="w-4 h-4" />
@@ -358,9 +385,9 @@ const Team: React.FC = () => {
                                     </div>
                                     <div className="min-w-[80px] text-right">
                                         <p className="font-bold text-slate-800 dark:text-white">
-                                            {member.totalSalesValue > 0
+                                            {showSettings.showRevenue && member.totalSalesValue > 0
                                                 ? `${(member.totalSalesValue / 1000000).toFixed(1)}M`
-                                                : '0'}
+                                                : showSettings.showRevenue ? '0' : '-'}
                                         </p>
                                         <p className="text-[10px] text-slate-400 uppercase">Ciro (TL)</p>
                                     </div>
@@ -391,9 +418,9 @@ const Team: React.FC = () => {
                     {/* Team Targets */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {rankedTeam.map((member) => {
-                            const salesTarget = member.monthlyTargets?.salesTarget || targetValues.salesTarget;
-                            const revenueTarget = member.monthlyTargets?.revenueTarget || targetValues.revenueTarget;
-                            const commissionTarget = member.monthlyTargets?.commissionTarget || targetValues.commissionTarget;
+                            const salesTarget = (member as any).monthlyTargets?.salesTarget || targetValues.salesTarget;
+                            const revenueTarget = (member as any).monthlyTargets?.revenueTarget || targetValues.revenueTarget;
+                            const commissionTarget = (member as any).monthlyTargets?.commissionTarget || targetValues.commissionTarget;
 
                             const salesProgress = Math.min((member.monthlySaleCount / salesTarget) * 100, 100);
                             const revenueProgress = Math.min((member.monthlyRevenue / revenueTarget) * 100, 100);
@@ -421,55 +448,61 @@ const Team: React.FC = () => {
                                     {/* Progress Bars */}
                                     <div className="p-4 space-y-4">
                                         {/* Sales Target */}
-                                        <div>
-                                            <div className="flex justify-between items-center mb-1.5">
-                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Satis Hedefi</span>
-                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                                    {member.monthlySaleCount} / {salesTarget}
-                                                </span>
+                                        {showSettings.showSalesCount && (
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Satış Hedefi</span>
+                                                    <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                        {member.monthlySaleCount} / {salesTarget}
+                                                    </span>
+                                                </div>
+                                                <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${salesProgress >= 100 ? 'bg-green-500' : salesProgress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                        style={{ width: `${salesProgress}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-1">%{salesProgress.toFixed(0)} tamamlandı</p>
                                             </div>
-                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-500 ${salesProgress >= 100 ? 'bg-green-500' : salesProgress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                                    style={{ width: `${salesProgress}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-1">%{salesProgress.toFixed(0)} tamamlandi</p>
-                                        </div>
+                                        )}
 
                                         {/* Revenue Target */}
-                                        <div>
-                                            <div className="flex justify-between items-center mb-1.5">
-                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Ciro Hedefi</span>
-                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                                    {(member.monthlyRevenue / 1000000).toFixed(1)}M / {(revenueTarget / 1000000).toFixed(1)}M TL
-                                                </span>
+                                        {showSettings.showRevenue && (
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Ciro Hedefi</span>
+                                                    <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                        {(member.monthlyRevenue / 1000000).toFixed(1)}M / {(revenueTarget / 1000000).toFixed(1)}M TL
+                                                    </span>
+                                                </div>
+                                                <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${revenueProgress >= 100 ? 'bg-green-500' : revenueProgress >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
+                                                        style={{ width: `${revenueProgress}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-1">%{revenueProgress.toFixed(0)} tamamlandı</p>
                                             </div>
-                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-500 ${revenueProgress >= 100 ? 'bg-green-500' : revenueProgress >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
-                                                    style={{ width: `${revenueProgress}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-1">%{revenueProgress.toFixed(0)} tamamlandi</p>
-                                        </div>
+                                        )}
 
                                         {/* Commission Target */}
-                                        <div>
-                                            <div className="flex justify-between items-center mb-1.5">
-                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Komisyon Hedefi</span>
-                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                                    {member.monthlyCommission.toLocaleString('tr-TR')} / {commissionTarget.toLocaleString('tr-TR')} TL
-                                                </span>
+                                        {showSettings.showCommission && (
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Komisyon Hedefi</span>
+                                                    <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                        {member.monthlyCommission.toLocaleString('tr-TR')} / {commissionTarget.toLocaleString('tr-TR')} TL
+                                                    </span>
+                                                </div>
+                                                <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${commissionProgress >= 100 ? 'bg-green-500' : commissionProgress >= 50 ? 'bg-purple-500' : 'bg-red-400'}`}
+                                                        style={{ width: `${commissionProgress}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-1">%{commissionProgress.toFixed(0)} tamamlandı</p>
                                             </div>
-                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-500 ${commissionProgress >= 100 ? 'bg-green-500' : commissionProgress >= 50 ? 'bg-purple-500' : 'bg-red-400'}`}
-                                                    style={{ width: `${commissionProgress}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-1">%{commissionProgress.toFixed(0)} tamamlandi</p>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -512,7 +545,7 @@ const Team: React.FC = () => {
                                     className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
                                     title={`${member.name} ilanlarını görüntüle`}
                                 >
-                                    <p className="font-bold text-indigo-600 dark:text-indigo-400">{member.propertyCount}</p>
+                                    <p className="font-bold text-indigo-600 dark:text-indigo-400">{showSettings.showListingCount ? member.propertyCount : '-'}</p>
                                     <p className="text-[10px] text-slate-400 uppercase">İlan</p>
                                 </Link>
                                 <Link
@@ -520,19 +553,28 @@ const Team: React.FC = () => {
                                     className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block relative group"
                                     title={`${member.name} satışlarını görüntüle`}
                                 >
-                                    <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount + member.rentalCount}</p>
+                                    <p className="font-bold text-green-600 dark:text-green-400">
+                                        {((showSettings.showSalesCount ? member.saleCount : 0) + (showSettings.showRentalCount ? member.rentalCount : 0))}
+                                    </p>
                                     <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
 
                                     {/* Hover Details */}
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-slate-800 text-white text-xs rounded-lg py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                        <div className="flex justify-between">
-                                            <span>Satış:</span>
-                                            <span>{member.saleCount}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Kiralama:</span>
-                                            <span>{member.rentalCount}</span>
-                                        </div>
+                                        {showSettings.showSalesCount && (
+                                            <div className="flex justify-between">
+                                                <span>Satış:</span>
+                                                <span>{member.saleCount}</span>
+                                            </div>
+                                        )}
+                                        {showSettings.showRentalCount && (
+                                            <div className="flex justify-between">
+                                                <span>Kiralama:</span>
+                                                <span>{member.rentalCount}</span>
+                                            </div>
+                                        )}
+                                        {!showSettings.showSalesCount && !showSettings.showRentalCount && (
+                                            <div className="text-center text-gray-400">Gizli</div>
+                                        )}
                                     </div>
                                 </Link>
                                 <Link
@@ -601,131 +643,132 @@ const Team: React.FC = () => {
             )}
 
             {/* Invite Modal */}
-            {showInviteModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl">
-                        <div className="p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <LinkIcon className="w-5 h-5 text-[#1193d4]" />
-                                Davet Linki Oluştur
-                            </h3>
-                            <button
-                                onClick={() => setShowInviteModal(false)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 space-y-4">
-                            {/* Role Selector */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                    Davet Rolü
-                                </label>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setInviteRole('consultant')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'consultant'
-                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600'
-                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        <Briefcase className="w-4 h-4" />
-                                        Danışman
-                                    </button>
-                                    <button
-                                        onClick={() => setInviteRole('broker')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'broker'
-                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-600'
-                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        <Shield className="w-4 h-4" />
-                                        Broker
-                                    </button>
-                                </div>
+            {
+                showInviteModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl">
+                            <div className="p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <LinkIcon className="w-5 h-5 text-[#1193d4]" />
+                                    Davet Linki Oluştur
+                                </h3>
+                                <button
+                                    onClick={() => setShowInviteModal(false)}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
 
-                            {/* Generated Link */}
-                            {inviteLink ? (
-                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-green-600 font-medium text-sm">Link Hazır!</span>
-                                        <span className="text-xs text-green-500">7 gün geçerli</span>
-                                    </div>
+                            <div className="p-6 space-y-4">
+                                {/* Role Selector */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                        Davet Rolü
+                                    </label>
                                     <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={inviteLink}
-                                            readOnly
-                                            className="flex-1 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm"
-                                        />
                                         <button
-                                            onClick={() => copyToClipboard(inviteLink)}
-                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-1"
+                                            onClick={() => setInviteRole('consultant')}
+                                            className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'consultant'
+                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600'
+                                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                                }`}
                                         >
-                                            <Copy className="w-4 h-4" />
-                                            Kopyala
+                                            <Briefcase className="w-4 h-4" />
+                                            Danışman
+                                        </button>
+                                        <button
+                                            onClick={() => setInviteRole('broker')}
+                                            className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'broker'
+                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-600'
+                                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            <Shield className="w-4 h-4" />
+                                            Broker
                                         </button>
                                     </div>
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={handleCreateInvite}
-                                    disabled={creatingInvite}
-                                    className="w-full bg-[#1193d4] hover:bg-[#0e7db5] text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {creatingInvite ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                            Oluşturuluyor...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Plus className="w-5 h-5" />
-                                            Link Oluştur
-                                        </>
-                                    )}
-                                </button>
-                            )}
 
-                            {/* Existing Invites */}
-                            {existingInvites.length > 0 && (
-                                <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
-                                    <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        Aktif Davetler
-                                    </h4>
-                                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                                        {existingInvites.map(inv => (
-                                            <div key={inv.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${inv.role === 'broker' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                        {inv.role === 'broker' ? 'Broker' : 'Danışman'}
-                                                    </span>
-                                                    <span className="text-slate-500">
-                                                        {inv.current_uses}/{inv.max_uses} kullanım
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    onClick={() => {
-                                                        const link = `${window.location.origin}${window.location.hash ? '/#' : ''}/join/${inv.token}`;
-                                                        copyToClipboard(link);
-                                                    }}
-                                                    className="text-[#1193d4] hover:text-[#0e7db5]"
-                                                >
-                                                    <Copy className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                {/* Generated Link */}
+                                {inviteLink ? (
+                                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-green-600 font-medium text-sm">Link Hazır!</span>
+                                            <span className="text-xs text-green-500">7 gün geçerli</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={inviteLink}
+                                                readOnly
+                                                className="flex-1 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                            <button
+                                                onClick={() => copyToClipboard(inviteLink)}
+                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-1"
+                                            >
+                                                <Copy className="w-4 h-4" />
+                                                Kopyala
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <button
+                                        onClick={handleCreateInvite}
+                                        disabled={creatingInvite}
+                                        className="w-full bg-[#1193d4] hover:bg-[#0e7db5] text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {creatingInvite ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Oluşturuluyor...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Plus className="w-5 h-5" />
+                                                Link Oluştur
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {/* Existing Invites */}
+                                {existingInvites.length > 0 && (
+                                    <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
+                                        <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
+                                            <Clock className="w-4 h-4" />
+                                            Aktif Davetler
+                                        </h4>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                            {existingInvites.map(inv => (
+                                                <div key={inv.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${inv.role === 'broker' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {inv.role === 'broker' ? 'Broker' : 'Danışman'}
+                                                        </span>
+                                                        <span className="text-slate-500">
+                                                            {inv.current_uses}/{inv.max_uses} kullanım
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            const link = `${window.location.origin}${window.location.hash ? '/#' : ''}/join/${inv.token}`;
+                                                            copyToClipboard(link);
+                                                        }}
+                                                        className="text-[#1193d4] hover:text-[#0e7db5]"
+                                                    >
+                                                        <Copy className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
         </div>
     );
 };
