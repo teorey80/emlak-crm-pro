@@ -213,11 +213,6 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
-            {/* DEBUG INFO - REMOVE LATER */}
-            <div className="bg-gray-100 dark:bg-slate-800 p-2 mb-4 rounded border border-gray-300 dark:border-slate-700 font-mono text-xs">
-                DEBUG: Role = {userProfile.role} | Office ID = {userProfile.officeId} | Office Loaded = {office ? 'YES' : 'NO'} | Is Broker? = {userProfile.role === 'broker' ? 'YES' : 'NO'}
-            </div>
-
             {/* Office Visual Settings - BROKER ONLY */}
             {userProfile.role === 'broker' && (
                 !office ? (

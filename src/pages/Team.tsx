@@ -90,7 +90,7 @@ const Team: React.FC = () => {
                 const members: UserProfile[] = data.map((p: any) => ({
                     id: p.id,
                     name: p.full_name,
-                    title: p.title || 'Danışman',
+                    title: p.title || (p.role === 'broker' ? 'Ofis Yöneticisi' : 'Danışman'),
                     avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`,
                     email: p.email,
                     phone: p.phone,
@@ -348,7 +348,14 @@ const Team: React.FC = () => {
                                 <div className="flex items-center gap-3 flex-1">
                                     <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
                                     <div>
-                                        <h3 className="font-semibold text-slate-800 dark:text-white">{member.name}</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-semibold text-slate-800 dark:text-white">{member.name}</h3>
+                                            {member.role === 'broker' && (
+                                                <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded font-bold border border-amber-200 dark:border-amber-800">
+                                                    Yönetici
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-2 text-xs text-slate-500">
                                             <span>{member.title}</span>
                                             <span className="text-gray-300">•</span>
