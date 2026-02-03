@@ -201,7 +201,7 @@ export interface Interaction {
 
 export interface Activity {
   id: string;
-  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Diğer';
+  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kapora Alındı' | 'Diğer';
   customerId: string;
   customerName: string;
   propertyId?: string;

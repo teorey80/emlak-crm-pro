@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -9,16 +9,33 @@ type SortDirection = 'asc' | 'desc';
 
 const PropertyList: React.FC = () => {
     const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore } = useData();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    // Filter States
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('Tümü'); // Satılık/Kiralık
-    const [listingStatusFilter, setListingStatusFilter] = useState('Aktif'); // NEW: Aktif/Pasif/Satıldı/Kiralandı
-    const [typeFilter, setTypeFilter] = useState('Tümü');
-    const [minPrice, setMinPrice] = useState('');
-    const [maxPrice, setMaxPrice] = useState('');
+    // Filter States - Initialize from URL params
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+    const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'Tümü'); // Satılık/Kiralık
+    const [listingStatusFilter, setListingStatusFilter] = useState(searchParams.get('listing_status') || 'Aktif'); // Aktif/Pasif/Satıldı/Kiralandı
+    const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || 'Tümü');
+    const [minPrice, setMinPrice] = useState(searchParams.get('min_price') || '');
+    const [maxPrice, setMaxPrice] = useState(searchParams.get('max_price') || '');
     const [sortOrder, setSortOrder] = useState('dateDesc');
-    const [viewScope, setViewScope] = useState<'all' | 'mine'>('all');
+    const [viewScope, setViewScope] = useState<'all' | 'mine'>((searchParams.get('scope') as 'all' | 'mine') || 'all');
+    const [cityFilter, setCityFilter] = useState(searchParams.get('city') || '');
+
+    // Update URL when filters change
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (searchTerm) params.set('search', searchTerm);
+        if (statusFilter !== 'Tümü') params.set('status', statusFilter);
+        if (listingStatusFilter !== 'Aktif') params.set('listing_status', listingStatusFilter);
+        if (typeFilter !== 'Tümü') params.set('type', typeFilter);
+        if (minPrice) params.set('min_price', minPrice);
+        if (maxPrice) params.set('max_price', maxPrice);
+        if (viewScope !== 'all') params.set('scope', viewScope);
+        if (cityFilter) params.set('city', cityFilter);
+
+        setSearchParams(params, { replace: true });
+    }, [searchTerm, statusFilter, listingStatusFilter, typeFilter, minPrice, maxPrice, viewScope, cityFilter]);
 
     // Column sorting state
     const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -83,7 +100,12 @@ const PropertyList: React.FC = () => {
                 const max = maxPrice ? parseFloat(maxPrice) : Infinity;
                 const matchesPrice = price >= min && price <= max;
 
-                return matchesSearch && matchesStatus && matchesType && matchesListingStatus && matchesPrice;
+                // City Filter
+                const matchesCity = !cityFilter ||
+                    property.city?.toLowerCase().includes(cityFilter.toLowerCase()) ||
+                    property.location?.toLowerCase().includes(cityFilter.toLowerCase());
+
+                return matchesSearch && matchesStatus && matchesType && matchesListingStatus && matchesPrice && matchesCity;
             })
             .sort((a, b) => {
                 // Column-based sorting takes priority
@@ -118,7 +140,7 @@ const PropertyList: React.FC = () => {
                         return (b.listingDate || '').localeCompare(a.listingDate || '');
                 }
             });
-    }, [properties, searchTerm, statusFilter, listingStatusFilter, typeFilter, minPrice, maxPrice, sortOrder, viewScope, session?.user.id, sortColumn, sortDirection, teamMembers]);
+    }, [properties, searchTerm, statusFilter, listingStatusFilter, typeFilter, minPrice, maxPrice, sortOrder, viewScope, session?.user.id, sortColumn, sortDirection, teamMembers, cityFilter]);
 
     const clearFilters = () => {
         setSearchTerm('');
@@ -127,6 +149,7 @@ const PropertyList: React.FC = () => {
         setTypeFilter('Tümü');
         setMinPrice('');
         setMaxPrice('');
+        setCityFilter('');
         setSortOrder('dateDesc');
         setSortColumn(null);
         setSortDirection('asc');
@@ -155,7 +178,7 @@ const PropertyList: React.FC = () => {
                         <Filter className="w-4 h-4" />
                         <span>Filtreleme Seçenekleri</span>
                     </div>
-                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Aktif' || typeFilter !== 'Tümü' || minPrice || maxPrice) && (
+                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Aktif' || typeFilter !== 'Tümü' || minPrice || maxPrice || cityFilter) && (
                         <button
                             onClick={clearFilters}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
@@ -189,7 +212,7 @@ const PropertyList: React.FC = () => {
                 </div>
 
                 {/* Row 2: Filters */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     {/* Listing Status */}
                     <div>
                         <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">İlan Durumu</label>
@@ -259,6 +282,18 @@ const PropertyList: React.FC = () => {
                             className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:border-[#1193d4]"
                             value={maxPrice}
                             onChange={(e) => setMaxPrice(e.target.value)}
+                        />
+                    </div>
+
+                    {/* City Filter */}
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Şehir</label>
+                        <input
+                            type="text"
+                            placeholder="İstanbul, Ankara..."
+                            className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:border-[#1193d4]"
+                            value={cityFilter}
+                            onChange={(e) => setCityFilter(e.target.value)}
                         />
                     </div>
 

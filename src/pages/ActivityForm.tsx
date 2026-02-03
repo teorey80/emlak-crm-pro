@@ -154,6 +154,7 @@ const ActivityForm: React.FC = () => {
                                 <option>Giden Arama</option>
                                 <option>Ofis Toplantısı</option>
                                 <option>Tapu İşlemi</option>
+                                <option>Kapora Alındı</option>
                                 <option>Diğer</option>
                             </select>
                         </div>
