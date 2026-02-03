@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon } from 'lucide-react';
 import { Sale, UserProfile } from '../types';
 
 // ==========================================
-// BROKER VIEW COMPONENT (EXISTING LOGIC)
+// BROKER VIEW COMPONENT
 // ==========================================
 interface BrokerReportViewProps {
   sales: Sale[];
@@ -51,16 +51,21 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
         s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id
       );
       const commission = memberSales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
-      const saleCount = memberSales.length;
       const revenue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+      const saleCount = memberSales.filter(s => s.transactionType !== 'rental').length;
+      const rentalCount = memberSales.filter(s => s.transactionType === 'rental').length;
 
       return {
         ...member,
         commission,
         saleCount,
+        rentalCount,
         revenue
       };
     }).sort((a, b) => b.commission - a.commission);
+
+    const saleTxCount = monthlySales.filter(s => s.transactionType !== 'rental').length;
+    const rentalTxCount = monthlySales.filter(s => s.transactionType === 'rental').length;
 
     return {
       monthlySales,
@@ -69,7 +74,9 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       totalConsultantShare,
       totalExpenses,
       totalRevenue,
-      saleCount: monthlySales.length,
+      saleCount: saleTxCount,
+      rentalCount: rentalTxCount,
+      totalTx: monthlySales.length,
       consultantBreakdown
     };
   }, [sales, teamMembers, monthRange]);
@@ -160,7 +167,7 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
                 <span className="text-sm opacity-90">Toplam Komisyon</span>
               </div>
               <p className="text-2xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} TL</p>
-              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} satış</p>
+              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} satış, {commissionStats.rentalCount} kiralama</p>
             </div>
 
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl text-white">
@@ -188,6 +195,29 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
             </div>
           </div>
 
+          {/* Transaction Summary Table */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">İşlem Özeti</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{commissionStats.saleCount}</div>
+                <div className="text-sm text-blue-600/70 dark:text-blue-400/70 font-medium">Satış</div>
+              </div>
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{commissionStats.rentalCount}</div>
+                <div className="text-sm text-indigo-600/70 dark:text-indigo-400/70 font-medium">Kiralama</div>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                <div className="text-2xl font-bold text-slate-800 dark:text-white">{commissionStats.totalTx}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">Toplam İşlem</div>
+              </div>
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{(commissionStats.totalRevenue / 1000000).toFixed(2)}M</div>
+                <div className="text-sm text-emerald-600/70 dark:text-emerald-400/70 font-medium">Toplam Hacim</div>
+              </div>
+            </div>
+          </div>
+
           {/* Consultant Breakdown */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-slate-800 dark:to-slate-800">
@@ -210,7 +240,7 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
                     <img src={consultant.avatar} alt={consultant.name} className="w-10 h-10 rounded-full object-cover" />
                     <div>
                       <p className="font-semibold text-slate-800 dark:text-white">{consultant.name}</p>
-                      <p className="text-xs text-slate-500">{consultant.saleCount} satış</p>
+                      <p className="text-xs text-slate-500">{consultant.saleCount} satış, {consultant.rentalCount} kiralama</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -387,13 +417,18 @@ const ConsultantReportView: React.FC<ConsultantReportViewProps> = ({ sales, user
     const myNetEarnings = monthlySales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
     const officeShare = monthlySales.reduce((sum, s) => sum + (s.officeShareAmount || s.office_share_amount || 0), 0);
 
+    const saleCount = monthlySales.filter(s => s.transactionType !== 'rental').length;
+    const rentalCount = monthlySales.filter(s => s.transactionType === 'rental').length;
+
     return {
       monthlySales,
       totalRevenue,
       grossCommission,
       myNetEarnings,
       officeShare,
-      count: monthlySales.length
+      count: monthlySales.length,
+      saleCount,
+      rentalCount
     };
   }, [mySales, monthRange]);
 
@@ -431,6 +466,24 @@ const ConsultantReportView: React.FC<ConsultantReportViewProps> = ({ sales, user
               <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-400" />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Transaction Summary Mini Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 flex justify-between items-center">
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Satış Sayısı</p>
+            <p className="text-xl font-bold text-slate-800 dark:text-white">{stats.saleCount}</p>
+          </div>
+          <TrendingUp className="w-5 h-5 text-blue-500" />
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 flex justify-between items-center">
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Kiralama Sayısı</p>
+            <p className="text-xl font-bold text-slate-800 dark:text-white">{stats.rentalCount}</p>
+          </div>
+          <HomeIcon className="w-5 h-5 text-indigo-500" />
         </div>
       </div>
 
@@ -580,9 +633,6 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean }> = ({ sales, isB
   )
 }
 
-// ==========================================
-// MAIN REPORSTS COMPONENT
-// ==========================================
 const Reports: React.FC = () => {
   const { properties, customers, activities, sales, teamMembers, userProfile } = useData();
 

@@ -11,6 +11,7 @@ interface TeamMemberWithStats extends UserProfile {
     propertyCount: number;
     activityCount: number;
     saleCount: number;
+    rentalCount: number;
     totalSalesValue: number;
     // Monthly stats
     monthlySaleCount: number;
@@ -67,7 +68,7 @@ const Team: React.FC = () => {
                     name: p.full_name,
                     title: p.title || 'Danışman',
                     avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`,
-                    email: p.email, // Assuming email is in profile or we fetch from auth? usually profile copies it.
+                    email: p.email,
                     phone: p.phone,
                     role: p.role,
                     officeId: p.office_id
@@ -88,11 +89,16 @@ const Team: React.FC = () => {
         return teamMembers.map(member => {
             const memberProperties = properties.filter(p => p.user_id === member.id);
             const memberActivities = activities.filter(a => {
-                // Try to match by activity's assigned user if available
-                return memberProperties.some(p => p.id === a.propertyId);
+                // Try to match by context logic: usually activity has user_id, if not maybe link via property
+                // But activity object from useData likely has user_id
+                return a.user_id === member.id || memberProperties.some(p => p.id === a.propertyId);
             });
+
             const memberSales = sales?.filter(s => s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id) || [];
             const totalSalesValue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+
+            const saleCount = memberSales.filter(s => s.transactionType !== 'rental').length;
+            const rentalCount = memberSales.filter(s => s.transactionType === 'rental').length;
 
             // Monthly calculations
             const monthlySales = memberSales.filter(s => {
@@ -107,7 +113,8 @@ const Team: React.FC = () => {
                 ...member,
                 propertyCount: memberProperties.length,
                 activityCount: memberActivities.length,
-                saleCount: memberSales.length,
+                saleCount,
+                rentalCount,
                 totalSalesValue,
                 monthlySaleCount,
                 monthlyCommission,
@@ -135,11 +142,8 @@ const Team: React.FC = () => {
             return;
         }
 
-        // Detect if using HashRouter or BrowserRouter based on current URL
         const isHashRouter = window.location.hash.length > 0;
         const baseUrl = window.location.origin;
-        // Construct link dynamically. If currently on /#/team, register is at /#/register
-        // If on /team, register is at /register
         const registerPath = isHashRouter ? '/#/register' : '/register';
         const inviteLink = `${baseUrl}${registerPath}?officeId=${userProfile.officeId}`;
 
@@ -148,7 +152,6 @@ const Team: React.FC = () => {
             toast.success("Davet linki kopyalandı!");
         } catch (err) {
             console.error('Clipboard failed', err);
-            // Fallback for browsers blocking clipboard or non-secure contexts
             prompt("Otomatik kopyalama yapılamadı. Lütfen linki aşağıdan kopyalayın:", inviteLink);
         }
     };
@@ -233,8 +236,6 @@ const Team: React.FC = () => {
         );
     }
 
-    // Only Broker can manage, but all can view? Let's assume view for now.
-
     return (
         <div className="space-y-6 pb-20">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -285,7 +286,7 @@ const Team: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4">
                 <div className="relative">
                     <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -324,7 +325,11 @@ const Team: React.FC = () => {
                                     <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
                                     <div>
                                         <h3 className="font-semibold text-slate-800 dark:text-white">{member.name}</h3>
-                                        <p className="text-xs text-slate-500">{member.title}</p>
+                                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                                            <span>{member.title}</span>
+                                            <span className="text-gray-300">•</span>
+                                            <span className="text-[#1193d4] font-medium">{member.saleCount} Satış, {member.rentalCount} Kiralama</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -340,9 +345,9 @@ const Team: React.FC = () => {
                                     <div>
                                         <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                                             <DollarSign className="w-4 h-4" />
-                                            <span className="font-bold">{member.saleCount}</span>
+                                            <span className="font-bold">{member.saleCount + member.rentalCount}</span>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 uppercase">Satış</p>
+                                        <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
                                     </div>
                                     <div className="hidden sm:block">
                                         <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
@@ -512,11 +517,23 @@ const Team: React.FC = () => {
                                 </Link>
                                 <Link
                                     to={`/sales?user=${member.id}`}
-                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block relative group"
                                     title={`${member.name} satışlarını görüntüle`}
                                 >
-                                    <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase">Satış</p>
+                                    <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount + member.rentalCount}</p>
+                                    <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
+
+                                    {/* Hover Details */}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-slate-800 text-white text-xs rounded-lg py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                        <div className="flex justify-between">
+                                            <span>Satış:</span>
+                                            <span>{member.saleCount}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Kiralama:</span>
+                                            <span>{member.rentalCount}</span>
+                                        </div>
+                                    </div>
                                 </Link>
                                 <Link
                                     to={`/activities?user=${member.id}`}

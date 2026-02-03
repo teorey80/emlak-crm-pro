@@ -43,14 +43,17 @@ const Dashboard: React.FC = () => {
       ? Math.round(((currentMonthCustomers - previousMonthCustomers) / previousMonthCustomers) * 100)
       : currentMonthCustomers > 0 ? 100 : 0;
 
-    // Sales this month
-    const monthlySales = sales?.filter(s => {
-      if (!s.saleDate) return false;
-      const saleDate = new Date(s.saleDate);
+    // Sales and Rentals this month
+    const monthlySalesData = sales?.filter(s => {
+      if (!s.saleDate && !s.sale_date) return false;
+      const saleDate = new Date(s.saleDate || s.sale_date || '');
       return saleDate >= thirtyDaysAgo;
     }) || [];
 
-    const totalMonthlySalesValue = monthlySales.reduce((sum, s) => sum + (s.salePrice || 0), 0);
+    const monthlySaleTx = monthlySalesData.filter(s => s.transactionType !== 'rental').length;
+    const monthlyRentalTx = monthlySalesData.filter(s => s.transactionType === 'rental').length;
+
+    const totalMonthlySalesValue = monthlySalesData.reduce((sum, s) => sum + (s.salePrice || s.sale_price || s.monthlyRent || 0), 0);
 
     // Properties for sale
     const forSaleProperties = properties.filter(p => p.listingStatus !== 'Satıldı' && p.listingStatus !== 'Kiralandı').length;
@@ -71,7 +74,9 @@ const Dashboard: React.FC = () => {
       customerTrend,
       totalPortfolioValue,
       forSaleProperties,
-      monthlySalesCount: monthlySales.length,
+      monthlyTotalTx: monthlySalesData.length,
+      monthlySaleTx,
+      monthlyRentalTx,
       totalMonthlySalesValue,
       completedActivities
     };
@@ -210,22 +215,27 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Aylık Satış */}
+        {/* Aylık İşlemler */}
         <div
           onClick={() => navigate('/reports')}
           className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-800 hover:scale-[1.02]"
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık Satış</p>
-              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlySalesCount}</h3>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık İşlemler</p>
+              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlyTotalTx}</h3>
             </div>
             <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg text-green-600 dark:text-green-400">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
-          <div className="flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
-            <span>{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL` : 'Satış bekleniyor'}</span>
+          <div className="flex flex-col gap-1 text-xs font-medium">
+            <div className="flex gap-2 text-gray-500 dark:text-slate-400">
+              <span>🏠 {stats.monthlySaleTx} Satış</span>
+              <span>•</span>
+              <span>🔑 {stats.monthlyRentalTx} Kiralama</span>
+            </div>
+            <span className="text-green-600 dark:text-green-400 mt-1">{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL Hacim` : 'İşlem bekleniyor'}</span>
           </div>
         </div>
       </div>
