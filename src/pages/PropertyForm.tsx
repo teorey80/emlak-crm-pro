@@ -372,14 +372,21 @@ ${propertyInfo}`;
 
   // URL Import
   const handleImportFromUrl = async () => {
-    if (!importUrl.trim()) return;
+    if (!importUrl.trim()) {
+      toast.error('Lütfen bir URL girin');
+      return;
+    }
 
     setIsAnalyzing(true);
     try {
-      const prompt = `Aşağıdaki emlak ilan URL'sini analiz et ve bilgileri JSON formatında çıkar.
+      // Note: AI cannot directly fetch web pages, so we ask it to extract from URL pattern
+      // This works best with well-structured URLs (e.g., sahibinden.com, hepsiemlak.com)
+      const prompt = `Aşağıdaki emlak ilan URL'sini analiz et. URL yapısından ve pattern'den bilgi çıkarabilirsen JSON formatında döndür.
+Eğer URL'den bilgi çıkaramazsan, kullanıcıya "Bu URL'den otomatik bilgi çıkarılamıyor. Lütfen ilan bilgilerini manuel olarak kopyalayıp yapıştırın." mesajını döndür.
+
 URL: ${importUrl}
 
-Sadece JSON döndür:
+Başarılı olursan sadece JSON döndür:
 {
   "title": "İlan başlığı",
   "description": "Açıklama",
@@ -393,14 +400,33 @@ Sadece JSON döndür:
   "floorCount": 0,
   "city": "İl",
   "district": "İlçe"
-}`;
+}
+
+Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
       const result = await generateRealEstateAdvice(prompt);
       if (result) {
+        // Check if manual import is needed
+        if (result.includes('MANUAL_IMPORT_NEEDED') || result.includes('otomatik bilgi çıkarılamıyor')) {
+          toast.error('Bu URL\'den otomatik veri çekilemiyor. Lütfen ilan bilgilerini manuel olarak girin.', {
+            duration: 5000
+          });
+          setShowImportModal(false);
+          setImportUrl('');
+          setIsAnalyzing(false);
+          return;
+        }
+
         try {
           const jsonMatch = result.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const data = JSON.parse(jsonMatch[0]);
+
+            // Validate that we got useful data
+            if (!data.title && !data.price && !data.type) {
+              throw new Error('Yetersiz veri');
+            }
+
             setFormData(prev => ({
               ...prev,
               title: data.title || prev.title,
@@ -419,13 +445,21 @@ Sadece JSON döndür:
             toast.success('İlan bilgileri içe aktarıldı!');
             setShowImportModal(false);
             setImportUrl('');
+          } else {
+            throw new Error('JSON bulunamadı');
           }
-        } catch {
-          toast.error('JSON parse hatası');
+        } catch (parseError) {
+          console.error('Parse error:', parseError);
+          toast.error('URL\'den veri çıkarılamadı. Lütfen ilan bilgilerini manuel olarak girin.', {
+            duration: 5000
+          });
+          setShowImportModal(false);
+          setImportUrl('');
         }
       }
     } catch (err: any) {
-      toast.error('İçe aktarma başarısız');
+      console.error('Import error:', err);
+      toast.error('İçe aktarma başarısız. Lütfen ilan bilgilerini manuel olarak girin.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -577,11 +611,10 @@ Sadece JSON döndür:
               handleChange('subCategory', cat.subCategories[0]);
               handleChange('status', cat.subCategories[0]);
             }}
-            className={`p-6 rounded-xl border-2 transition-all text-left ${
-              formData.category === key
-                ? 'border-[#1193d4] bg-sky-50 dark:bg-sky-900/20'
-                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-            }`}
+            className={`p-6 rounded-xl border-2 transition-all text-left ${formData.category === key
+              ? 'border-[#1193d4] bg-sky-50 dark:bg-sky-900/20'
+              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+              }`}
           >
             <div className="flex items-center gap-3 mb-3">
               {key === 'KONUT' && <Home className={`w-8 h-8 ${formData.category === key ? 'text-[#1193d4]' : 'text-gray-400'}`} />}
@@ -1108,313 +1141,313 @@ Sadece JSON döndür:
     const googleMapsPickerUrl = `https://www.google.com/maps/search/?api=1&query=${formData.coordinates?.lat || 39.9334},${formData.coordinates?.lng || 32.8597}`;
 
     return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Konum Bilgileri</h3>
+      <div className="space-y-6">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Konum Bilgileri</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* City */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            İl <span className="text-red-500">*</span>
-          </label>
-          <select
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.city}
-            onChange={e => {
-              const newCity = e.target.value;
-              handleChange('city', newCity);
-              handleChange('district', ''); // Reset district when city changes
-              // Update coordinates to city center
-              if (newCity) {
-                const coords = getProvinceCoordinates(newCity);
-                handleChange('coordinates', coords);
-              }
-            }}
-          >
-            <option value="">İl Seçiniz</option>
-            {PROVINCES.map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* District - Cascading dropdown */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            İlçe <span className="text-red-500">*</span>
-          </label>
-          <select
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-            value={formData.district}
-            onChange={e => {
-              handleChange('district', e.target.value);
-              handleChange('neighborhood', ''); // Reset neighborhood when district changes
-            }}
-            disabled={!formData.city}
-          >
-            <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
-            {districts.map(district => (
-              <option key={district} value={district}>{district}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Neighborhood - Cascading dropdown */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            Mahalle / Köy
-            {loadingNeighborhoods && <Loader2 className="w-3 h-3 inline ml-2 animate-spin text-blue-500" />}
-          </label>
-          {neighborhoods.length > 0 ? (
-            <select
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-              value={formData.neighborhood}
-              onChange={e => handleChange('neighborhood', e.target.value)}
-              disabled={!formData.district || loadingNeighborhoods}
-            >
-              <option value="">{loadingNeighborhoods ? 'Yükleniyor...' : 'Mahalle Seçiniz'}</option>
-              {neighborhoods.map(neighborhood => (
-                <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              placeholder={formData.district ? 'Mahalle adı yazın' : 'Önce ilçe seçin'}
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-              value={formData.neighborhood}
-              onChange={e => handleChange('neighborhood', e.target.value)}
-              disabled={!formData.district}
-            />
-          )}
-          {formData.district && neighborhoods.length === 0 && !loadingNeighborhoods && (
-            <p className="text-xs text-gray-400 mt-1">API'den mahalle bulunamadı, manuel yazabilirsiniz</p>
-          )}
-        </div>
-
-        {/* Is In Site */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site İçerisinde mi?</label>
-          <select
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.isInSite ? 'Evet' : 'Hayır'}
-            onChange={e => handleChange('isInSite', e.target.value === 'Evet')}
-          >
-            <option value="Hayır">Hayır</option>
-            <option value="Evet">Evet</option>
-          </select>
-        </div>
-
-        {/* Site Name */}
-        {formData.isInSite && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* City */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
-            <input
-              type="text"
-              placeholder="Site adı"
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              İl <span className="text-red-500">*</span>
+            </label>
+            <select
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.siteName}
-              onChange={e => handleChange('siteName', e.target.value)}
-            />
-          </div>
-        )}
-
-        {/* Address */}
-        <div className="md:col-span-2 lg:col-span-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Açık Adres</label>
-          <textarea
-            rows={2}
-            placeholder="Detaylı adres bilgisi..."
-            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.address}
-            onChange={e => handleChange('address', e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Map Section */}
-      <div className="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
-        <div className="bg-gray-50 dark:bg-slate-700/50 px-4 py-3 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-red-500" />
-            <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                // Use current location from address fields to search
-                const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
-                if (searchText) {
-                  setAddressSearch(searchText);
-                  handleAddressSearch();
+              value={formData.city}
+              onChange={e => {
+                const newCity = e.target.value;
+                handleChange('city', newCity);
+                handleChange('district', ''); // Reset district when city changes
+                // Update coordinates to city center
+                if (newCity) {
+                  const coords = getProvinceCoordinates(newCity);
+                  handleChange('coordinates', coords);
                 }
               }}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
             >
-              <Navigation className="w-4 h-4" />
-              Adresten Bul
-            </button>
-            <a
-              href={googleMapsPickerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
-            >
-              <MapPin className="w-4 h-4" />
-              Google Maps
-            </a>
+              <option value="">İl Seçiniz</option>
+              {PROVINCES.map(city => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
           </div>
-        </div>
 
-        {/* Address Search */}
-        <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
-          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-            Adres Ara (Konum Bulmak İçin)
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Örn: Bağdat Caddesi, Kadıköy, İstanbul"
-              className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={addressSearch}
-              onChange={e => setAddressSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
-            />
-            <button
-              type="button"
-              onClick={handleAddressSearch}
-              disabled={searchingAddress || !addressSearch.trim()}
-              className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+          {/* District - Cascading dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              İlçe <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+              value={formData.district}
+              onChange={e => {
+                handleChange('district', e.target.value);
+                handleChange('neighborhood', ''); // Reset neighborhood when district changes
+              }}
+              disabled={!formData.city}
             >
-              {searchingAddress ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Search className="w-5 h-5" />
-              )}
-            </button>
+              <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
+              {districts.map(district => (
+                <option key={district} value={district}>{district}</option>
+              ))}
+            </select>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Adres yazıp arayın veya "Adresten Bul" butonuna tıklayın. Konum haritada işaretlenecektir.
-          </p>
-        </div>
 
-        {/* Map Preview */}
-        <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
-          <iframe
-            key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
-            width="100%"
-            height="100%"
-            src={mapUrl}
-            title="Konum Haritası"
-            className="border-0"
-          />
-          {formData.coordinates?.lat && formData.coordinates?.lng && (
-            <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
-              {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
+          {/* Neighborhood - Cascading dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Mahalle / Köy
+              {loadingNeighborhoods && <Loader2 className="w-3 h-3 inline ml-2 animate-spin text-blue-500" />}
+            </label>
+            {neighborhoods.length > 0 ? (
+              <select
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+                value={formData.neighborhood}
+                onChange={e => handleChange('neighborhood', e.target.value)}
+                disabled={!formData.district || loadingNeighborhoods}
+              >
+                <option value="">{loadingNeighborhoods ? 'Yükleniyor...' : 'Mahalle Seçiniz'}</option>
+                {neighborhoods.map(neighborhood => (
+                  <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={formData.district ? 'Mahalle adı yazın' : 'Önce ilçe seçin'}
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+                value={formData.neighborhood}
+                onChange={e => handleChange('neighborhood', e.target.value)}
+                disabled={!formData.district}
+              />
+            )}
+            {formData.district && neighborhoods.length === 0 && !loadingNeighborhoods && (
+              <p className="text-xs text-gray-400 mt-1">API'den mahalle bulunamadı, manuel yazabilirsiniz</p>
+            )}
+          </div>
+
+          {/* Is In Site */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site İçerisinde mi?</label>
+            <select
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={formData.isInSite ? 'Evet' : 'Hayır'}
+              onChange={e => handleChange('isInSite', e.target.value === 'Evet')}
+            >
+              <option value="Hayır">Hayır</option>
+              <option value="Evet">Evet</option>
+            </select>
+          </div>
+
+          {/* Site Name */}
+          {formData.isInSite && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
+              <input
+                type="text"
+                placeholder="Site adı"
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.siteName}
+                onChange={e => handleChange('siteName', e.target.value)}
+              />
             </div>
           )}
-        </div>
 
-        {/* Coordinate Inputs */}
-        <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
-          <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
-            Koordinatları manuel girebilir veya Google Maps'ten kopyalayabilirsiniz (sağ tık → koordinatları kopyala)
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Enlem (Latitude)</label>
-              <input
-                type="number"
-                step="0.0001"
-                placeholder="Örn: 41.0082"
-                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={formData.coordinates?.lat || ''}
-                onChange={e => handleChange('coordinates', {
-                  ...formData.coordinates,
-                  lat: parseFloat(e.target.value) || 0
-                })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Boylam (Longitude)</label>
-              <input
-                type="number"
-                step="0.0001"
-                placeholder="Örn: 28.9784"
-                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={formData.coordinates?.lng || ''}
-                onChange={e => handleChange('coordinates', {
-                  ...formData.coordinates,
-                  lng: parseFloat(e.target.value) || 0
-                })}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Owner Info */}
-      <div className="border-t border-gray-200 dark:border-slate-600 pt-6 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="font-semibold text-slate-800 dark:text-white">Mülk Sahibi Bilgileri</h4>
-          <button
-            type="button"
-            onClick={() => setShowOwnerModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
-          >
-            <UserPlus className="w-4 h-4" />
-            Yeni Ekle
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mülk Sahibi</label>
-            <select
+          {/* Address */}
+          <div className="md:col-span-2 lg:col-span-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Açık Adres</label>
+            <textarea
+              rows={2}
+              placeholder="Detaylı adres bilgisi..."
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.ownerId || ''}
-              onChange={e => {
-                const customer = customers.find(c => c.id === e.target.value);
-                handleChange('ownerId', e.target.value);
-                handleChange('ownerName', customer?.name || '');
-                handleChange('ownerPhone', customer?.phone || '');
-              }}
-            >
-              <option value="">Seçiniz</option>
-              {customers.filter(c => c.customerType === 'Mal Sahibi' || c.customerType === 'Satıcı').map(c => (
-                <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Sahiplik Türü</label>
-            <select
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.ownerType}
-              onChange={e => handleChange('ownerType', e.target.value)}
-            >
-              {OWNER_TYPE_OPTIONS.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Taşınmaz No</label>
-            <input
-              type="text"
-              placeholder="Taşınmaz numarası"
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.propertyNumber}
-              onChange={e => handleChange('propertyNumber', e.target.value)}
+              value={formData.address}
+              onChange={e => handleChange('address', e.target.value)}
             />
           </div>
         </div>
+
+        {/* Map Section */}
+        <div className="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
+          <div className="bg-gray-50 dark:bg-slate-700/50 px-4 py-3 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-red-500" />
+              <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // Use current location from address fields to search
+                  const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
+                  if (searchText) {
+                    setAddressSearch(searchText);
+                    handleAddressSearch();
+                  }
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
+              >
+                <Navigation className="w-4 h-4" />
+                Adresten Bul
+              </button>
+              <a
+                href={googleMapsPickerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
+              >
+                <MapPin className="w-4 h-4" />
+                Google Maps
+              </a>
+            </div>
+          </div>
+
+          {/* Address Search */}
+          <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              Adres Ara (Konum Bulmak İçin)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Örn: Bağdat Caddesi, Kadıköy, İstanbul"
+                className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={addressSearch}
+                onChange={e => setAddressSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
+              />
+              <button
+                type="button"
+                onClick={handleAddressSearch}
+                disabled={searchingAddress || !addressSearch.trim()}
+                className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+              >
+                {searchingAddress ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Search className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              Adres yazıp arayın veya "Adresten Bul" butonuna tıklayın. Konum haritada işaretlenecektir.
+            </p>
+          </div>
+
+          {/* Map Preview */}
+          <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
+            <iframe
+              key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
+              width="100%"
+              height="100%"
+              src={mapUrl}
+              title="Konum Haritası"
+              className="border-0"
+            />
+            {formData.coordinates?.lat && formData.coordinates?.lng && (
+              <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
+                {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
+              </div>
+            )}
+          </div>
+
+          {/* Coordinate Inputs */}
+          <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
+              Koordinatları manuel girebilir veya Google Maps'ten kopyalayabilirsiniz (sağ tık → koordinatları kopyala)
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Enlem (Latitude)</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  placeholder="Örn: 41.0082"
+                  className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  value={formData.coordinates?.lat || ''}
+                  onChange={e => handleChange('coordinates', {
+                    ...formData.coordinates,
+                    lat: parseFloat(e.target.value) || 0
+                  })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Boylam (Longitude)</label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  placeholder="Örn: 28.9784"
+                  className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  value={formData.coordinates?.lng || ''}
+                  onChange={e => handleChange('coordinates', {
+                    ...formData.coordinates,
+                    lng: parseFloat(e.target.value) || 0
+                  })}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Owner Info */}
+        <div className="border-t border-gray-200 dark:border-slate-600 pt-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-semibold text-slate-800 dark:text-white">Mülk Sahibi Bilgileri</h4>
+            <button
+              type="button"
+              onClick={() => setShowOwnerModal(true)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
+            >
+              <UserPlus className="w-4 h-4" />
+              Yeni Ekle
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mülk Sahibi</label>
+              <select
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.ownerId || ''}
+                onChange={e => {
+                  const customer = customers.find(c => c.id === e.target.value);
+                  handleChange('ownerId', e.target.value);
+                  handleChange('ownerName', customer?.name || '');
+                  handleChange('ownerPhone', customer?.phone || '');
+                }}
+              >
+                <option value="">Seçiniz</option>
+                {customers.filter(c => c.customerType === 'Mal Sahibi' || c.customerType === 'Satıcı').map(c => (
+                  <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Sahiplik Türü</label>
+              <select
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.ownerType}
+                onChange={e => handleChange('ownerType', e.target.value)}
+              >
+                {OWNER_TYPE_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Taşınmaz No</label>
+              <input
+                type="text"
+                placeholder="Taşınmaz numarası"
+                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.propertyNumber}
+                onChange={e => handleChange('propertyNumber', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
   };
 
   // Step: Features
@@ -1466,11 +1499,10 @@ Sadece JSON döndür:
                       key={opt}
                       type="button"
                       onClick={() => handleArrayToggle(section.field, opt)}
-                      className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
-                        isSelected
-                          ? 'bg-[#1193d4] text-white border-[#1193d4]'
-                          : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-[#1193d4]'
-                      }`}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-all ${isSelected
+                        ? 'bg-[#1193d4] text-white border-[#1193d4]'
+                        : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-[#1193d4]'
+                        }`}
                     >
                       {isSelected && <Check className="w-3 h-3 inline mr-1" />}
                       {opt}
@@ -1575,11 +1607,10 @@ Sadece JSON döndür:
                   onClick={() => idx <= currentStep && setCurrentStep(idx)}
                   className={`flex flex-col items-center gap-1 ${idx <= currentStep ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                    isActive ? 'bg-[#1193d4] text-white' :
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-[#1193d4] text-white' :
                     isCompleted ? 'bg-emerald-500 text-white' :
-                    'bg-gray-100 dark:bg-slate-700 text-gray-400'
-                  }`}>
+                      'bg-gray-100 dark:bg-slate-700 text-gray-400'
+                    }`}>
                     {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
                   </div>
                   <span className={`text-xs font-medium hidden md:block ${isActive ? 'text-[#1193d4]' : 'text-gray-500'}`}>
@@ -1653,30 +1684,51 @@ Sadece JSON döndür:
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-              Sahibinden, Hepsiemlak gibi sitelerdeki ilan linkini yapıştırın.
+
+            {/* Warning Message */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                ⚠️ <strong>Not:</strong> Bu özellik deneyseldir. Bazı sitelerden otomatik veri çekilemeyebilir.
+                Başarısız olursa lütfen ilan bilgilerini manuel olarak girin.
+              </p>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+              Sahibinden, Hepsiemlak, Emlakjet gibi sitelerdeki ilan linkini yapıştırın:
             </p>
+
             <input
               type="url"
-              placeholder="https://..."
+              placeholder="https://www.sahibinden.com/ilan/..."
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white mb-4"
               value={importUrl}
               onChange={e => setImportUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleImportFromUrl()}
             />
+
             <div className="flex gap-3">
               <button
                 onClick={() => setShowImportModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-white"
+                className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700"
               >
                 İptal
               </button>
               <button
                 onClick={handleImportFromUrl}
-                disabled={isAnalyzing || !importUrl}
-                className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={isAnalyzing || !importUrl.trim()}
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
-                {isAnalyzing ? 'Analiz Ediliyor...' : 'İçe Aktar'}
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analiz ediliyor...
+                  </>
+                ) : (
+                  <>
+                    <Link className="w-4 h-4" />
+                    İçe Aktar
+                  </>
+                )}
               </button>
             </div>
           </div>
