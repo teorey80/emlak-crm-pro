@@ -373,6 +373,20 @@ export interface Sale {
 
   // Joined data
   propertyTitle?: string;
+
+  // Partner Office (Ortak Satış)
+  hasPartnerOffice?: boolean;
+  has_partner_office?: boolean; // DB field
+  partnerOfficeName?: string;
+  partner_office_name?: string; // DB field
+  partnerOfficeContact?: string;
+  partner_office_contact?: string; // DB field
+  partnerShareType?: 'buyer_commission' | 'total_commission';
+  partner_share_type?: string; // DB field
+  partnerShareAmount?: number;
+  partner_share_amount?: number; // DB field
+  partnerShareRate?: number; // Calculated percentage
+  partner_share_rate?: number; // DB field
 }
 
 // Document Management
