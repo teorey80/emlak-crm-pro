@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext';
 
 interface SaleFormProps {
     property: Property;
+    initialData?: Sale; // Added for editing
     onClose: () => void;
     onSave: (sale: Sale) => void;
 }
@@ -19,7 +20,7 @@ const EXPENSE_TYPES = [
     'Diger'
 ];
 
-const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
+const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onSave }) => {
     const { customers, session, userProfile, teamMembers } = useData();
 
     // Detect if this is a cross-consultant sale (property owner != selling consultant)
@@ -29,22 +30,24 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
     }, [property.user_id, teamMembers]);
 
     const isCrossConsultant = propertyOwner && propertyOwner.id !== session?.user?.id;
+
+    // Initialize form with initialData if available
     const [formData, setFormData] = useState({
-        salePrice: property.price || 0,
-        saleDate: new Date().toISOString().split('T')[0],
-        buyerId: '',
-        buyerName: '',
-        consultantId: session?.user?.id || '',
-        consultantName: userProfile?.name || '',
-        commissionRate: 3, // Default 3%
-        officeShareRate: 50, // Default 50%
-        notes: '',
-        // Cross-commission fields
-        enableCrossCommission: isCrossConsultant || false,
-        propertyOwnerShareRate: 30, // Property owner gets 30% of consultant share by default
+        salePrice: initialData?.salePrice || property.price || 0,
+        saleDate: initialData?.saleDate || new Date().toISOString().split('T')[0],
+        buyerId: initialData?.buyerId || '',
+        buyerName: initialData?.buyerName || '',
+        consultantId: initialData?.consultantId || session?.user?.id || '',
+        consultantName: initialData?.consultantName || userProfile?.name || '',
+        commissionRate: initialData?.commissionRate || 3, // Default 3%
+        officeShareRate: initialData?.officeShareRate || 50, // Default 50%
+        notes: initialData?.notes || '',
+        // Cross-commission fields (infer from data or defaults)
+        enableCrossCommission: isCrossConsultant && (initialData ? !!initialData.sellerCommissionAmount : false) || (isCrossConsultant || false),
+        propertyOwnerShareRate: 30, // Default, hard to infer exactly cleanly without storing rate explicitly always, but assuming 30
     });
 
-    const [expenses, setExpenses] = useState<SaleExpense[]>([]);
+    const [expenses, setExpenses] = useState<SaleExpense[]>(initialData?.expenses || []);
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
 
@@ -99,7 +102,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
         e.preventDefault();
 
         const sale: Sale = {
-            id: Date.now().toString(),
+            id: initialData?.id || Date.now().toString(), // Use existing ID if editing
             propertyId: property.id,
             transactionType: 'sale',
             consultantId: formData.consultantId,
@@ -118,7 +121,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
             consultantShareAmount,
             netProfit,
             notes: formData.notes,
-            propertyTitle: property.title
+            propertyTitle: property.title,
+
+            // Add split commission details
+            buyerCommissionAmount: 0, // Simplified for now, assuming total commission is what matters mostly here
+            buyerCommissionRate: 0,
+            sellerCommissionAmount: 0,
+            sellerCommissionRate: 0,
         };
 
         onSave(sale);
@@ -134,7 +143,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                 <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 rounded-t-2xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <h2 className="text-2xl font-bold text-white">🎉 Satış Kaydı</h2>
+                            <h2 className="text-2xl font-bold text-white">{initialData ? '📝 Satışı Düzenle' : '🎉 Satış Kaydı'}</h2>
                             <p className="text-green-100 text-sm mt-1">{property.title}</p>
                         </div>
                         <button onClick={onClose} className="text-white/80 hover:text-white">

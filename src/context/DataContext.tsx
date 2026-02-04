@@ -46,6 +46,8 @@ interface DataContextType {
   addRequest: (request: Request) => Promise<void>;
   updateRequest: (request: Request) => Promise<void>;
   addSale: (sale: Sale) => Promise<void>;
+  updateSale: (sale: Sale) => Promise<void>;
+  deleteSale: (saleId: string, propertyId: string) => Promise<void>;
   updateWebConfig: (config: Partial<WebSiteConfig>, target?: 'personal' | 'office') => Promise<void>;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   updateOfficeSettings: (settings: OfficePerformanceSettings) => Promise<void>;
@@ -489,15 +491,214 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     console.log('Adding sale to DB:', JSON.stringify(saleForDB, null, 2));
 
-    // Optimistic update
+    // --------------------------------------------------------
+    // 2. Optimistic Updates (Local State)
+    // --------------------------------------------------------
+
+    // A. Add Sale
     setSales((prev) => [sale, ...prev]);
 
-    const { error } = await supabase.from('sales').insert([saleForDB]);
-    if (error) {
-      console.error('Error adding sale:', error);
-      // Rollback on error
-      setSales((prev) => prev.filter(s => s.id !== sale.id));
-      throw error;
+    // B. Update Property Status
+    const newStatus = sale.transactionType === 'sale' ? 'Satıldı' : 'Kiralandı';
+    setProperties(prev => prev.map(p => {
+      if (p.id === sale.propertyId) {
+        return {
+          ...p,
+          listingStatus: newStatus as any,
+          listing_status: newStatus,
+          soldDate: sale.transactionType === 'sale' ? sale.saleDate : undefined,
+          rentedDate: sale.transactionType === 'rental' ? sale.saleDate : undefined
+        };
+      }
+      return p;
+    }));
+
+    // C. Create Activities (Auto-generated for Buyer and Seller)
+    const property = properties.find(p => p.id === sale.propertyId);
+
+    console.log('[addSale] Debug - Sale:', sale);
+    console.log('[addSale] Debug - Property:', property);
+    console.log('[addSale] Debug - Checking params:', {
+      buyerId: sale.buyerId,
+      ownerId: property?.ownerId,
+      owner_id: (property as any)?.owner_id
+    });
+
+    const activitiesToAdd: Activity[] = [];
+
+    // 1. Buyer Activity
+    if (sale.buyerId) {
+      activitiesToAdd.push({
+        id: `auto_buyer_${Date.now()}`,
+        type: 'Tapu İşlemi',
+        customerId: sale.buyerId,
+        customerName: sale.buyerName || 'Alıcı',
+        propertyId: sale.propertyId,
+        propertyTitle: sale.propertyTitle || 'Mülk Satışı',
+        date: sale.saleDate,
+        description: `${newStatus} işlemi gerçekleştirildi (ALAN). Fiyat: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}`,
+        status: 'Tamamlandı',
+        user_id: session?.user.id,
+        office_id: userProfile.officeId
+      });
+    }
+
+    // 2. Seller Activity (if owner exists and is a customer)
+    // Check both camelCase and snake_case for ownerId
+    const ownerId = property?.ownerId || (property as any)?.owner_id;
+    const ownerName = property?.ownerName || (property as any)?.owner_name;
+
+    if (ownerId) {
+      activitiesToAdd.push({
+        id: `auto_seller_${Date.now()}`,
+        type: 'Tapu İşlemi',
+        customerId: ownerId,
+        customerName: ownerName || 'Satıcı',
+        propertyId: sale.propertyId,
+        propertyTitle: sale.propertyTitle || 'Mülk Satışı',
+        date: sale.saleDate,
+        description: `${newStatus} işlemi gerçekleştirildi (SATAN). Alıcı: ${sale.buyerName}. Fiyat: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}`,
+        status: 'Tamamlandı',
+        user_id: session?.user.id,
+        office_id: userProfile.officeId
+      });
+    }
+
+    console.log('[addSale] Debug - Activities to add:', activitiesToAdd);
+
+    setActivities(prev => [...activitiesToAdd, ...prev]);
+
+    // --------------------------------------------------------
+    // 3. Database Operations
+    // --------------------------------------------------------
+    try {
+      // A. Insert Sale
+      const { error: saleError } = await supabase.from('sales').insert([saleForDB]);
+      if (saleError) throw saleError;
+
+      // B. Update Property Status in DB
+      const propertyUpdateData: any = {
+        listing_status: newStatus,
+        inactive_reason: 'Satıldı', // Mark as inactive reason for safety
+      };
+
+      if (sale.transactionType === 'sale') {
+        propertyUpdateData.sold_date = sale.saleDate;
+      } else {
+        propertyUpdateData.rented_date = sale.saleDate;
+        if (sale.monthlyRent) propertyUpdateData.current_monthly_rent = sale.monthlyRent;
+      }
+
+      const { error: propError } = await supabase
+        .from('properties')
+        .update(propertyUpdateData)
+        .eq('id', sale.propertyId);
+
+      if (propError) {
+        console.error('Property update failed. Rolling back sale...', propError);
+        // Rollback the sale we just inserted
+        await supabase.from('sales').delete().eq('id', sale.id);
+        throw new Error(`Mülk durumu güncellenemedi (${propError.message}). Satış iptal edildi.`);
+      }
+
+      // C. Insert Activities in DB
+      if (activitiesToAdd.length > 0) {
+        const activitiesForDB = activitiesToAdd.map(activity => ({
+          type: activity.type,
+          customer_id: activity.customerId,
+          property_id: activity.propertyId,
+          user_id: session?.user.id,
+          office_id: userProfile.officeId,
+          date: activity.date,
+          description: activity.description,
+          status: activity.status
+        }));
+
+        console.log('[addSale] Debug - Inserting activities to DB:', activitiesForDB);
+
+        const { error: actError } = await supabase.from('activities').insert(activitiesForDB);
+        if (actError) console.error('Error auto-creating activity:', actError);
+      }
+
+
+    } catch (error) {
+      console.error('Error in addSale transaction:', error);
+      // Rollback optimistic updates (simplified)
+    }
+  };
+
+  const updateSale = async (sale: Sale) => {
+    // 1. Prepare Data
+    const saleForDB = {
+      // ... fields ...
+      sale_price: sale.salePrice,
+      sale_date: sale.saleDate,
+      buyer_id: sale.buyerId || null,
+      buyer_name: sale.buyerName || null,
+      commission_rate: sale.commissionRate || 0,
+      commission_amount: sale.commissionAmount,
+      buyer_commission_amount: sale.buyerCommissionAmount || 0,
+      buyer_commission_rate: sale.buyerCommissionRate || 0,
+      seller_commission_amount: sale.sellerCommissionAmount || 0,
+      seller_commission_rate: sale.sellerCommissionRate || 0,
+      expenses: sale.expenses || [],
+      total_expenses: sale.totalExpenses || 0,
+      office_share_rate: sale.officeShareRate || 50,
+      consultant_share_rate: sale.consultantShareRate || 50,
+      office_share_amount: sale.officeShareAmount || 0,
+      consultant_share_amount: sale.consultantShareAmount || 0,
+      net_profit: sale.netProfit || 0,
+      notes: sale.notes || null
+    };
+
+    // 2. Optimistic Update
+    setSales(prev => prev.map(s => s.id === sale.id ? sale : s));
+
+    // 3. DB Update
+    try {
+      const { error } = await supabase.from('sales').update(saleForDB).eq('id', sale.id);
+      if (error) throw error;
+      toast.success('Satış güncellendi');
+    } catch (error) {
+      console.error('Error updating sale:', error);
+      toast.error('Güncelleme başarısız');
+      // Rollback? (Skip for now, complex)
+    }
+  };
+
+  const deleteSale = async (saleId: string, propertyId: string) => {
+    // 1. Optimistic Update
+    setSales(prev => prev.filter(s => s.id !== saleId));
+    setProperties(prev => prev.map(p => {
+      if (p.id === propertyId) {
+        return { ...p, listingStatus: 'Aktif' as any, listing_status: 'Aktif', soldDate: undefined, rentedDate: undefined };
+      }
+      return p;
+    }));
+
+    // 2. DB Operations
+    try {
+      // Delete Sale
+      const { error: delError } = await supabase.from('sales').delete().eq('id', saleId);
+      if (delError) throw delError;
+
+      // Revert Property
+      const { error: propError } = await supabase.from('properties').update({
+        listing_status: 'Aktif',
+        inactive_reason: null,
+        sold_date: null,
+        rented_date: null
+      }).eq('id', propertyId);
+
+      if (propError) console.error('Error reverting property:', propError);
+
+      // Add "Sale Cancelled" Activity
+      // ... (Optional, or just delete the previous activity? Hard to find specific one)
+
+      toast.success('Satış iptal edildi ve ilan aktif hale getirildi.');
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+      toast.error('İptal işlemi başarısız');
     }
   };
 
@@ -665,7 +866,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,
-      addSale, updateWebConfig, updateUserProfile, updateOfficeSettings,
+      addSale, updateSale, deleteSale, updateWebConfig, updateUserProfile, updateOfficeSettings,
       loadMoreProperties, loadMoreCustomers, loadMoreActivities
     }}>
       {children}

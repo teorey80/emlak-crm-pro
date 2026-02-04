@@ -355,12 +355,28 @@ const PropertyList: React.FC = () => {
                                                 {property.price.toLocaleString('tr-TR')} {property.currency}
                                             </td>
                                             <td className="p-4">
-                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${property.status === 'Satılık'
-                                                    ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
-                                                    : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                                    }`}>
-                                                    {property.status}
-                                                </span>
+                                                {(() => {
+                                                    const finalStatus = property.listingStatus || property.listing_status || property.status || 'Aktif';
+                                                    let badgeClass = 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300';
+
+                                                    if (finalStatus === 'Satıldı') {
+                                                        badgeClass = 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+                                                    } else if (finalStatus === 'Kiralandı') {
+                                                        badgeClass = 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+                                                    } else if (finalStatus === 'Kapora Alındı') {
+                                                        badgeClass = 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
+                                                    } else if (finalStatus === 'Pasif') {
+                                                        badgeClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
+                                                    } else if (property.status === 'Kiralık') {
+                                                        badgeClass = 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300';
+                                                    }
+
+                                                    return (
+                                                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${badgeClass}`}>
+                                                            {finalStatus === 'Aktif' ? property.status : finalStatus}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">

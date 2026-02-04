@@ -12,8 +12,11 @@ import { notifyDeposit } from '../services/notificationService';
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, addActivity } = useData();
+    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, updateSale, deleteSale, addActivity, sales } = useData();
     const property = properties.find(p => p.id === id);
+    // Find associated sale record if exists
+    const currentSale = sales.find(s => s.propertyId === property?.id);
+
     const [showSaleForm, setShowSaleForm] = useState(false);
     const [showRentalForm, setShowRentalForm] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
@@ -477,7 +480,45 @@ const PropertyDetail: React.FC = () => {
                                         Emlağı Düzenle
                                     </Link>
                                     {/* Show Sale or Rental button based on property status */}
-                                    {property.status === 'Kiralık' ? (
+                                    {(property.listingStatus === 'Satıldı' || property.listing_status === 'Satıldı') ? (
+                                        <>
+                                            <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-3 rounded-xl border border-green-100 dark:border-green-900/50 mb-3 text-center">
+                                                <p className="font-bold flex items-center justify-center gap-2">
+                                                    <DollarSign className="w-5 h-5" />
+                                                    Bu Mülk Satıldı
+                                                </p>
+                                                {property.soldDate && <p className="text-xs mt-1">Tarih: {property.soldDate}</p>}
+                                            </div>
+                                            <button
+                                                onClick={() => setShowSaleForm(true)}
+                                                className="w-full bg-white dark:bg-slate-700 border border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-400 py-3 rounded-xl font-medium hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                                Satışı Düzenle
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm('Satış işlemini iptal etmek istediğinize emin misiniz? Mülk tekrar Aktif duruma geçecek.')) {
+                                                        if (currentSale) {
+                                                            await deleteSale(currentSale.id, property.id);
+                                                        } else {
+                                                            // Fallback if sale record missing
+                                                            await updateProperty({
+                                                                ...property,
+                                                                listing_status: 'Aktif',
+                                                                sold_date: null
+                                                            });
+                                                            toast.success('Satış iptal edildi (Kayıt bulunamadı, manuel düzeltildi).');
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-100 dark:border-red-900/50 flex items-center justify-center gap-2"
+                                            >
+                                                <Ban className="w-4 h-4" />
+                                                Satışı İptal Et
+                                            </button>
+                                        </>
+                                    ) : property.status === 'Kiralık' ? (
                                         <button
                                             onClick={() => setShowRentalForm(true)}
                                             className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 py-3 rounded-xl font-medium hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-100 dark:border-blue-900/50"
@@ -615,30 +656,69 @@ const PropertyDetail: React.FC = () => {
                 </div>
             </div>
 
+            {/* Data Integrity Warning - Self Healing */}
+            {currentSale && (property.listingStatus !== 'Satıldı' && property.listing_status !== 'Satıldı' && property.listingStatus !== 'Kiralandı' && property.listing_status !== 'Kiralandı') && (
+                <div className="fixed bottom-4 right-4 z-50 bg-red-50 border border-red-200 p-4 rounded-xl shadow-lg flex items-center gap-3 animate-bounce-short">
+                    <div className="bg-red-100 p-2 rounded-full">
+                        <X className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-red-800">Veri Tutarsızlığı Tespit Edildi</p>
+                        <p className="text-xs text-red-600">Bu mülk için satış kaydı var ancak mülk durumu 'Aktif'.</p>
+                    </div>
+                    <button
+                        onClick={async () => {
+                            if (confirm('Mülk durumunu "Satıldı" olarak güncellemek istiyor musunuz?')) {
+                                await updateProperty({
+                                    ...property,
+                                    listing_status: 'Satıldı',
+                                    listingStatus: 'Satıldı',
+                                    soldDate: currentSale.saleDate
+                                });
+                                toast.success('Mülk durumu düzeltildi.');
+                                window.location.reload();
+                            }
+                        }}
+                        className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700"
+                    >
+                        Düzelt
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (confirm('Hatali satis kaydini silmek istiyor musunuz?')) {
+                                await deleteSale(currentSale.id, property.id);
+                                toast.success('Hatali satis kaydi silindi.');
+                            }
+                        }}
+                        className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50"
+                    >
+                        Satışı Sil
+                    </button>
+                </div>
+            )}
+
             {/* SaleForm Modal */}
             {showSaleForm && property && (
                 <SaleForm
                     property={property}
+                    initialData={currentSale} // Pass existing sale if available
                     onClose={() => setShowSaleForm(false)}
                     onSave={async (sale: Sale) => {
                         try {
-                            // Save sale to database
-                            await addSale({ ...sale, transactionType: 'sale' });
-
-                            // Update property status to Satıldı
-                            await updateProperty({
-                                ...property,
-                                listingStatus: 'Satıldı',
-                                listing_status: 'Satıldı',
-                                soldDate: sale.saleDate
-                            });
-
+                            if (currentSale) {
+                                // Update existing sale
+                                await updateSale(sale);
+                                toast.success('Satış başarıyla güncellendi.');
+                            } else {
+                                // Create new sale
+                                await addSale({ ...sale, transactionType: 'sale' });
+                                toast.success('Satış işlemi başarıyla tamamlandı!');
+                            }
                             setShowSaleForm(false);
-                            toast.success('Satış başarıyla kaydedildi!');
                             navigate('/properties');
-                        } catch (error) {
-                            console.error('Satış kaydetme hatası:', error);
-                            toast.error('Satış kaydedilemedi. Lütfen tekrar deneyin.');
+                        } catch (error: any) {
+                            console.error('Satış işlem hatası:', error);
+                            toast.error(error.message || 'İşlem başarısız oldu.');
                         }
                     }}
                 />
