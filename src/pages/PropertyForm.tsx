@@ -133,9 +133,10 @@ const PropertyForm: React.FC = () => {
     listingDate: new Date().toISOString().split('T')[0],
   });
 
-  // Load existing property for edit mode
+  // Load existing property for edit mode OR restore draft
   useEffect(() => {
     if (id) {
+      // Edit mode: load existing property
       const existingProperty = properties.find(p => p.id === id);
       if (existingProperty) {
         setFormData({
@@ -144,8 +145,36 @@ const PropertyForm: React.FC = () => {
           subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
         });
       }
+    } else {
+      // New property: try to restore draft from sessionStorage
+      const draftKey = `property-form-draft-new`;
+      const savedDraft = sessionStorage.getItem(draftKey);
+      if (savedDraft) {
+        try {
+          const draftData = JSON.parse(savedDraft);
+          setFormData(draftData.formData);
+          setCurrentStep(draftData.currentStep || 0);
+          toast.success('Taslak geri yüklendi', { duration: 3000 });
+        } catch (error) {
+          console.error('Draft restore error:', error);
+          sessionStorage.removeItem(draftKey);
+        }
+      }
     }
   }, [id, properties]);
+
+  // Auto-save draft to sessionStorage
+  useEffect(() => {
+    if (!id && formData.title) { // Only save drafts for new properties with some content
+      const draftKey = `property-form-draft-new`;
+      const draftData = {
+        formData,
+        currentStep,
+        timestamp: Date.now()
+      };
+      sessionStorage.setItem(draftKey, JSON.stringify(draftData));
+    }
+  }, [formData, currentStep, id]);
 
   // Fetch neighborhoods when city and district change
   useEffect(() => {
@@ -465,7 +494,53 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
     }
   };
 
-  // Image handling
+  // Image handling with auto-resize
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context not available'));
+            return;
+          }
+
+          // Calculate new dimensions (max 1920px)
+          const MAX_SIZE = 1920;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height = (height * MAX_SIZE) / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width = (width * MAX_SIZE) / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to JPEG with 85% quality
+          const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(resizedDataUrl);
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -477,19 +552,32 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
     }
 
     for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} 5MB'dan büyük`);
-        continue;
-      }
+      try {
+        let imageDataUrl: string;
 
-      const reader = new FileReader();
-      reader.onload = () => {
+        // Check if file needs resizing
+        if (file.size > 5 * 1024 * 1024) {
+          toast.loading(`${file.name} boyutlandırılıyor...`, { id: file.name });
+          imageDataUrl = await resizeImage(file);
+          toast.success(`${file.name} otomatik boyutlandırıldı`, { id: file.name });
+        } else {
+          // File is small enough, read directly
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('File read failed'));
+            reader.readAsDataURL(file);
+          });
+        }
+
         setFormData(prev => ({
           ...prev,
-          images: [...(prev.images || []), reader.result as string]
+          images: [...(prev.images || []), imageDataUrl]
         }));
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Image upload error:', error);
+        toast.error(`${file.name} yüklenemedi`);
+      }
     }
   };
 
@@ -516,6 +604,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
     setIsSubmitting(true);
     try {
+      // Clear draft from sessionStorage before submitting
+      if (!id) {
+        sessionStorage.removeItem('property-form-draft-new');
+      }
+
       const propertyData: Property = {
         ...formData,
         id: formData.id || `PRT-${Date.now()}`,
