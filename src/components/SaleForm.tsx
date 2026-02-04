@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft, Percent } from 'lucide-react';
 import { Property, Sale, SaleExpense, Customer } from '../types';
 import { useData } from '../context/DataContext';
 
@@ -20,6 +20,18 @@ const EXPENSE_TYPES = [
     'Diger'
 ];
 
+// Helper function to format number with thousand separators and decimals
+const formatMoney = (value: number): string => {
+    return value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Helper function to parse formatted money string to number
+const parseMoney = (value: string): number => {
+    // Remove thousand separators (.) and replace decimal comma with dot
+    const cleaned = value.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
+};
+
 const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onSave }) => {
     const { customers, session, userProfile, teamMembers } = useData();
 
@@ -39,22 +51,40 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         buyerName: initialData?.buyerName || '',
         consultantId: initialData?.consultantId || session?.user?.id || '',
         consultantName: initialData?.consultantName || userProfile?.name || '',
-        commissionRate: initialData?.commissionRate || 3, // Default 3%
         officeShareRate: initialData?.officeShareRate || 50, // Default 50%
         notes: initialData?.notes || '',
-        // Cross-commission fields (infer from data or defaults)
+        // Cross-commission fields
         enableCrossCommission: isCrossConsultant && (initialData ? !!initialData.sellerCommissionAmount : false) || (isCrossConsultant || false),
-        propertyOwnerShareRate: 30, // Default, hard to infer exactly cleanly without storing rate explicitly always, but assuming 30
+        propertyOwnerShareRate: 30,
     });
+
+    // Separate commission states for buyer and seller
+    const [buyerCommissionAmount, setBuyerCommissionAmount] = useState<number>(initialData?.buyerCommissionAmount || 0);
+    const [sellerCommissionAmount, setSellerCommissionAmount] = useState<number>(initialData?.sellerCommissionAmount || 0);
+
+    // Display values for inputs (formatted strings)
+    const [buyerCommissionDisplay, setBuyerCommissionDisplay] = useState<string>(
+        initialData?.buyerCommissionAmount ? formatMoney(initialData.buyerCommissionAmount) : ''
+    );
+    const [sellerCommissionDisplay, setSellerCommissionDisplay] = useState<string>(
+        initialData?.sellerCommissionAmount ? formatMoney(initialData.sellerCommissionAmount) : ''
+    );
 
     const [expenses, setExpenses] = useState<SaleExpense[]>(initialData?.expenses || []);
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
 
+    // Calculate commission rates from amounts
+    const buyerCommissionRate = formData.salePrice > 0 ? (buyerCommissionAmount / formData.salePrice) * 100 : 0;
+    const sellerCommissionRate = formData.salePrice > 0 ? (sellerCommissionAmount / formData.salePrice) * 100 : 0;
+
+    // Total commission
+    const totalCommissionAmount = buyerCommissionAmount + sellerCommissionAmount;
+    const totalCommissionRate = buyerCommissionRate + sellerCommissionRate;
+
     // Calculated values
-    const commissionAmount = (formData.salePrice * formData.commissionRate) / 100;
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const netProfit = commissionAmount - totalExpenses;
+    const netProfit = totalCommissionAmount - totalExpenses;
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
     const consultantShareRate = 100 - formData.officeShareRate;
     const totalConsultantShare = netProfit - officeShareAmount;
@@ -65,6 +95,33 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         : 0;
     const sellingConsultantShareAmount = totalConsultantShare - propertyOwnerShareAmount;
     const consultantShareAmount = formData.enableCrossCommission ? sellingConsultantShareAmount : totalConsultantShare;
+
+    // Handle buyer commission input
+    const handleBuyerCommissionChange = (value: string) => {
+        setBuyerCommissionDisplay(value);
+        const numValue = parseMoney(value);
+        setBuyerCommissionAmount(numValue);
+    };
+
+    // Handle seller commission input
+    const handleSellerCommissionChange = (value: string) => {
+        setSellerCommissionDisplay(value);
+        const numValue = parseMoney(value);
+        setSellerCommissionAmount(numValue);
+    };
+
+    // Format on blur
+    const handleBuyerCommissionBlur = () => {
+        if (buyerCommissionAmount > 0) {
+            setBuyerCommissionDisplay(formatMoney(buyerCommissionAmount));
+        }
+    };
+
+    const handleSellerCommissionBlur = () => {
+        if (sellerCommissionAmount > 0) {
+            setSellerCommissionDisplay(formatMoney(sellerCommissionAmount));
+        }
+    };
 
     // Add expense
     const addExpense = () => {
@@ -102,7 +159,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         e.preventDefault();
 
         const sale: Sale = {
-            id: initialData?.id || Date.now().toString(), // Use existing ID if editing
+            id: initialData?.id || Date.now().toString(),
             propertyId: property.id,
             transactionType: 'sale',
             consultantId: formData.consultantId,
@@ -111,8 +168,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             saleDate: formData.saleDate,
             buyerId: formData.buyerId,
             buyerName: formData.buyerName,
-            commissionRate: formData.commissionRate,
-            commissionAmount,
+            commissionRate: totalCommissionRate,
+            commissionAmount: totalCommissionAmount,
             expenses,
             totalExpenses,
             officeShareRate: formData.officeShareRate,
@@ -123,11 +180,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             notes: formData.notes,
             propertyTitle: property.title,
 
-            // Add split commission details
-            buyerCommissionAmount: 0, // Simplified for now, assuming total commission is what matters mostly here
-            buyerCommissionRate: 0,
-            sellerCommissionAmount: 0,
-            sellerCommissionRate: 0,
+            // Split commission details
+            buyerCommissionAmount: buyerCommissionAmount,
+            buyerCommissionRate: buyerCommissionRate,
+            sellerCommissionAmount: sellerCommissionAmount,
+            sellerCommissionRate: sellerCommissionRate,
         };
 
         onSave(sale);
@@ -162,10 +219,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-3 pl-8 text-gray-900 dark:text-white"
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-3 pl-8 text-gray-900 dark:text-white font-semibold"
                                     value={formData.salePrice.toLocaleString('tr-TR')}
                                     onChange={e => {
-                                        const raw = e.target.value.replace(/\./g, '');
+                                        const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
                                         setFormData({ ...formData, salePrice: parseInt(raw) || 0 });
                                     }}
                                 />
@@ -203,29 +260,82 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         </select>
                     </div>
 
-                    {/* Commission */}
+                    {/* Commission - Buyer and Seller Separate */}
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-                        <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-4 flex items-center gap-2">
                             <DollarSign className="w-5 h-5" />
-                            Komisyon Hesaplaması
+                            Komisyon Girişi
                         </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm text-blue-700 dark:text-blue-300 mb-1">Komisyon Oranı (%)</label>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    min="0"
-                                    max="10"
-                                    className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-2 text-gray-900 dark:text-white"
-                                    value={formData.commissionRate}
-                                    onChange={e => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
-                                />
+
+                        {/* Buyer Commission */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+                                Alıcıdan Alınan Komisyon
+                            </label>
+                            <div className="flex gap-3 items-center">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0,00"
+                                        className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
+                                        value={buyerCommissionDisplay}
+                                        onChange={e => handleBuyerCommissionChange(e.target.value)}
+                                        onBlur={handleBuyerCommissionBlur}
+                                    />
+                                    <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
+                                </div>
+                                <div className="w-28 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <Percent className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                                        <span className="font-bold text-blue-800 dark:text-blue-200">
+                                            {buyerCommissionRate.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm text-blue-700 dark:text-blue-300 mb-1">Komisyon Tutarı</label>
-                                <div className="bg-blue-100 dark:bg-blue-800/50 rounded-lg p-2 text-center font-bold text-blue-800 dark:text-blue-200">
-                                    {commissionAmount.toLocaleString('tr-TR')} ₺
+                        </div>
+
+                        {/* Seller Commission */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+                                Satıcıdan Alınan Komisyon
+                            </label>
+                            <div className="flex gap-3 items-center">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0,00"
+                                        className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
+                                        value={sellerCommissionDisplay}
+                                        onChange={e => handleSellerCommissionChange(e.target.value)}
+                                        onBlur={handleSellerCommissionBlur}
+                                    />
+                                    <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
+                                </div>
+                                <div className="w-28 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <Percent className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                                        <span className="font-bold text-blue-800 dark:text-blue-200">
+                                            {sellerCommissionRate.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Total Commission Summary */}
+                        <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-600 dark:text-slate-400">Toplam Komisyon</span>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-bold text-blue-800 dark:text-blue-200 text-lg">
+                                        {formatMoney(totalCommissionAmount)} ₺
+                                    </span>
+                                    <span className="text-sm bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
+                                        %{totalCommissionRate.toFixed(2)}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -255,7 +365,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 placeholder="Tutar"
                                 className="w-32 rounded-lg border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 border p-2 text-sm text-gray-900 dark:text-white"
                                 value={newExpenseAmount || ''}
-                                onChange={e => setNewExpenseAmount(parseInt(e.target.value) || 0)}
+                                onChange={e => setNewExpenseAmount(parseFloat(e.target.value) || 0)}
                             />
                             <button
                                 type="button"
@@ -274,7 +384,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                         <span className="text-gray-700 dark:text-slate-300">{exp.type}</span>
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium text-amber-700 dark:text-amber-300">
-                                                {exp.amount.toLocaleString('tr-TR')} ₺
+                                                {formatMoney(exp.amount)} ₺
                                             </span>
                                             <button
                                                 type="button"
@@ -289,7 +399,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="flex justify-between items-center border-t border-amber-200 dark:border-amber-800 pt-2 mt-2">
                                     <span className="font-semibold text-amber-800 dark:text-amber-300">Toplam Gider</span>
                                     <span className="font-bold text-amber-800 dark:text-amber-300">
-                                        {totalExpenses.toLocaleString('tr-TR')} ₺
+                                        {formatMoney(totalExpenses)} ₺
                                     </span>
                                 </div>
                             </div>
@@ -306,7 +416,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="font-semibold text-violet-800 dark:text-violet-300 flex items-center gap-2">
                                     <ArrowRightLeft className="w-5 h-5" />
-                                    Capraz Komisyon
+                                    Çapraz Komisyon
                                 </h3>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
@@ -323,7 +433,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="flex items-center gap-3">
                                     <img src={propertyOwner.avatar} alt={propertyOwner.name} className="w-10 h-10 rounded-full" />
                                     <div>
-                                        <p className="text-sm text-violet-600 dark:text-violet-400">Portfoy Sahibi</p>
+                                        <p className="text-sm text-violet-600 dark:text-violet-400">Portföy Sahibi</p>
                                         <p className="font-semibold text-violet-800 dark:text-violet-200">{propertyOwner.name}</p>
                                     </div>
                                 </div>
@@ -333,7 +443,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
-                                            Portfoy Sahibi Payi (%)
+                                            Portföy Sahibi Payı (%)
                                         </label>
                                         <input
                                             type="number"
@@ -346,10 +456,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                     </div>
                                     <div>
                                         <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
-                                            Portfoy Sahibine
+                                            Portföy Sahibine
                                         </label>
                                         <div className="bg-violet-200 dark:bg-violet-700/50 rounded-lg p-2 text-center font-bold text-violet-800 dark:text-violet-200">
-                                            {propertyOwnerShareAmount.toLocaleString('tr-TR')} TL
+                                            {formatMoney(propertyOwnerShareAmount)} ₺
                                         </div>
                                     </div>
                                 </div>
@@ -360,7 +470,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                     {/* Revenue Sharing */}
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
                         <h3 className="font-semibold text-green-800 dark:text-green-300 mb-3">
-                            Gelir Paylasimi
+                            Gelir Paylaşımı
                         </h3>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -385,33 +495,41 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         {/* Summary */}
                         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 space-y-2">
                             <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-slate-400">Alıcı Komisyonu</span>
+                                <span className="font-medium">{formatMoney(buyerCommissionAmount)} ₺ <span className="text-xs text-gray-400">(%{buyerCommissionRate.toFixed(2)})</span></span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-slate-400">Satıcı Komisyonu</span>
+                                <span className="font-medium">{formatMoney(sellerCommissionAmount)} ₺ <span className="text-xs text-gray-400">(%{sellerCommissionRate.toFixed(2)})</span></span>
+                            </div>
+                            <div className="flex justify-between text-sm border-t border-gray-100 dark:border-slate-700 pt-2">
                                 <span className="text-gray-600 dark:text-slate-400">Toplam Komisyon</span>
-                                <span className="font-medium">{commissionAmount.toLocaleString('tr-TR')} ₺</span>
+                                <span className="font-medium">{formatMoney(totalCommissionAmount)} ₺</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 dark:text-slate-400">Toplam Gider</span>
-                                <span className="font-medium text-red-600">-{totalExpenses.toLocaleString('tr-TR')} ₺</span>
+                                <span className="font-medium text-red-600">-{formatMoney(totalExpenses)} ₺</span>
                             </div>
                             <div className="border-t border-gray-100 dark:border-slate-700 pt-2 flex justify-between">
                                 <span className="font-semibold text-gray-800 dark:text-white">Net Kâr</span>
-                                <span className="font-bold text-green-600">{netProfit.toLocaleString('tr-TR')} ₺</span>
+                                <span className="font-bold text-green-600">{formatMoney(netProfit)} ₺</span>
                             </div>
                             <div className={`grid ${formData.enableCrossCommission ? 'grid-cols-3' : 'grid-cols-2'} gap-4 pt-2 border-t border-gray-100 dark:border-slate-700`}>
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">Ofise Kalan</div>
-                                    <div className="font-bold text-blue-600">{officeShareAmount.toLocaleString('tr-TR')} TL</div>
+                                    <div className="font-bold text-blue-600">{formatMoney(officeShareAmount)} ₺</div>
                                 </div>
                                 {formData.enableCrossCommission && propertyOwner && (
                                     <div className="text-center">
                                         <div className="text-xs text-gray-500 dark:text-slate-400">{propertyOwner.name}</div>
-                                        <div className="font-bold text-violet-600">{propertyOwnerShareAmount.toLocaleString('tr-TR')} TL</div>
+                                        <div className="font-bold text-violet-600">{formatMoney(propertyOwnerShareAmount)} ₺</div>
                                     </div>
                                 )}
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">
-                                        {formData.enableCrossCommission ? 'Satici Danismana' : 'Danismana Kalan'}
+                                        {formData.enableCrossCommission ? 'Satıcı Danışmana' : 'Danışmana Kalan'}
                                     </div>
-                                    <div className="font-bold text-purple-600">{consultantShareAmount.toLocaleString('tr-TR')} TL</div>
+                                    <div className="font-bold text-purple-600">{formatMoney(consultantShareAmount)} ₺</div>
                                 </div>
                             </div>
                         </div>
