@@ -564,6 +564,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
 
+    // 3. Property Activity (for property history display)
+    const propertyActivity: Activity = {
+      id: `auto_property_${Date.now()}`,
+      type: 'Tapu İşlemi',
+      customerId: sale.buyerId || '',
+      customerName: sale.buyerName || 'Alıcı',
+      propertyId: sale.propertyId,
+      propertyTitle: sale.propertyTitle || property?.title || 'Mülk',
+      date: sale.saleDate,
+      description: `${newStatus} işlemi tamamlandı. Satış bedeli: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}. ${sale.buyerName ? 'Alıcı: ' + sale.buyerName : ''}`,
+      status: 'Tamamlandı',
+      user_id: session?.user.id,
+      office_id: userProfile.officeId
+    };
+
+    activitiesToAdd.push(propertyActivity);
+
     console.log('[addSale] Debug - Activities to add:', activitiesToAdd);
 
     setActivities(prev => [...activitiesToAdd, ...prev]);
@@ -606,7 +623,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const activitiesForDB = activitiesToAdd.map(activity => ({
           type: activity.type,
           customer_id: activity.customerId,
+          customer_name: activity.customerName,
           property_id: activity.propertyId,
+          property_title: activity.propertyTitle,
           user_id: session?.user.id,
           office_id: userProfile.officeId,
           date: activity.date,
