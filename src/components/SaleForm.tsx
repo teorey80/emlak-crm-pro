@@ -20,16 +20,22 @@ const EXPENSE_TYPES = [
     'Diger'
 ];
 
-// Helper function to format number with thousand separators and decimals
+// Helper function to format number with thousand separators (no decimals)
 const formatMoney = (value: number): string => {
-    return value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Math.round(value).toLocaleString('tr-TR');
 };
 
 // Helper function to parse formatted money string to number
 const parseMoney = (value: string): number => {
-    // Remove thousand separators (.) and replace decimal comma with dot
-    const cleaned = value.replace(/\./g, '').replace(',', '.');
-    return parseFloat(cleaned) || 0;
+    // Remove thousand separators (.) and any non-numeric chars except comma
+    const cleaned = value.replace(/\./g, '').replace(/[^0-9]/g, '');
+    return parseInt(cleaned) || 0;
+};
+
+// Format input value with thousand separators while typing
+const formatInputMoney = (value: string): string => {
+    const num = parseMoney(value);
+    return num > 0 ? num.toLocaleString('tr-TR') : '';
 };
 
 const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onSave }) => {
@@ -86,17 +92,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         initialData?.partnerShareAmount ? formatMoney(initialData.partnerShareAmount) : ''
     );
 
-    // Handle partner share input
+    // Handle partner share input - format while typing
     const handlePartnerShareChange = (value: string) => {
-        setPartnerShareDisplay(value);
         const numValue = parseMoney(value);
         setPartnerShareAmount(numValue);
-    };
-
-    const handlePartnerShareBlur = () => {
-        if (partnerShareAmount > 0) {
-            setPartnerShareDisplay(formatMoney(partnerShareAmount));
-        }
+        setPartnerShareDisplay(formatInputMoney(value));
     };
 
     // Calculate commission rates from amounts
@@ -134,31 +134,18 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
     const sellingConsultantShareAmount = totalConsultantShare - propertyOwnerShareAmount;
     const consultantShareAmount = formData.enableCrossCommission ? sellingConsultantShareAmount : totalConsultantShare;
 
-    // Handle buyer commission input
+    // Handle buyer commission input - format while typing
     const handleBuyerCommissionChange = (value: string) => {
-        setBuyerCommissionDisplay(value);
         const numValue = parseMoney(value);
         setBuyerCommissionAmount(numValue);
+        setBuyerCommissionDisplay(formatInputMoney(value));
     };
 
-    // Handle seller commission input
+    // Handle seller commission input - format while typing
     const handleSellerCommissionChange = (value: string) => {
-        setSellerCommissionDisplay(value);
         const numValue = parseMoney(value);
         setSellerCommissionAmount(numValue);
-    };
-
-    // Format on blur
-    const handleBuyerCommissionBlur = () => {
-        if (buyerCommissionAmount > 0) {
-            setBuyerCommissionDisplay(formatMoney(buyerCommissionAmount));
-        }
-    };
-
-    const handleSellerCommissionBlur = () => {
-        if (sellerCommissionAmount > 0) {
-            setSellerCommissionDisplay(formatMoney(sellerCommissionAmount));
-        }
+        setSellerCommissionDisplay(formatInputMoney(value));
     };
 
     // Add expense
@@ -327,7 +314,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                         className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
                                         value={buyerCommissionDisplay}
                                         onChange={e => handleBuyerCommissionChange(e.target.value)}
-                                        onBlur={handleBuyerCommissionBlur}
                                     />
                                     <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
                                 </div>
@@ -356,7 +342,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                         className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
                                         value={sellerCommissionDisplay}
                                         onChange={e => handleSellerCommissionChange(e.target.value)}
-                                        onBlur={handleSellerCommissionBlur}
                                     />
                                     <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
                                 </div>
@@ -481,7 +466,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                                 className="w-full rounded-lg border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
                                                 value={partnerShareDisplay}
                                                 onChange={e => handlePartnerShareChange(e.target.value)}
-                                                onBlur={handlePartnerShareBlur}
                                             />
                                             <span className="absolute left-3 top-3.5 text-orange-400 font-medium">₺</span>
                                         </div>

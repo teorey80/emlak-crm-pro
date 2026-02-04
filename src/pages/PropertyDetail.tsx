@@ -487,7 +487,14 @@ const PropertyDetail: React.FC = () => {
                                                     <DollarSign className="w-5 h-5" />
                                                     Bu Mülk Satıldı
                                                 </p>
-                                                {property.soldDate && <p className="text-xs mt-1">Tarih: {property.soldDate}</p>}
+                                                {currentSale?.salePrice && (
+                                                    <p className="text-lg font-bold text-green-700 dark:text-green-400 mt-1">
+                                                        {currentSale.salePrice.toLocaleString('tr-TR')} ₺
+                                                    </p>
+                                                )}
+                                                {(property.soldDate || currentSale?.saleDate) && (
+                                                    <p className="text-xs mt-1">Tarih: {property.soldDate || currentSale?.saleDate}</p>
+                                                )}
                                             </div>
                                             <button
                                                 onClick={() => setShowSaleForm(true)}
