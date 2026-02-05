@@ -250,7 +250,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHasMoreActivities(actRes.data.length === PAGE_SIZE);
       }
       if (reqRes.data) setRequests(reqRes.data);
-      if (salesRes.data) setSales(salesRes.data);
+      if (salesRes.data) {
+        // Transform snake_case to camelCase for frontend
+        setSales(salesRes.data.map((s: any) => ({
+          id: s.id,
+          propertyId: s.property_id,
+          userId: s.user_id,
+          officeId: s.office_id,
+          transactionType: s.transaction_type,
+          salePrice: s.sale_price,
+          saleDate: s.sale_date,
+          buyerId: s.buyer_id,
+          buyerName: s.buyer_name,
+          commissionRate: s.commission_rate,
+          commissionAmount: s.commission_amount,
+          buyerCommissionAmount: s.buyer_commission_amount,
+          buyerCommissionRate: s.buyer_commission_rate,
+          sellerCommissionAmount: s.seller_commission_amount,
+          sellerCommissionRate: s.seller_commission_rate,
+          expenses: s.expenses,
+          totalExpenses: s.total_expenses,
+          officeShareRate: s.office_share_rate,
+          consultantShareRate: s.consultant_share_rate,
+          officeShareAmount: s.office_share_amount,
+          consultantShareAmount: s.consultant_share_amount,
+          netProfit: s.net_profit,
+          notes: s.notes,
+          propertyTitle: s.property_title,
+          consultantId: s.consultant_id,
+          consultantName: s.consultant_name,
+          // Partner office fields
+          hasPartnerOffice: s.has_partner_office,
+          partnerOfficeName: s.partner_office_name,
+          partnerOfficeContact: s.partner_office_contact,
+          partnerShareType: s.partner_share_type,
+          partnerShareAmount: s.partner_share_amount,
+          partnerShareRate: s.partner_share_rate
+        })));
+      }
 
       if (teamRes.data) {
         setTeamMembers(teamRes.data.map((p: any) => ({
@@ -657,6 +694,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // C. Insert Activities in DB
       if (activitiesToAdd.length > 0) {
         const activitiesForDB = activitiesToAdd.map(activity => ({
+          id: crypto.randomUUID(), // Generate UUID for each activity
           type: activity.type,
           customer_id: activity.customerId,
           customer_name: activity.customerName,
