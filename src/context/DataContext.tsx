@@ -707,10 +707,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           status: activity.status
         }));
 
-        console.log('[addSale] Debug - Inserting activities to DB:', activitiesForDB);
+        console.log('[addSale] Inserting activities to DB:', activitiesForDB);
 
-        const { error: actError } = await supabase.from('activities').insert(activitiesForDB);
-        if (actError) console.error('Error auto-creating activity:', actError);
+        const { data: insertedActivities, error: actError } = await supabase
+          .from('activities')
+          .insert(activitiesForDB)
+          .select(); // Get inserted activities back from DB
+
+        if (actError) {
+          console.error('❌ Error inserting activities:', actError);
+        } else if (insertedActivities) {
+          console.log('✅ Activities inserted successfully:', insertedActivities);
+
+          // Sync local state with DB data
+          setActivities(prev => {
+            // Remove optimistic activities (they have temporary IDs)
+            const withoutOptimistic = prev.filter(a =>
+              !activitiesToAdd.some(opt => opt.id === a.id)
+            );
+            // Add DB activities (they have created_at and other DB fields)
+            return [...withoutOptimistic, ...insertedActivities];
+          });
+        }
       }
 
 
