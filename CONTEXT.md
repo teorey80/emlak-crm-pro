@@ -10,6 +10,11 @@
 
 ---
 
+## Süreç Notu
+- **Her oturum sonunda** kullanıcıdan (veya diğer AI’dan) **"CONTEXT.md'yi güncelle"** talebini iste.
+
+---
+
 ## Veritabanı Yapısı (Supabase)
 
 ### Tablolar
@@ -136,6 +141,11 @@
 ### Satılan Mülk Gösterimi
 - PropertyDetail sayfasında "Bu Mülk Satıldı" altında satış fiyatı gösteriliyor
 
+### Portföy Görselleri (PropertyDetail)
+- Görsel dizilimi daha düzenli 2x4/2x2 grid olarak revize edildi
+- Görsellere tıklayınca lightbox galeri açılıyor (ileri/geri, ESC ile kapatma, küçük önizleme şeridi)
+- Görsel yoksa daha şık bir placeholder kullanılıyor (SVG data URI)
+
 ---
 
 ## Bilinen Sorunlar / Dikkat Edilecekler
@@ -211,6 +221,7 @@ Lütfen önce şu dosyaları oku:
 | Tarih | Yapılan | AI |
 |-------|---------|-----|
 | 2026-02-04 | Ortak satış, komisyon ayrımı, aktivite düzeltmesi | Claude |
+| 2026-02-04 | PropertyDetail galeri düzeni ve lightbox eklendi | Codex |
 
 ---
 

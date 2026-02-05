@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -26,40 +26,8 @@ const PropertyDetail: React.FC = () => {
     const [kaporaDate, setKaporaDate] = useState(new Date().toISOString().split('T')[0]);
     const [kaporaBuyerId, setKaporaBuyerId] = useState('');
     const [kaporaNotes, setKaporaNotes] = useState('');
-
-    // Image Gallery State
-    const [showLightbox, setShowLightbox] = useState(false);
-    const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-    // Image Navigation Functions
-    const openLightbox = (index: number) => {
-        setCurrentImageIndex(index);
-        setShowLightbox(true);
-    };
-
-    const nextImage = () => {
-        if (property && currentImageIndex < property.images.length - 1) {
-            setCurrentImageIndex(currentImageIndex + 1);
-        }
-    };
-
-    const prevImage = () => {
-        if (currentImageIndex > 0) {
-            setCurrentImageIndex(currentImageIndex - 1);
-        }
-    };
-
-    // Keyboard navigation
-    React.useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!showLightbox) return;
-            if (e.key === 'ArrowRight') nextImage();
-            if (e.key === 'ArrowLeft') prevImage();
-            if (e.key === 'Escape') setShowLightbox(false);
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showLightbox, currentImageIndex]);
+    const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
 
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
@@ -67,6 +35,44 @@ const PropertyDetail: React.FC = () => {
     if (!property) {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
     }
+
+    const placeholderImage = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23e2e8f0'/><stop offset='100%' stop-color='%23c7d2fe'/></linearGradient></defs><rect width='1200' height='800' fill='url(%23g)'/><rect x='140' y='140' width='920' height='520' rx='40' fill='white' opacity='0.65'/><path d='M340 560l160-200 150 170 140-150 210 180H340z' fill='%2394a3b8'/><circle cx='430' cy='360' r='55' fill='%2394a3b8'/><text x='600' y='660' text-anchor='middle' font-family='Arial, Helvetica, sans-serif' font-size='36' fill='%2364748b'>Görsel Yok</text></svg>";
+    const images = property.images?.length ? property.images : [placeholderImage];
+    const maxGridImages = 5;
+    const gridImages = images.slice(0, maxGridImages);
+    const remainingCount = images.length - gridImages.length;
+
+    const openGallery = (index: number) => {
+        setActiveImageIndex(index);
+        setIsGalleryOpen(true);
+    };
+
+    const closeGallery = () => setIsGalleryOpen(false);
+
+    const showPrevImage = () => {
+        setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    const showNextImage = () => {
+        setActiveImageIndex((prev) => (prev + 1) % images.length);
+    };
+
+    useEffect(() => {
+        if (!isGalleryOpen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') closeGallery();
+            if (event.key === 'ArrowLeft') showPrevImage();
+            if (event.key === 'ArrowRight') showNextImage();
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = '';
+        };
+    }, [isGalleryOpen, images.length]);
 
     // Filter activities related to this property
     const propertyActivities = activities.filter(a => a.propertyId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -175,52 +181,97 @@ const PropertyDetail: React.FC = () => {
                     </div>
 
                     {/* Images Gallery */}
-                    <div className="space-y-4">
-                        {/* Main Image */}
-                        <div
-                            onClick={() => openLightbox(0)}
-                            className="relative h-96 rounded-2xl overflow-hidden cursor-pointer group"
-                        >
-                            <img
-                                src={property.images[0]}
-                                alt="Ana Görsel"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                            <div className="absolute bottom-4 right-4 bg-black/60 text-white px-4 py-2 rounded-full text-sm backdrop-blur-md flex items-center gap-2 group-hover:bg-black/80 transition-colors">
-                                <Maximize className="w-4 h-4" />
-                                {property.images.length} Fotoğraf
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 md:grid-rows-2 md:auto-rows-[180px] gap-3">
+                        {gridImages.map((img, idx) => {
+                            const isMain = idx === 0;
+                            return (
+                                <button
+                                    key={img + idx}
+                                    type="button"
+                                    onClick={() => openGallery(idx)}
+                                    className={`relative group overflow-hidden rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${isMain ? 'col-span-2 row-span-2 h-64 md:h-full' : 'h-32 md:h-full'}`}
+                                >
+                                    <img
+                                        src={img}
+                                        alt={`Fotoğraf ${idx + 1}`}
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                    />
+                                    {isMain && (
+                                        <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm flex items-center">
+                                            <Maximize className="w-3 h-3 mr-1" />
+                                            Tüm Fotoğraflar ({images.length})
+                                        </div>
+                                    )}
+                                    {remainingCount > 0 && idx === gridImages.length - 1 && (
+                                        <div className="absolute inset-0 bg-black/50 text-white flex items-center justify-center text-lg font-semibold">
+                                            +{remainingCount}
+                                        </div>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
 
-                        {/* Thumbnail Grid */}
-                        {property.images.length > 1 && (
-                            <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
-                                {property.images.slice(1, 7).map((img, idx) => (
-                                    <div
-                                        key={idx}
-                                        onClick={() => openLightbox(idx + 1)}
-                                        className="relative h-20 rounded-xl overflow-hidden cursor-pointer group border-2 border-transparent hover:border-sky-500 transition-all"
-                                    >
-                                        <img
-                                            src={img}
-                                            alt={`Görsel ${idx + 2}`}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                        />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                                    </div>
-                                ))}
-                                {property.images.length > 7 && (
-                                    <div
-                                        onClick={() => openLightbox(7)}
-                                        className="relative h-20 rounded-xl overflow-hidden cursor-pointer group bg-slate-800 flex items-center justify-center"
-                                    >
-                                        <span className="text-white font-bold text-sm">+{property.images.length - 7}</span>
+                    {isGalleryOpen && (
+                        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+                            <button
+                                type="button"
+                                onClick={closeGallery}
+                                className="absolute top-6 right-6 text-white/80 hover:text-white transition-colors"
+                                aria-label="Kapat"
+                            >
+                                <X className="w-7 h-7" />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={showPrevImage}
+                                className="absolute left-4 md:left-8 text-white/80 hover:text-white transition-colors"
+                                aria-label="Önceki"
+                            >
+                                <ChevronLeft className="w-10 h-10" />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={showNextImage}
+                                className="absolute right-4 md:right-8 text-white/80 hover:text-white transition-colors"
+                                aria-label="Sonraki"
+                            >
+                                <ChevronRight className="w-10 h-10" />
+                            </button>
+
+                            <div className="w-full max-w-6xl px-6">
+                                <div className="w-full h-[70vh] bg-black/40 rounded-2xl overflow-hidden flex items-center justify-center">
+                                    <img
+                                        src={images[activeImageIndex]}
+                                        alt={`Fotoğraf ${activeImageIndex + 1}`}
+                                        className="max-h-full max-w-full object-contain"
+                                    />
+                                </div>
+
+                                <div className="mt-4 flex items-center justify-between text-sm text-white/70">
+                                    <span>{activeImageIndex + 1} / {images.length}</span>
+                                    <span>{property.title}</span>
+                                </div>
+
+                                {images.length > 1 && (
+                                    <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+                                        {images.map((img, idx) => (
+                                            <button
+                                                key={img + idx}
+                                                type="button"
+                                                onClick={() => setActiveImageIndex(idx)}
+                                                className={`h-16 w-24 flex-shrink-0 rounded-lg overflow-hidden border ${idx === activeImageIndex ? 'border-white' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                                            >
+                                                <img src={img} alt={`Küçük ${idx + 1}`} className="w-full h-full object-cover" />
+                                            </button>
+                                        ))}
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Matching Requests Section - NEW */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/50 bg-gradient-to-r from-white to-indigo-50/30 dark:from-slate-800 dark:to-indigo-900/20 transition-colors">
@@ -240,7 +291,7 @@ const PropertyDetail: React.FC = () => {
                                             <p className="text-sm text-gray-500 dark:text-slate-300">{req.type} • {req.minPrice.toLocaleString()} - {req.maxPrice.toLocaleString()} {req.currency}</p>
                                             <p className="text-xs text-gray-400 dark:text-slate-400 mt-1">Not: {req.notes}</p>
                                         </div>
-                                        <Link to={`/ requests / ${req.id} `} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+                                        <Link to={`/requests/${req.id}`} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
                                             Talebi İncele
                                         </Link>
                                     </div>
@@ -330,10 +381,10 @@ const PropertyDetail: React.FC = () => {
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-slate-400 italic">"{activity.description}"</p>
                                         <div className="mt-2">
-                                            <span className={`text - xs px - 2 py - 0.5 rounded border ${activity.status === 'Olumlu' ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400' :
+                                            <span className={`text-xs px-2 py-0.5 rounded border ${activity.status === 'Olumlu' ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400' :
                                                 activity.status === 'Olumsuz' ? 'bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800 text-red-700 dark:text-red-400' :
                                                     'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-100 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400'
-                                                } `}>
+                                                }`}>
                                                 Müşteri Görüşü: {activity.status}
                                             </span>
                                         </div>
@@ -451,14 +502,14 @@ const PropertyDetail: React.FC = () => {
                             <div className="mb-4">
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="text-xs text-gray-500 dark:text-slate-400">Ilgi Skoru</span>
-                                    <span className={`text - sm font - bold ${metrics.interestScore >= 70 ? 'text-green-600' : metrics.interestScore >= 40 ? 'text-yellow-600' : 'text-red-500'} `}>
+                                    <span className={`text-sm font-bold ${metrics.interestScore >= 70 ? 'text-green-600' : metrics.interestScore >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
                                         {metrics.interestScore}/100
                                     </span>
                                 </div>
                                 <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
                                     <div
-                                        className={`h - 2 rounded - full transition - all ${metrics.interestScore >= 70 ? 'bg-green-500' : metrics.interestScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'} `}
-                                        style={{ width: `${metrics.interestScore}% ` }}
+                                        className={`h-2 rounded-full transition-all ${metrics.interestScore >= 70 ? 'bg-green-500' : metrics.interestScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                        style={{ width: `${metrics.interestScore}%` }}
                                     />
                                 </div>
                             </div>
@@ -541,7 +592,7 @@ const PropertyDetail: React.FC = () => {
                             </Link>
                             {isOwner ? (
                                 <>
-                                    <Link to={`/ properties / edit / ${id} `} className="w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
+                                    <Link to={`/properties/edit/${id}`} className="w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
                                         <Edit className="w-4 h-4" />
                                         Emlağı Düzenle
                                     </Link>
@@ -704,460 +755,366 @@ const PropertyDetail: React.FC = () => {
                                         <p className="text-xs text-gray-400 italic mt-1">İletişim için ofis içi görüşünüz</p>
                                     )}
                                 </div>
-                            </div >
-                        </div >
+                            </div>
+                        </div>
 
                         {/* Property Owner Info - ONLY VISIBLE TO OWNER/BROKER */}
-                        {
-                            isOwner && (
-                                <div className="mt-6 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50">
-                                    <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
-                                        <User className="w-4 h-4" />
-                                        Mal Sahibi Bilgileri
-                                    </h4>
-                                    <div className="text-sm text-amber-900 dark:text-amber-200">
-                                        <p><span className="font-semibold">İsim:</span> {property.ownerName || 'Belirtilmemiş'}</p>
-                                        {/* Try to find phone from linked customer if available */}
-                                        {property.ownerId && customers.find(c => c.id === property.ownerId) && (
-                                            <p><span className="font-semibold">Telefon:</span> {customers.find(c => c.id === property.ownerId)?.phone}</p>
-                                        )}
-                                        {!property.ownerId && <p className="text-xs italic mt-1 opacity-70">Müşteri kaydı eşleşmedi.</p>}
-                                        <Link to={`/customers/${property.ownerId}`} className="text-xs text-amber-600 underline mt-2 block">Müşteri Kartına Git</Link>
-                                    </div>
+                        {isOwner && (
+                            <div className="mt-6 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50">
+                                <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
+                                    <User className="w-4 h-4" />
+                                    Mal Sahibi Bilgileri
+                                </h4>
+                                <div className="text-sm text-amber-900 dark:text-amber-200">
+                                    <p><span className="font-semibold">İsim:</span> {property.ownerName || 'Belirtilmemiş'}</p>
+                                    {/* Try to find phone from linked customer if available */}
+                                    {property.ownerId && customers.find(c => c.id === property.ownerId) && (
+                                        <p><span className="font-semibold">Telefon:</span> {customers.find(c => c.id === property.ownerId)?.phone}</p>
+                                    )}
+                                    {!property.ownerId && <p className="text-xs italic mt-1 opacity-70">Müşteri kaydı eşleşmedi.</p>}
+                                    <Link to={`/customers/${property.ownerId}`} className="text-xs text-amber-600 underline mt-2 block">Müşteri Kartına Git</Link>
                                 </div>
-                            )
-                        }
-                    </div >
-                </div >
-            </div >
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* Data Integrity Warning - Self Healing */}
-            {
-                currentSale && (property.listingStatus !== 'Satıldı' && property.listing_status !== 'Satıldı' && property.listingStatus !== 'Kiralandı' && property.listing_status !== 'Kiralandı') && (
-                    <div className="fixed bottom-4 right-4 z-50 bg-red-50 border border-red-200 p-4 rounded-xl shadow-lg flex items-center gap-3 animate-bounce-short">
-                        <div className="bg-red-100 p-2 rounded-full">
-                            <X className="w-5 h-5 text-red-600" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-red-800">Veri Tutarsızlığı Tespit Edildi</p>
-                            <p className="text-xs text-red-600">Bu mülk için satış kaydı var ancak mülk durumu 'Aktif'.</p>
-                        </div>
-                        <button
-                            onClick={async () => {
-                                if (confirm('Mülk durumunu "Satıldı" olarak güncellemek istiyor musunuz?')) {
-                                    await updateProperty({
-                                        ...property,
-                                        listing_status: 'Satıldı',
-                                        listingStatus: 'Satıldı',
-                                        soldDate: currentSale.saleDate
-                                    });
-                                    toast.success('Mülk durumu düzeltildi.');
-                                    window.location.reload();
-                                }
-                            }}
-                            className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700"
-                        >
-                            Düzelt
-                        </button>
-                        <button
-                            onClick={async () => {
-                                if (confirm('Hatali satis kaydini silmek istiyor musunuz?')) {
-                                    await deleteSale(currentSale.id, property.id);
-                                    toast.success('Hatali satis kaydi silindi.');
-                                }
-                            }}
-                            className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50"
-                        >
-                            Satışı Sil
-                        </button>
+            {currentSale && (property.listingStatus !== 'Satıldı' && property.listing_status !== 'Satıldı' && property.listingStatus !== 'Kiralandı' && property.listing_status !== 'Kiralandı') && (
+                <div className="fixed bottom-4 right-4 z-50 bg-red-50 border border-red-200 p-4 rounded-xl shadow-lg flex items-center gap-3 animate-bounce-short">
+                    <div className="bg-red-100 p-2 rounded-full">
+                        <X className="w-5 h-5 text-red-600" />
                     </div>
-                )
-            }
-
-            {/* SaleForm Modal */}
-            {
-                showSaleForm && property && (
-                    <SaleForm
-                        property={property}
-                        initialData={currentSale} // Pass existing sale if available
-                        onClose={() => setShowSaleForm(false)}
-                        onSave={async (sale: Sale) => {
-                            try {
-                                if (currentSale) {
-                                    // Update existing sale
-                                    await updateSale(sale);
-                                    toast.success('Satış başarıyla güncellendi.');
-                                } else {
-                                    // Create new sale
-                                    await addSale({ ...sale, transactionType: 'sale' });
-                                    toast.success('Satış işlemi başarıyla tamamlandı!');
-                                }
-                                setShowSaleForm(false);
-                                navigate('/properties');
-                            } catch (error: any) {
-                                console.error('Satış işlem hatası:', error);
-                                toast.error(error.message || 'İşlem başarısız oldu.');
-                            }
-                        }}
-                    />
-                )
-            }
-
-            {/* RentalForm Modal */}
-            {
-                showRentalForm && property && (
-                    <RentalForm
-                        property={property}
-                        onClose={() => setShowRentalForm(false)}
-                        onSave={async (sale: Sale) => {
-                            try {
-                                // Save rental to database (as sale with transactionType='rental')
-                                await addSale(sale);
-
-                                // Update property status to Kiralandı
+                    <div>
+                        <p className="font-bold text-red-800">Veri Tutarsızlığı Tespit Edildi</p>
+                        <p className="text-xs text-red-600">Bu mülk için satış kaydı var ancak mülk durumu 'Aktif'.</p>
+                    </div>
+                    <button
+                        onClick={async () => {
+                            if (confirm('Mülk durumunu "Satıldı" olarak güncellemek istiyor musunuz?')) {
                                 await updateProperty({
                                     ...property,
-                                    listingStatus: 'Kiralandı',
-                                    listing_status: 'Kiralandı',
-                                    rentedDate: sale.saleDate,
-                                    tenantId: sale.buyerId,
-                                    tenantName: sale.buyerName,
-                                    monthlyRent: sale.monthlyRent,
-                                    leaseEndDate: sale.leaseEndDate
+                                    listing_status: 'Satıldı',
+                                    listingStatus: 'Satıldı',
+                                    soldDate: currentSale.saleDate
                                 });
-
-                                // Create activity record for the rental
-                                await addActivity({
-                                    id: `rental-activity-${Date.now()}`,
-                                    type: 'Diğer',
-                                    customerId: sale.buyerId || '',
-                                    customerName: sale.buyerName || 'Kiracı',
-                                    propertyId: property.id,
-                                    propertyTitle: property.title,
-                                    date: sale.saleDate,
-                                    description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
-                                    status: 'Tamamlandı'
-                                });
-
-                                setShowRentalForm(false);
-                                toast.success('Kiralama başarıyla kaydedildi!');
-                                navigate('/properties');
-                            } catch (error) {
-                                console.error('Kiralama kaydetme hatası:', error);
-                                toast.error('Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
+                                toast.success('Mülk durumu düzeltildi.');
+                                window.location.reload();
                             }
                         }}
-                    />
-                )
-            }
+                        className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700"
+                    >
+                        Düzelt
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (confirm('Hatali satis kaydini silmek istiyor musunuz?')) {
+                                await deleteSale(currentSale.id, property.id);
+                                toast.success('Hatali satis kaydi silindi.');
+                            }
+                        }}
+                        className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50"
+                    >
+                        Satışı Sil
+                    </button>
+                </div>
+            )}
+
+            {/* SaleForm Modal */}
+            {showSaleForm && property && (
+                <SaleForm
+                    property={property}
+                    initialData={currentSale} // Pass existing sale if available
+                    onClose={() => setShowSaleForm(false)}
+                    onSave={async (sale: Sale) => {
+                        try {
+                            if (currentSale) {
+                                // Update existing sale
+                                await updateSale(sale);
+                                toast.success('Satış başarıyla güncellendi.');
+                            } else {
+                                // Create new sale
+                                await addSale({ ...sale, transactionType: 'sale' });
+                                toast.success('Satış işlemi başarıyla tamamlandı!');
+                            }
+                            setShowSaleForm(false);
+                            navigate('/properties');
+                        } catch (error: any) {
+                            console.error('Satış işlem hatası:', error);
+                            toast.error(error.message || 'İşlem başarısız oldu.');
+                        }
+                    }}
+                />
+            )}
+
+            {/* RentalForm Modal */}
+            {showRentalForm && property && (
+                <RentalForm
+                    property={property}
+                    onClose={() => setShowRentalForm(false)}
+                    onSave={async (sale: Sale) => {
+                        try {
+                            // Save rental to database (as sale with transactionType='rental')
+                            await addSale(sale);
+
+                            // Update property status to Kiralandı
+                            await updateProperty({
+                                ...property,
+                                listingStatus: 'Kiralandı',
+                                listing_status: 'Kiralandı',
+                                rentedDate: sale.saleDate,
+                                tenantId: sale.buyerId,
+                                tenantName: sale.buyerName,
+                                monthlyRent: sale.monthlyRent,
+                                leaseEndDate: sale.leaseEndDate
+                            });
+
+                            // Create activity record for the rental
+                            await addActivity({
+                                id: `rental-activity-${Date.now()}`,
+                                type: 'Diğer',
+                                customerId: sale.buyerId || '',
+                                customerName: sale.buyerName || 'Kiracı',
+                                propertyId: property.id,
+                                propertyTitle: property.title,
+                                date: sale.saleDate,
+                                description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
+                                status: 'Tamamlandı'
+                            });
+
+                            setShowRentalForm(false);
+                            toast.success('Kiralama başarıyla kaydedildi!');
+                            navigate('/properties');
+                        } catch (error) {
+                            console.error('Kiralama kaydetme hatası:', error);
+                            toast.error('Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
+                        }
+                    }}
+                />
+            )}
 
             {/* Pasif Modal */}
-            {
-                showStatusModal === 'pasif' && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white">İlanı Pasife Al</h3>
-                                <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Pasif Nedeni</label>
-                                    <select
-                                        value={inactiveReason}
-                                        onChange={(e) => setInactiveReason(e.target.value)}
-                                        className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                    >
-                                        <option value="">Neden seçiniz...</option>
-                                        <option value="Sahibi İstedi">Sahibi İstedi</option>
-                                        <option value="Fiyat Değişikliği">Fiyat Değişikliği</option>
-                                        <option value="Taşındı">Taşındı</option>
-                                        <option value="Sözleşme Bitti">Sözleşme Bitti</option>
-                                        <option value="Diğer">Diğer</option>
-                                    </select>
-                                </div>
-                                {inactiveReason === 'Diğer' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Diğer Neden</label>
-                                        <input
-                                            type="text"
-                                            value={customReason}
-                                            onChange={(e) => setCustomReason(e.target.value)}
-                                            placeholder="Pasif yapma nedenini yazınız..."
-                                            className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        onClick={() => setShowStatusModal(null)}
-                                        className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
-                                    >
-                                        İptal
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            const finalReason = inactiveReason === 'Diğer' ? customReason : inactiveReason;
-                                            if (!finalReason) {
-                                                toast.error('Lütfen pasif nedeni seçiniz veya yazınız.');
-                                                return;
-                                            }
-                                            try {
-                                                await updateProperty({
-                                                    ...property,
-                                                    listing_status: 'Pasif',
-                                                    inactive_reason: finalReason
-                                                });
-                                                setShowStatusModal(null);
-                                                setInactiveReason('');
-                                                setCustomReason('');
-                                                toast.success('İlan pasife alındı.');
-                                            } catch (error) {
-                                                console.error('Pasife alma hatası:', error);
-                                                toast.error('İşlem başarısız oldu.');
-                                            }
-                                        }}
-                                        className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700"
-                                    >
-                                        Pasife Al
-                                    </button>
-                                </div>
-                            </div>
+            {showStatusModal === 'pasif' && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">İlanı Pasife Al</h3>
+                            <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
-                    </div>
-                )
-            }
-
-            {/* Kapora Modal */}
-            {
-                showStatusModal === 'kapora' && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                    <Banknote className="w-5 h-5 text-orange-500" />
-                                    Kapora Alındı
-                                </h3>
-                                <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                                    <X className="w-5 h-5" />
-                                </button>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Pasif Nedeni</label>
+                                <select
+                                    value={inactiveReason}
+                                    onChange={(e) => setInactiveReason(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                >
+                                    <option value="">Neden seçiniz...</option>
+                                    <option value="Sahibi İstedi">Sahibi İstedi</option>
+                                    <option value="Fiyat Değişikliği">Fiyat Değişikliği</option>
+                                    <option value="Taşındı">Taşındı</option>
+                                    <option value="Sözleşme Bitti">Sözleşme Bitti</option>
+                                    <option value="Diğer">Diğer</option>
+                                </select>
                             </div>
-                            <div className="space-y-4">
+                            {inactiveReason === 'Diğer' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Miktarı (₺)</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Diğer Neden</label>
                                     <input
                                         type="text"
-                                        inputMode="numeric"
-                                        value={kaporaAmount ? parseInt(kaporaAmount.replace(/\./g, '') || '0').toLocaleString('tr-TR') : ''}
-                                        onChange={(e) => {
-                                            // Remove dots and non-numeric characters, keep only digits
-                                            const rawValue = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
-                                            setKaporaAmount(rawValue);
-                                        }}
-                                        placeholder="Örn: 50.000"
-                                        className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-right font-semibold text-lg"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Tarihi</label>
-                                    <input
-                                        type="date"
-                                        value={kaporaDate}
-                                        onChange={(e) => setKaporaDate(e.target.value)}
+                                        value={customReason}
+                                        onChange={(e) => setCustomReason(e.target.value)}
+                                        placeholder="Pasif yapma nedenini yazınız..."
                                         className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Veren Müşteri</label>
-                                    <select
-                                        value={kaporaBuyerId}
-                                        onChange={(e) => setKaporaBuyerId(e.target.value)}
-                                        className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                    >
-                                        <option value="">Müşteri seçiniz...</option>
-                                        {customers.filter(c => c.customerType === 'Alıcı' || c.customerType === 'Kiracı Adayı').map(customer => (
-                                            <option key={customer.id} value={customer.id}>{customer.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Notlar (Opsiyonel)</label>
-                                    <textarea
-                                        value={kaporaNotes}
-                                        onChange={(e) => setKaporaNotes(e.target.value)}
-                                        placeholder="Kapora ile ilgili notlar..."
-                                        rows={2}
-                                        className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white resize-none"
-                                    />
-                                </div>
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        onClick={() => setShowStatusModal(null)}
-                                        className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
-                                    >
-                                        İptal
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (!kaporaAmount || !kaporaBuyerId) {
-                                                toast.error('Lütfen kapora miktarı ve müşteri seçiniz.');
-                                                return;
-                                            }
-                                            try {
-                                                const selectedCustomer = customers.find(c => c.id === kaporaBuyerId);
-
-                                                // 1. Update property with deposit info
-                                                await updateProperty({
-                                                    ...property,
-                                                    listing_status: 'Kapora Alındı',
-                                                    deposit_amount: parseFloat(kaporaAmount),
-                                                    deposit_date: kaporaDate,
-                                                    deposit_buyer_id: kaporaBuyerId,
-                                                    deposit_buyer_name: selectedCustomer?.name || '',
-                                                    deposit_notes: kaporaNotes
-                                                });
-
-                                                // 2. Create activity record (optional - don't fail the whole operation)
-                                                try {
-                                                    await addActivity({
-                                                        id: '', // will be generated by database
-                                                        type: 'Kapora Alındı',
-                                                        date: kaporaDate,
-                                                        propertyId: property.id,
-                                                        propertyTitle: property.title,
-                                                        customerId: kaporaBuyerId,
-                                                        customerName: selectedCustomer?.name || '',
-                                                        description: `${parseFloat(kaporaAmount).toLocaleString('tr-TR')} ₺ kapora alındı. ${kaporaNotes ? 'Not: ' + kaporaNotes : ''}`,
-                                                        status: 'Olumlu'
-                                                    });
-                                                } catch (activityError) {
-                                                    console.warn('Aktivite oluşturulamadı:', activityError);
-                                                }
-
-                                                // 3. Notify Broker
-                                                try {
-                                                    const broker = teamMembers.find(m => m.role === 'broker');
-                                                    if (broker) {
-                                                        await notifyDeposit(
-                                                            broker.id,
-                                                            userProfile.name,
-                                                            property.title,
-                                                            parseFloat(kaporaAmount)
-                                                        );
-                                                    }
-                                                } catch (notifyError) {
-                                                    console.warn('Bildirim gönderilemedi:', notifyError);
-                                                }
-
-                                                // Close modal and reset form
-                                                setShowStatusModal(null);
-                                                setKaporaAmount('');
-                                                setKaporaBuyerId('');
-                                                setKaporaNotes('');
-                                                toast.success('Kapora başarıyla kaydedildi!');
-
-                                                // Small delay then refresh to show updates
-                                                setTimeout(() => window.location.reload(), 500);
-                                            } catch (error) {
-                                                console.error('Kapora kaydetme hatası:', error);
-                                                toast.error('İşlem başarısız oldu.');
-                                            }
-                                        }}
-                                        className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600"
-                                    >
-                                        Kaydet
-                                    </button>
-                                </div>
+                            )}
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowStatusModal(null)}
+                                    className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const finalReason = inactiveReason === 'Diğer' ? customReason : inactiveReason;
+                                        if (!finalReason) {
+                                            toast.error('Lütfen pasif nedeni seçiniz veya yazınız.');
+                                            return;
+                                        }
+                                        try {
+                                            await updateProperty({
+                                                ...property,
+                                                listing_status: 'Pasif',
+                                                inactive_reason: finalReason
+                                            });
+                                            setShowStatusModal(null);
+                                            setInactiveReason('');
+                                            setCustomReason('');
+                                            toast.success('İlan pasife alındı.');
+                                        } catch (error) {
+                                            console.error('Pasife alma hatası:', error);
+                                            toast.error('İşlem başarısız oldu.');
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700"
+                                >
+                                    Pasife Al
+                                </button>
                             </div>
                         </div>
-                    </div>
-                )
-            }
-
-            {/* Lightbox Modal */}
-            {showLightbox && property && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-fade-in"
-                    onClick={() => setShowLightbox(false)}
-                >
-                    {/* Close Button */}
-                    <button
-                        onClick={() => setShowLightbox(false)}
-                        className="absolute top-6 right-6 z-10 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-sm transition-colors"
-                    >
-                        <X className="w-6 h-6" />
-                    </button>
-
-                    {/* Image Counter */}
-                    <div className="absolute top-6 left-6 z-10 bg-white/10 text-white px-4 py-2 rounded-full backdrop-blur-sm text-sm font-medium">
-                        {currentImageIndex + 1} / {property.images.length}
-                    </div>
-
-                    {/* Previous Button */}
-                    {currentImageIndex > 0 && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                prevImage();
-                            }}
-                            className="absolute left-6 z-10 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full backdrop-blur-sm transition-all hover:scale-110"
-                        >
-                            <ChevronLeft className="w-8 h-8" />
-                        </button>
-                    )}
-
-                    {/* Next Button */}
-                    {currentImageIndex < property.images.length - 1 && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                nextImage();
-                            }}
-                            className="absolute right-6 z-10 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full backdrop-blur-sm transition-all hover:scale-110"
-                        >
-                            <ChevronRight className="w-8 h-8" />
-                        </button>
-                    )}
-
-                    {/* Main Image */}
-                    <div
-                        className="max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <img
-                            src={property.images[currentImageIndex]}
-                            alt={`Görsel ${currentImageIndex + 1}`}
-                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                        />
-                    </div>
-
-                    {/* Thumbnail Strip */}
-                    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 flex gap-2 bg-white/10 p-3 rounded-2xl backdrop-blur-md max-w-[90vw] overflow-x-auto">
-                        {property.images.map((img, idx) => (
-                            <button
-                                key={idx}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCurrentImageIndex(idx);
-                                }}
-                                className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 transition-all ${idx === currentImageIndex
-                                        ? 'ring-4 ring-sky-500 scale-110'
-                                        : 'opacity-60 hover:opacity-100'
-                                    }`}
-                            >
-                                <img
-                                    src={img}
-                                    alt={`Küçük resim ${idx + 1}`}
-                                    className="w-full h-full object-cover"
-                                />
-                            </button>
-                        ))}
                     </div>
                 </div>
             )}
-        </div >
+
+            {/* Kapora Modal */}
+            {showStatusModal === 'kapora' && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <Banknote className="w-5 h-5 text-orange-500" />
+                                Kapora Alındı
+                            </h3>
+                            <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Miktarı (₺)</label>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={kaporaAmount ? parseInt(kaporaAmount.replace(/\./g, '') || '0').toLocaleString('tr-TR') : ''}
+                                    onChange={(e) => {
+                                        // Remove dots and non-numeric characters, keep only digits
+                                        const rawValue = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                                        setKaporaAmount(rawValue);
+                                    }}
+                                    placeholder="Örn: 50.000"
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-right font-semibold text-lg"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Tarihi</label>
+                                <input
+                                    type="date"
+                                    value={kaporaDate}
+                                    onChange={(e) => setKaporaDate(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Veren Müşteri</label>
+                                <select
+                                    value={kaporaBuyerId}
+                                    onChange={(e) => setKaporaBuyerId(e.target.value)}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                >
+                                    <option value="">Müşteri seçiniz...</option>
+                                    {customers.filter(c => c.customerType === 'Alıcı' || c.customerType === 'Kiracı Adayı').map(customer => (
+                                        <option key={customer.id} value={customer.id}>{customer.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Notlar (Opsiyonel)</label>
+                                <textarea
+                                    value={kaporaNotes}
+                                    onChange={(e) => setKaporaNotes(e.target.value)}
+                                    placeholder="Kapora ile ilgili notlar..."
+                                    rows={2}
+                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white resize-none"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowStatusModal(null)}
+                                    className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!kaporaAmount || !kaporaBuyerId) {
+                                            toast.error('Lütfen kapora miktarı ve müşteri seçiniz.');
+                                            return;
+                                        }
+                                        try {
+                                            const selectedCustomer = customers.find(c => c.id === kaporaBuyerId);
+
+                                            // 1. Update property with deposit info
+                                            await updateProperty({
+                                                ...property,
+                                                listing_status: 'Kapora Alındı',
+                                                deposit_amount: parseFloat(kaporaAmount),
+                                                deposit_date: kaporaDate,
+                                                deposit_buyer_id: kaporaBuyerId,
+                                                deposit_buyer_name: selectedCustomer?.name || '',
+                                                deposit_notes: kaporaNotes
+                                            });
+
+                                            // 2. Create activity record (optional - don't fail the whole operation)
+                                            try {
+                                                await addActivity({
+                                                    id: '', // will be generated by database
+                                                    type: 'Kapora Alındı',
+                                                    date: kaporaDate,
+                                                    propertyId: property.id,
+                                                    propertyTitle: property.title,
+                                                    customerId: kaporaBuyerId,
+                                                    customerName: selectedCustomer?.name || '',
+                                                    description: `${parseFloat(kaporaAmount).toLocaleString('tr-TR')} ₺ kapora alındı. ${kaporaNotes ? 'Not: ' + kaporaNotes : ''}`,
+                                                    status: 'Olumlu'
+                                                });
+                                            } catch (activityError) {
+                                                console.warn('Aktivite oluşturulamadı:', activityError);
+                                            }
+
+                                            // 3. Notify Broker
+                                            try {
+                                                const broker = teamMembers.find(m => m.role === 'broker');
+                                                if (broker) {
+                                                    await notifyDeposit(
+                                                        broker.id,
+                                                        userProfile.name,
+                                                        property.title,
+                                                        parseFloat(kaporaAmount)
+                                                    );
+                                                }
+                                            } catch (notifyError) {
+                                                console.warn('Bildirim gönderilemedi:', notifyError);
+                                            }
+
+                                            // Close modal and reset form
+                                            setShowStatusModal(null);
+                                            setKaporaAmount('');
+                                            setKaporaBuyerId('');
+                                            setKaporaNotes('');
+                                            toast.success('Kapora başarıyla kaydedildi!');
+
+                                            // Small delay then refresh to show updates
+                                            setTimeout(() => window.location.reload(), 500);
+                                        } catch (error) {
+                                            console.error('Kapora kaydetme hatası:', error);
+                                            toast.error('İşlem başarısız oldu.');
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600"
+                                >
+                                    Kaydet
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
