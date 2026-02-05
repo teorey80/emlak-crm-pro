@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 import { Session } from '@supabase/supabase-js';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20; // Reduced from 50 for better performance
 
 interface DataContextType {
   session: Session | null;
@@ -232,7 +232,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('sites').select('*'),
         supabase.from('activities').select('*').order('date', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('requests').select('*'),
-        supabase.from('sales').select('*').order('created_at', { ascending: false }),
+        supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
