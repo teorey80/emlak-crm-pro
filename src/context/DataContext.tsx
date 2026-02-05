@@ -691,21 +691,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
 
-      // C. Insert Activities in DB
+      // C. Insert Activities in DB (use same format as addActivity - camelCase)
       if (activitiesToAdd.length > 0) {
+        // Use same pattern as addActivity - send Activity objects directly
         const activitiesForDB = activitiesToAdd.map(activity => ({
-          id: crypto.randomUUID(), // Generate UUID for each activity
-          type: activity.type,
-          customer_id: activity.customerId,
-          customer_name: activity.customerName,
-          property_id: activity.propertyId,
-          property_title: activity.propertyTitle,
+          ...activity, // Keep all camelCase fields: customerId, customerName, propertyId, propertyTitle
+          id: crypto.randomUUID(),
           user_id: session?.user.id,
-          office_id: userProfile.officeId,
-          date: activity.date,
-          time: activity.time || null, // Add time field to fix 400 error
-          description: activity.description,
-          status: activity.status
+          office_id: userProfile.officeId
         }));
 
         console.log('[addSale] Inserting activities to DB:', activitiesForDB);
@@ -713,7 +706,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: insertedActivities, error: actError } = await supabase
           .from('activities')
           .insert(activitiesForDB)
-          .select(); // Get inserted activities back from DB
+          .select();
 
         if (actError) {
           console.error('❌ Error inserting activities:', actError);
