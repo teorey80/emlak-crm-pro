@@ -593,10 +593,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { error: saleError } = await supabase.from('sales').insert([saleForDB]);
       if (saleError) throw saleError;
 
+
       // B. Update Property Status in DB
       const propertyUpdateData: any = {
         listing_status: newStatus,
-        inactive_reason: 'Satıldı', // Mark as inactive reason for safety
+        inactive_reason: newStatus, // Mark as inactive reason
       };
 
       if (sale.transactionType === 'sale') {
@@ -606,17 +607,52 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (sale.monthlyRent) propertyUpdateData.current_monthly_rent = sale.monthlyRent;
       }
 
-      const { error: propError } = await supabase
+      console.log(`[addSale] Updating property ${sale.propertyId} status to "${newStatus}"`, propertyUpdateData);
+
+      const { data: updateResult, error: propError } = await supabase
         .from('properties')
         .update(propertyUpdateData)
-        .eq('id', sale.propertyId);
+        .eq('id', sale.propertyId)
+        .select();
 
       if (propError) {
-        console.error('Property update failed. Rolling back sale...', propError);
+        console.error('❌ Property update failed. Rolling back sale...', propError);
         // Rollback the sale we just inserted
         await supabase.from('sales').delete().eq('id', sale.id);
+        toast.error(`Mülk durumu güncellenemedi: ${propError.message}`);
         throw new Error(`Mülk durumu güncellenemedi (${propError.message}). Satış iptal edildi.`);
       }
+
+      // Verify the update was successful
+      if (!updateResult || updateResult.length === 0) {
+        console.error('❌ Property update returned no data - possible RLS issue');
+        await supabase.from('sales').delete().eq('id', sale.id);
+        toast.error('Mülk durumu güncellenemedi. RLS politikası sorunu olabilir.');
+        throw new Error('Mülk durumu güncellenemedi - güncelleme doğrulanamadı.');
+      }
+
+      console.log('✅ Property status updated successfully:', updateResult[0]);
+
+      // Double-check: Read back the property to confirm status
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('properties')
+        .select('listing_status, sold_date, rented_date')
+        .eq('id', sale.propertyId)
+        .single();
+
+      if (verifyError) {
+        console.warn('⚠️ Could not verify property status update:', verifyError);
+      } else if (verifyData.listing_status !== newStatus) {
+        console.error('❌ CRITICAL: Property status verification failed!', {
+          expected: newStatus,
+          actual: verifyData.listing_status,
+          propertyId: sale.propertyId
+        });
+        toast.error(`UYARI: Mülk durumu kaydedilemedi! Beklenen: ${newStatus}, Gerçek: ${verifyData.listing_status}`);
+      } else {
+        console.log('✅ Property status verified in database:', verifyData);
+      }
+
 
       // C. Insert Activities in DB
       if (activitiesToAdd.length > 0) {
