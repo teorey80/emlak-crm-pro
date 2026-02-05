@@ -703,6 +703,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           user_id: session?.user.id,
           office_id: userProfile.officeId,
           date: activity.date,
+          time: activity.time || null, // Add time field to fix 400 error
           description: activity.description,
           status: activity.status
         }));
