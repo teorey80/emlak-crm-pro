@@ -155,7 +155,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         setExpenses([
             ...expenses,
             {
-                id: Date.now().toString(),
+                id: crypto.randomUUID(),
                 type: newExpenseType,
                 amount: newExpenseAmount,
             }
@@ -184,7 +184,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         e.preventDefault();
 
         const sale: Sale = {
-            id: initialData?.id || Date.now().toString(),
+            id: initialData?.id || crypto.randomUUID(),
             propertyId: property.id,
             transactionType: 'sale',
             consultantId: formData.consultantId,
@@ -430,22 +430,20 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                         <button
                                             type="button"
                                             onClick={() => setPartnerShareType('buyer_commission')}
-                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                                                partnerShareType === 'buyer_commission'
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${partnerShareType === 'buyer_commission'
                                                     ? 'bg-orange-500 text-white'
                                                     : 'bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'
-                                            }`}
+                                                }`}
                                         >
                                             Alıcı Komisyonundan
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setPartnerShareType('total_commission')}
-                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                                                partnerShareType === 'total_commission'
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${partnerShareType === 'total_commission'
                                                     ? 'bg-orange-500 text-white'
                                                     : 'bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'
-                                            }`}
+                                                }`}
                                         >
                                             Toplam Komisyondan
                                         </button>

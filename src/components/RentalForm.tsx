@@ -78,7 +78,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         setExpenses([
             ...expenses,
             {
-                id: Date.now().toString(),
+                id: crypto.randomUUID(),
                 type: newExpenseType,
                 amount: newExpenseAmount,
             }
@@ -107,7 +107,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         e.preventDefault();
 
         const sale: Sale = {
-            id: `rental-${Date.now()}`,
+            id: crypto.randomUUID(),
             propertyId: property.id,
             transactionType: 'rental',
 
