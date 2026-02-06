@@ -81,8 +81,8 @@ export const FLOOR_OPTIONS = [
   { value: -2, label: 'Bodrum ve Altı' },
   { value: -1, label: 'Bodrum Kat' },
   { value: 0, label: 'Zemin Kat' },
-  { value: 0.5, label: 'Bahçe Katı' },
-  { value: 0.75, label: 'Yüksek Giriş' },
+  { value: -10, label: 'Bahçe Katı' },
+  { value: -11, label: 'Yüksek Giriş' },
   ...Array.from({ length: 30 }, (_, i) => ({ value: i + 1, label: `${i + 1}. Kat` })),
   { value: 99, label: 'Çatı Katı' },
 ];

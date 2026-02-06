@@ -48,6 +48,9 @@ const PropertyForm: React.FC = () => {
   const { id } = useParams();
   const { addProperty, updateProperty, properties, customers, addCustomer, session } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftKey = id
+    ? `propertyFormDraft:edit:${id}`
+    : 'propertyFormDraft:new';
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -133,8 +136,30 @@ const PropertyForm: React.FC = () => {
     listingDate: new Date().toISOString().split('T')[0],
   });
 
-  // Load existing property for edit mode OR restore draft
+  const getFloorLabel = (value?: number) => {
+    if (value === undefined || value === null) return '';
+    const match = FLOOR_OPTIONS.find(opt => opt.value === value);
+    return match?.label ?? String(value);
+  };
+
+  // Restore draft (new or edit) or load existing property
   useEffect(() => {
+    const raw = localStorage.getItem(draftKey);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.formData) {
+          setFormData(prev => ({ ...prev, ...parsed.formData }));
+        }
+        if (typeof parsed?.currentStep === 'number') {
+          setCurrentStep(parsed.currentStep);
+        }
+        return;
+      } catch {
+        // Ignore bad draft data
+      }
+    }
+
     if (id) {
       // Edit mode: load existing property
       const existingProperty = properties.find(p => p.id === id);
@@ -161,7 +186,31 @@ const PropertyForm: React.FC = () => {
         }
       }
     }
-  }, [id, properties]);
+  }, [id, properties, draftKey]);
+
+  // Persist draft for new and edit
+  useEffect(() => {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({
+        formData,
+        currentStep,
+        savedAt: new Date().toISOString()
+      }));
+    } catch {
+      // Fallback without images if storage quota is exceeded
+      try {
+        const { images, ...formDataNoImages } = formData;
+        localStorage.setItem(draftKey, JSON.stringify({
+          formData: formDataNoImages,
+          currentStep,
+          savedAt: new Date().toISOString(),
+          imagesDropped: true
+        }));
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [draftKey, formData, currentStep]);
 
   // Auto-save draft to sessionStorage
   useEffect(() => {
@@ -303,6 +352,56 @@ const PropertyForm: React.FC = () => {
     }
   };
 
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const resizeImageToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDimension = 1600;
+          const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+          const targetWidth = Math.round(img.width * scale);
+          const targetHeight = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context unavailable'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const maxDataUrlLength = 6_000_000; // ~4.5MB
+          while (dataUrl.length > maxDataUrlLength && quality >= 0.6) {
+            quality -= 0.05;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+
+          if (dataUrl.length > maxDataUrlLength) {
+            reject(new Error('Image too large after resize'));
+            return;
+          }
+
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
   // AI Description Generator
   const handleGenerateDescription = async () => {
     if (!formData.type && !formData.city) {
@@ -323,7 +422,7 @@ const PropertyForm: React.FC = () => {
         formData.city && formData.district && `Konum: ${formData.district}, ${formData.city}`,
         formData.neighborhood && `Mahalle: ${formData.neighborhood}`,
         formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor && formData.floorCount && `Kat: ${formData.currentFloor}/${formData.floorCount}`,
+        formData.currentFloor !== undefined && formData.floorCount && `Kat: ${getFloorLabel(formData.currentFloor)}/${formData.floorCount}`,
         formData.heating && `Isıtma: ${formData.heating}`,
         formData.furnished && `Eşya: Eşyalı`,
         formData.parking && `Otopark: ${formData.parking}`,
@@ -371,7 +470,7 @@ ${propertyInfo}`;
         formData.city && `Şehir: ${formData.city}`,
         formData.district && `İlçe: ${formData.district}`,
         formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor && `Bulunduğu Kat: ${formData.currentFloor}`,
+        formData.currentFloor !== undefined && `Bulunduğu Kat: ${getFloorLabel(formData.currentFloor)}`,
         formData.heating && `Isıtma: ${formData.heating}`,
         formData.elevator === 'Var' && `Asansör: Var`,
       ].filter(Boolean).join('\n');
@@ -553,32 +652,25 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
     for (const file of Array.from(files)) {
       try {
-        let imageDataUrl: string;
-
-        // Check if file needs resizing
-        if (file.size > 5 * 1024 * 1024) {
-          toast.loading(`${file.name} boyutlandırılıyor...`, { id: file.name });
-          imageDataUrl = await resizeImage(file);
-          toast.success(`${file.name} otomatik boyutlandırıldı`, { id: file.name });
-        } else {
-          // File is small enough, read directly
-          imageDataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('File read failed'));
-            reader.readAsDataURL(file);
-          });
+        if (!file.type.startsWith('image/')) {
+          toast.error(`${file.name} geçersiz dosya türü`);
+          continue;
         }
+
+        const dataUrl = file.size > 5 * 1024 * 1024
+          ? await resizeImageToDataUrl(file)
+          : await readFileAsDataUrl(file);
 
         setFormData(prev => ({
           ...prev,
-          images: [...(prev.images || []), imageDataUrl]
+          images: [...(prev.images || []), dataUrl]
         }));
-      } catch (error) {
-        console.error('Image upload error:', error);
-        toast.error(`${file.name} yüklenemedi`);
+      } catch {
+        toast.error(`${file.name} yüklenemedi (lütfen daha küçük bir dosya deneyin)`);
       }
     }
+
+    e.target.value = '';
   };
 
   const removeImage = (index: number) => {
@@ -627,6 +719,9 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       } else {
         await addProperty(propertyData);
         toast.success('İlan oluşturuldu!');
+      }
+      if (!id) {
+        localStorage.removeItem(draftKey);
       }
       navigate('/properties');
     } catch (err: any) {
@@ -921,7 +1016,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
             value={formData.currentFloor}
-            onChange={e => handleChange('currentFloor', parseFloat(e.target.value))}
+            onChange={e => handleChange('currentFloor', parseInt(e.target.value))}
           >
             {FLOOR_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1187,8 +1282,8 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">KAKS (Emsal)</label>
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.kaks}
-            onChange={e => handleChange('kaks', e.target.value)}
+            value={formData.kaks || ''}
+            onChange={e => handleChange('kaks', e.target.value || undefined)}
           >
             {KAKS_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1201,8 +1296,8 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gabari</label>
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.gabari}
-            onChange={e => handleChange('gabari', e.target.value)}
+            value={formData.gabari || ''}
+            onChange={e => handleChange('gabari', e.target.value || undefined)}
           >
             {GABARI_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>

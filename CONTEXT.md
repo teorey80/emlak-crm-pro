@@ -115,7 +115,7 @@
 
 ---
 
-## Son Yapılan İşler (2026-02-04)
+## Son Yapılan İşler (2026-02-05)
 
 ### Satış Formu Geliştirmeleri
 1. **Komisyon Girişi Ayrıldı:**
@@ -146,9 +146,42 @@
 - Görsellere tıklayınca lightbox galeri açılıyor (ileri/geri, ESC ile kapatma, küçük önizleme şeridi)
 - Görsel yoksa daha şık bir placeholder kullanılıyor (SVG data URI)
 
+### Satış/Kiralama Sonrası Aktivite Kalıcılığı
+- addSale içinde oluşturulan aktiviteler DB’ye camelCase alan adlarıyla yazılıyor (customerId/propertyId), böylece sayfa yenilenince kaybolmuyor
+- Kiralama işlemlerinde aktivite tipi "Kira Kontratı" olarak ekleniyor
+ - properties update için snake_case/camelCase uyumlu fallback eklendi (listing_status vs listingStatus)
+ - activities insert için snake_case/camelCase fallback eklendi
+- activities fetch/loadMore sırasında snake_case -> camelCase normalize ediliyor
+- properties update artık önce sadece listing status, sonra opsiyonel alanları best-effort güncelliyor
+- sales insert için unknown column fallback + başarısızlıkta optimistic rollback eklendi
+- sales fetch normalize edildi (snake_case -> camelCase)
+ - listing_status yoksa satış kayıtlarından türetilen durum gösterimi eklendi
+ - sales insert snake/camel payload fallback ile güçlendirildi
+ - Unknown column hata yakalama `PGRST204` kodu ve ilgili regexlerle genişletildi
+ - sales verilerinden activite uretimi eklendi (DB aktiviteleri eksik olsa bile gorunur)
+ - Portfoy aktiviteleri artik musteriye baglanmiyor (mukerrer tapu gorunumu biter)
+ - Satis iptalinde ilgili aktiviteler DB ve state uzerinden temizleniyor
+ - Property insert/update bilinmeyen kolonlarda otomatik temizlenip tekrar deneniyor
+ - Derived portfoy aktivitesi musteriye baglanmiyor (alici tarafinda duplikasyon engellenir)
+ - FLOOR_OPTIONS icin Bahce/Yuksek Giris degerleri integer koda cekildi (DB uyumu)
+ - ilan formu draft localStorage ile kaldigi yerden devam eder
+ - ilan kaydinda numeric alanlar temizlenip tip uyumu saglaniyor (bos stringler silinir)
+ - 5MB+ gorseller otomatik resize edilerek yuklenir
+ - duzenleme modunda da form draft saklanir ve geri gelince devam eder
+ - KAKS/Gabari bos secimler undefined olarak kaydedilir
+ - buyuk gorsellerde hata yakalama iyilestirildi
+ - draft key edit/new ayrildi (session bagimliligi kaldirildi)
+ - buyuk gorsel resize daha agresif ayarlandi (1600px / 4.5MB hedef)
+
 ---
 
 ## Bilinen Sorunlar / Dikkat Edilecekler
+
+0. **Form Taslağı (Edit Modu):**
+   - İlan düzenlerken formda ilerleyip sekmeden çıkıp geri dönünce kaldığı yerden devam etmiyor (draft edit modunda beklenen şekilde çalışmıyor).
+
+0. **Fotoğraf Yükleme (5MB+):**
+   - 5MB üstü görseller seçilince otomatik resize ile eklenmesi bekleniyor ama eklenmiyor (hata mesajı da görünmüyor).
 
 1. **Satış İşlemi Tutarsızlığı:**
    - Bazen satış kaydı oluşuyor ama property durumu "Aktif" kalabiliyor
@@ -222,6 +255,9 @@ Lütfen önce şu dosyaları oku:
 |-------|---------|-----|
 | 2026-02-04 | Ortak satış, komisyon ayrımı, aktivite düzeltmesi | Claude |
 | 2026-02-04 | PropertyDetail galeri düzeni ve lightbox eklendi | Codex |
+| 2026-02-05 | Satış/kiralama aktivitelerinin kalıcı yazımı ve "Kira Kontratı" tipi | Codex |
+| 2026-02-05 | addSale DB update/insert alan adlarında camelCase/snake_case fallback | Codex |
+| 2026-02-05 | activities normalize + property update best-effort | Codex |
 
 ---
 

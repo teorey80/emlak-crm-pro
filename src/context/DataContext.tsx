@@ -106,6 +106,60 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     avatar: ''
   });
 
+  const sanitizePropertyPayload = (payload: Record<string, any>) => {
+    const numericFields = new Set([
+      'price',
+      'area',
+      'grossArea',
+      'netArea',
+      'openArea',
+      'buildingAge',
+      'currentFloor',
+      'floorCount',
+      'bathrooms',
+      'dues',
+      'deposit',
+      'kaks',
+      'gabari'
+    ]);
+
+    const result: Record<string, any> = { ...payload };
+
+    Object.keys(result).forEach((key) => {
+      if (result[key] === '') {
+        delete result[key];
+      }
+    });
+
+    numericFields.forEach((field) => {
+      if (!(field in result)) return;
+      const value = result[field];
+      if (value === null || value === undefined) {
+        delete result[field];
+        return;
+      }
+      if (typeof value === 'number') {
+        if (Number.isNaN(value)) delete result[field];
+        return;
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          delete result[field];
+          return;
+        }
+        const normalized = Number(trimmed.replace(',', '.'));
+        if (Number.isNaN(normalized)) {
+          delete result[field];
+        } else {
+          result[field] = normalized;
+        }
+      }
+    });
+
+    return result;
+  };
+
   // Auth Listener with timeout to prevent infinite loading
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -222,6 +276,237 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [session]);
 
+  const normalizeActivity = (activity: any): Activity => {
+    const normalized: Activity = {
+      ...activity,
+      customerId: activity.customerId ?? activity.customer_id ?? '',
+      customerName: activity.customerName ?? activity.customer_name ?? '',
+      propertyId: activity.propertyId ?? activity.property_id,
+      propertyTitle: activity.propertyTitle ?? activity.property_title
+    };
+
+    const description = normalized.description || '';
+    const isPropertyAuto = (normalized.type === 'Tapu İşlemi' || normalized.type === 'Kira Kontratı')
+      && /işlemi tamamlandı|kontratı tamamlandı/i.test(description);
+
+    if (isPropertyAuto) {
+      normalized.customerId = '';
+      normalized.customerName = normalized.customerName || '';
+    }
+
+    return normalized;
+  };
+
+  const normalizeSale = (sale: any): Sale => ({
+    ...sale,
+    propertyId: sale.propertyId ?? sale.property_id,
+    property_id: sale.property_id ?? sale.propertyId,
+    transactionType: sale.transactionType ?? sale.transaction_type ?? 'sale',
+    transaction_type: sale.transaction_type ?? sale.transactionType,
+    salePrice: sale.salePrice ?? sale.sale_price ?? 0,
+    sale_price: sale.sale_price ?? sale.salePrice,
+    saleDate: sale.saleDate ?? sale.sale_date ?? '',
+    sale_date: sale.sale_date ?? sale.saleDate,
+    buyerId: sale.buyerId ?? sale.buyer_id ?? '',
+    buyer_id: sale.buyer_id ?? sale.buyerId,
+    buyerName: sale.buyerName ?? sale.buyer_name ?? '',
+    buyer_name: sale.buyer_name ?? sale.buyerName,
+    monthlyRent: sale.monthlyRent ?? sale.monthly_rent,
+    monthly_rent: sale.monthly_rent ?? sale.monthlyRent,
+    depositAmount: sale.depositAmount ?? sale.deposit_amount,
+    deposit_amount: sale.deposit_amount ?? sale.depositAmount,
+    leaseDuration: sale.leaseDuration ?? sale.lease_duration,
+    lease_duration: sale.lease_duration ?? sale.leaseDuration,
+    leaseEndDate: sale.leaseEndDate ?? sale.lease_end_date,
+    lease_end_date: sale.lease_end_date ?? sale.leaseEndDate,
+    commissionRate: sale.commissionRate ?? sale.commission_rate ?? 0,
+    commission_rate: sale.commission_rate ?? sale.commissionRate,
+    commissionAmount: sale.commissionAmount ?? sale.commission_amount ?? 0,
+    commission_amount: sale.commission_amount ?? sale.commissionAmount,
+    buyerCommissionAmount: sale.buyerCommissionAmount ?? sale.buyer_commission_amount ?? 0,
+    buyer_commission_amount: sale.buyer_commission_amount ?? sale.buyerCommissionAmount,
+    buyerCommissionRate: sale.buyerCommissionRate ?? sale.buyer_commission_rate ?? 0,
+    buyer_commission_rate: sale.buyer_commission_rate ?? sale.buyerCommissionRate,
+    sellerCommissionAmount: sale.sellerCommissionAmount ?? sale.seller_commission_amount ?? 0,
+    seller_commission_amount: sale.seller_commission_amount ?? sale.sellerCommissionAmount,
+    sellerCommissionRate: sale.sellerCommissionRate ?? sale.seller_commission_rate ?? 0,
+    seller_commission_rate: sale.seller_commission_rate ?? sale.sellerCommissionRate,
+    totalExpenses: sale.totalExpenses ?? sale.total_expenses ?? 0,
+    total_expenses: sale.total_expenses ?? sale.totalExpenses,
+    officeShareRate: sale.officeShareRate ?? sale.office_share_rate ?? 50,
+    office_share_rate: sale.office_share_rate ?? sale.officeShareRate,
+    consultantShareRate: sale.consultantShareRate ?? sale.consultant_share_rate ?? 50,
+    consultant_share_rate: sale.consultant_share_rate ?? sale.consultantShareRate,
+    officeShareAmount: sale.officeShareAmount ?? sale.office_share_amount ?? 0,
+    office_share_amount: sale.office_share_amount ?? sale.officeShareAmount,
+    consultantShareAmount: sale.consultantShareAmount ?? sale.consultant_share_amount ?? 0,
+    consultant_share_amount: sale.consultant_share_amount ?? sale.consultantShareAmount,
+    netProfit: sale.netProfit ?? sale.net_profit ?? 0,
+    net_profit: sale.net_profit ?? sale.netProfit,
+    hasPartnerOffice: sale.hasPartnerOffice ?? sale.has_partner_office,
+    has_partner_office: sale.has_partner_office ?? sale.hasPartnerOffice,
+    partnerOfficeName: sale.partnerOfficeName ?? sale.partner_office_name,
+    partner_office_name: sale.partner_office_name ?? sale.partnerOfficeName,
+    partnerOfficeContact: sale.partnerOfficeContact ?? sale.partner_office_contact,
+    partner_office_contact: sale.partner_office_contact ?? sale.partnerOfficeContact,
+    partnerShareType: sale.partnerShareType ?? sale.partner_share_type,
+    partner_share_type: sale.partner_share_type ?? sale.partnerShareType,
+    partnerShareAmount: sale.partnerShareAmount ?? sale.partner_share_amount,
+    partner_share_amount: sale.partner_share_amount ?? sale.partnerShareAmount,
+    partnerShareRate: sale.partnerShareRate ?? sale.partner_share_rate,
+    partner_share_rate: sale.partner_share_rate ?? sale.partnerShareRate
+  });
+
+  const mergeActivitiesWithSales = (activityData: Activity[], salesData: Sale[], props: Property[]) => {
+    const existingKeys = new Set(
+      activityData.map((activity) => {
+        const propertyId = activity.propertyId ?? '';
+        const customerId = activity.customerId ?? '';
+        return `${activity.type}|${activity.date}|${propertyId}|${customerId}`;
+      })
+    );
+
+    const existingLooseKeys = new Set(
+      activityData.map((activity) => {
+        const propertyId = activity.propertyId ?? '';
+        const customerId = activity.customerId ?? '';
+        return `${activity.type}|${propertyId}|${customerId}`;
+      })
+    );
+
+    const derivedActivities: Activity[] = [];
+
+    salesData.forEach((sale) => {
+      const transactionType = sale.transactionType || sale.transaction_type || 'sale';
+      const activityType: Activity['type'] = transactionType === 'rental' ? 'Kira Kontratı' : 'Tapu İşlemi';
+      const saleDate = sale.saleDate || sale.sale_date;
+      if (!saleDate) return;
+
+      const propertyId = sale.propertyId || sale.property_id;
+      if (!propertyId) return;
+
+      const property = props.find((p) => p.id === propertyId);
+      const currency = property?.currency || '₺';
+      const formatMoney = (amount: number) => `${amount.toLocaleString('tr-TR')} ${currency}`;
+      const rentInfo = sale.monthlyRent
+        ? `Aylık kira: ${formatMoney(sale.monthlyRent)}`
+        : `Komisyon: ${formatMoney(sale.salePrice || 0)}`;
+
+      const buyerId = sale.buyerId || sale.buyer_id || '';
+      const buyerName = sale.buyerName || sale.buyer_name || 'Alıcı';
+      const ownerId = property?.ownerId || (property as any)?.owner_id;
+      const ownerName = property?.ownerName || (property as any)?.owner_name || 'Satıcı';
+
+      if (buyerId) {
+        const key = `${activityType}|${saleDate}|${propertyId}|${buyerId}`;
+        const looseKey = `${activityType}|${propertyId}|${buyerId}`;
+        if (!existingKeys.has(key) && !existingLooseKeys.has(looseKey)) {
+          existingKeys.add(key);
+          existingLooseKeys.add(looseKey);
+          derivedActivities.push({
+            id: `auto_sale_${sale.id}_buyer`,
+            type: activityType,
+            customerId: buyerId,
+            customerName: buyerName,
+            propertyId,
+            propertyTitle: sale.propertyTitle || property?.title || 'Mülk',
+            date: saleDate,
+            description: transactionType === 'rental'
+              ? `Kira kontratı yapıldı (KİRACI). ${rentInfo}`
+              : `Satış işlemi gerçekleştirildi (ALAN). Fiyat: ${formatMoney(sale.salePrice || 0)}`,
+            status: 'Tamamlandı',
+            user_id: sale.user_id,
+            office_id: sale.office_id
+          });
+        }
+      }
+
+      if (ownerId) {
+        const key = `${activityType}|${saleDate}|${propertyId}|${ownerId}`;
+        const looseKey = `${activityType}|${propertyId}|${ownerId}`;
+        if (!existingKeys.has(key) && !existingLooseKeys.has(looseKey)) {
+          existingKeys.add(key);
+          existingLooseKeys.add(looseKey);
+          derivedActivities.push({
+            id: `auto_sale_${sale.id}_seller`,
+            type: activityType,
+            customerId: ownerId,
+            customerName: ownerName,
+            propertyId,
+            propertyTitle: sale.propertyTitle || property?.title || 'Mülk',
+            date: saleDate,
+            description: transactionType === 'rental'
+              ? `Kira kontratı yapıldı (KİRAYA VEREN). Kiracı: ${buyerName}. ${rentInfo}`
+              : `Satış işlemi gerçekleştirildi (SATAN). Alıcı: ${buyerName}. Fiyat: ${formatMoney(sale.salePrice || 0)}`,
+            status: 'Tamamlandı',
+            user_id: sale.user_id,
+            office_id: sale.office_id
+          });
+        }
+      }
+
+      const propertyKey = `${activityType}|${saleDate}|${propertyId}|`;
+      const propertyLooseKey = `${activityType}|${propertyId}|`;
+      if (!existingKeys.has(propertyKey) && !existingLooseKeys.has(propertyLooseKey)) {
+        existingKeys.add(propertyKey);
+        existingLooseKeys.add(propertyLooseKey);
+        derivedActivities.push({
+          id: `auto_sale_${sale.id}_property`,
+          type: activityType,
+          customerId: '',
+          customerName: 'Portföy',
+          propertyId,
+          propertyTitle: sale.propertyTitle || property?.title || 'Mülk',
+          date: saleDate,
+          description: transactionType === 'rental'
+            ? `Kira kontratı tamamlandı. ${rentInfo}. ${buyerName ? 'Kiracı: ' + buyerName : ''}`
+            : `Satış işlemi tamamlandı. Satış bedeli: ${formatMoney(sale.salePrice || 0)}. ${buyerName ? 'Alıcı: ' + buyerName : ''}`,
+          status: 'Tamamlandı',
+          user_id: sale.user_id,
+          office_id: sale.office_id
+        });
+      }
+    });
+
+    if (derivedActivities.length === 0) return activityData;
+    return [...derivedActivities, ...activityData];
+  };
+
+  const mergePropertiesWithSales = (props: Property[], salesData: Sale[]) => {
+    const salesByProperty = new Map<string, Sale>();
+    salesData.forEach((sale) => {
+      const propId = sale.propertyId || sale.property_id;
+      if (!propId) return;
+      const existing = salesByProperty.get(propId);
+      if (!existing) {
+        salesByProperty.set(propId, sale);
+        return;
+      }
+      const existingDate = new Date(existing.saleDate || existing.sale_date || 0).getTime();
+      const incomingDate = new Date(sale.saleDate || sale.sale_date || 0).getTime();
+      if (incomingDate >= existingDate) salesByProperty.set(propId, sale);
+    });
+
+    return props.map((property) => {
+      const listingStatus = property.listingStatus || property.listing_status;
+      if (listingStatus) return property;
+
+      const sale = salesByProperty.get(property.id);
+      if (!sale) return property;
+
+      const transactionType = sale.transactionType || sale.transaction_type;
+      const derivedStatus = transactionType === 'rental' ? 'Kiralandı' : 'Satıldı';
+
+      return {
+        ...property,
+        listingStatus: derivedStatus as any,
+        listing_status: derivedStatus,
+        soldDate: transactionType === 'sale' ? (sale.saleDate || sale.sale_date) : property.soldDate,
+        rentedDate: transactionType === 'rental' ? (sale.saleDate || sale.sale_date) : property.rentedDate
+      };
+    });
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -236,9 +521,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
+      let normalizedSales: Sale[] = [];
+      if (salesRes.data) {
+        normalizedSales = salesRes.data.map(normalizeSale);
+        setSales(normalizedSales);
+      }
+
       if (propsRes.data) {
-        setProperties(propsRes.data);
-        setHasMoreProperties(propsRes.data.length === PAGE_SIZE);
+        let nextProperties = propsRes.data;
+        if (normalizedSales.length > 0) {
+          nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
+        }
+        setProperties(nextProperties);
+        setHasMoreProperties(nextProperties.length === PAGE_SIZE);
       }
       if (custRes.data) {
         setCustomers(custRes.data);
@@ -246,47 +541,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       if (sitesRes.data) setSites(sitesRes.data);
       if (actRes.data) {
-        setActivities(actRes.data);
+        const normalizedActivities = actRes.data.map(normalizeActivity);
+        const mergedActivities = normalizedSales.length > 0 && propsRes.data
+          ? mergeActivitiesWithSales(normalizedActivities, normalizedSales, propsRes.data)
+          : normalizedActivities;
+        setActivities(mergedActivities);
         setHasMoreActivities(actRes.data.length === PAGE_SIZE);
       }
       if (reqRes.data) setRequests(reqRes.data);
-      if (salesRes.data) {
-        // Transform snake_case to camelCase for frontend
-        setSales(salesRes.data.map((s: any) => ({
-          id: s.id,
-          propertyId: s.property_id,
-          userId: s.user_id,
-          officeId: s.office_id,
-          transactionType: s.transaction_type,
-          salePrice: s.sale_price,
-          saleDate: s.sale_date,
-          buyerId: s.buyer_id,
-          buyerName: s.buyer_name,
-          commissionRate: s.commission_rate,
-          commissionAmount: s.commission_amount,
-          buyerCommissionAmount: s.buyer_commission_amount,
-          buyerCommissionRate: s.buyer_commission_rate,
-          sellerCommissionAmount: s.seller_commission_amount,
-          sellerCommissionRate: s.seller_commission_rate,
-          expenses: s.expenses,
-          totalExpenses: s.total_expenses,
-          officeShareRate: s.office_share_rate,
-          consultantShareRate: s.consultant_share_rate,
-          officeShareAmount: s.office_share_amount,
-          consultantShareAmount: s.consultant_share_amount,
-          netProfit: s.net_profit,
-          notes: s.notes,
-          propertyTitle: s.property_title,
-          consultantId: s.consultant_id,
-          consultantName: s.consultant_name,
-          // Partner office fields
-          hasPartnerOffice: s.has_partner_office,
-          partnerOfficeName: s.partner_office_name,
-          partnerOfficeContact: s.partner_office_contact,
-          partnerShareType: s.partner_share_type,
-          partnerShareAmount: s.partner_share_amount,
-          partnerShareRate: s.partner_share_rate
-        })));
+      if (!salesRes.data) {
+        setSales([]);
       }
 
       if (teamRes.data) {
@@ -356,23 +620,108 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("CRITICAL: Attempting to add property without office_id!", propertyWithUser);
     }
 
+    const sanitizedProperty = sanitizePropertyPayload(propertyWithUser);
+
     // Optimistic update
     setProperties((prev) => [propertyWithUser, ...prev]);
 
-    const { error } = await supabase.from('properties').insert([propertyWithUser]);
-    if (error) {
-      console.error('Error adding property:', error);
-      throw error;
+    const isUnknownColumnError = (error: any) => {
+      const msg = error?.message || '';
+      return (
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' ||
+        /column .* does not exist/i.test(msg) ||
+        /Could not find the '.*' column/i.test(msg)
+      );
+    };
+
+    const extractUnknownColumn = (error: any) => {
+      const message = error?.message || '';
+      const match1 = message.match(/column "([^"]+)"/i);
+      if (match1?.[1]) return match1[1];
+      const match2 = message.match(/'([^']+)' column/i);
+      return match2?.[1];
+    };
+
+    const insertWithFallback = async (payload: Record<string, any>) => {
+      let workingPayload = { ...payload };
+      let lastError: any = null;
+
+      for (let i = 0; i < 40; i += 1) {
+        const { error } = await supabase.from('properties').insert([workingPayload]);
+        if (!error) return { ok: true };
+
+        lastError = error;
+        if (!isUnknownColumnError(error)) break;
+
+        const unknownColumn = extractUnknownColumn(error);
+        if (!unknownColumn || !(unknownColumn in workingPayload)) break;
+
+        delete workingPayload[unknownColumn];
+      }
+
+      return { ok: false, error: lastError };
+    };
+
+    const insertResult = await insertWithFallback(sanitizedProperty as any);
+    if (!insertResult.ok) {
+      console.error('Error adding property:', insertResult.error);
+      // Rollback optimistic update
+      setProperties((prev) => prev.filter((p) => p.id !== propertyWithUser.id));
+      throw insertResult.error;
     }
   };
 
   const updateProperty = async (updatedProperty: Property) => {
+    const prevProperty = properties.find(p => p.id === updatedProperty.id);
     setProperties((prev) => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
 
-    const { error } = await supabase.from('properties').update(updatedProperty).eq('id', updatedProperty.id);
-    if (error) {
-      console.error('Error updating property:', error);
-      throw error;
+    const isUnknownColumnError = (error: any) => {
+      const msg = error?.message || '';
+      return (
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' ||
+        /column .* does not exist/i.test(msg) ||
+        /Could not find the '.*' column/i.test(msg)
+      );
+    };
+
+    const extractUnknownColumn = (error: any) => {
+      const message = error?.message || '';
+      const match1 = message.match(/column "([^"]+)"/i);
+      if (match1?.[1]) return match1[1];
+      const match2 = message.match(/'([^']+)' column/i);
+      return match2?.[1];
+    };
+
+    const updateWithFallback = async (payload: Record<string, any>) => {
+      let workingPayload = { ...payload };
+      let lastError: any = null;
+
+      for (let i = 0; i < 40; i += 1) {
+        const { error } = await supabase.from('properties').update(workingPayload).eq('id', updatedProperty.id);
+        if (!error) return { ok: true };
+
+        lastError = error;
+        if (!isUnknownColumnError(error)) break;
+
+        const unknownColumn = extractUnknownColumn(error);
+        if (!unknownColumn || !(unknownColumn in workingPayload)) break;
+
+        delete workingPayload[unknownColumn];
+      }
+
+      return { ok: false, error: lastError };
+    };
+
+    const sanitizedProperty = sanitizePropertyPayload(updatedProperty as any);
+    const updateResult = await updateWithFallback(sanitizedProperty as any);
+    if (!updateResult.ok) {
+      console.error('Error updating property:', updateResult.error);
+      if (prevProperty) {
+        setProperties((prev) => prev.map(p => p.id === prevProperty.id ? prevProperty : p));
+      }
+      throw updateResult.error;
     }
   };
 
@@ -495,85 +844,166 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addSale = async (sale: Sale) => {
-    // Transform camelCase to snake_case for DB
-    const saleForDB = {
-      id: sale.id,
-      property_id: sale.propertyId,
-      user_id: session?.user.id,
-      office_id: userProfile.officeId,
-      transaction_type: sale.transactionType || 'sale',
-      sale_price: sale.salePrice,
-      sale_date: sale.saleDate,
-      buyer_id: sale.buyerId || null,
-      buyer_name: sale.buyerName || null,
-
-      // Commission fields
-      commission_rate: sale.commissionRate || 0,
-      commission_amount: sale.commissionAmount, // MUST be provided
-      buyer_commission_amount: sale.buyerCommissionAmount || 0,
-      buyer_commission_rate: sale.buyerCommissionRate || 0,
-      seller_commission_amount: sale.sellerCommissionAmount || 0,
-      seller_commission_rate: sale.sellerCommissionRate || 0,
-
-      // Expenses & Profit
-      expenses: sale.expenses || [],
-      total_expenses: sale.totalExpenses || 0,
-      office_share_rate: sale.officeShareRate || 50,
-      consultant_share_rate: sale.consultantShareRate || 50,
-      office_share_amount: sale.officeShareAmount || 0,
-      consultant_share_amount: sale.consultantShareAmount || 0,
-      net_profit: sale.netProfit || 0,
-      notes: sale.notes || null
+    const isUuid = (value?: string) => {
+      if (!value) return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
     };
 
-    console.log('Adding sale to DB:', JSON.stringify(saleForDB, null, 2));
+    const saleId = isUuid(sale.id) ? sale.id : crypto.randomUUID();
+    const saleWithId: Sale = { ...sale, id: saleId };
+
+    // Transform camelCase to snake_case for DB
+    const resolvedOfficeId = userProfile.officeId || property?.office_id || (property as any)?.officeId;
+
+    const buildSalePayload = (naming: 'snake' | 'camel') => {
+      if (naming === 'snake') {
+        return {
+          id: saleWithId.id,
+          property_id: saleWithId.propertyId,
+          user_id: session?.user.id,
+          office_id: resolvedOfficeId,
+          transaction_type: saleWithId.transactionType || 'sale',
+          sale_price: saleWithId.salePrice,
+          sale_date: saleWithId.saleDate,
+          buyer_id: saleWithId.buyerId || null,
+          buyer_name: saleWithId.buyerName || null,
+
+          // Rental specific
+          monthly_rent: saleWithId.monthlyRent,
+          deposit_amount: saleWithId.depositAmount,
+          lease_duration: saleWithId.leaseDuration,
+          lease_end_date: saleWithId.leaseEndDate,
+
+          // Commission fields
+          commission_rate: saleWithId.commissionRate || 0,
+          commission_amount: saleWithId.commissionAmount,
+          buyer_commission_amount: saleWithId.buyerCommissionAmount || 0,
+          buyer_commission_rate: saleWithId.buyerCommissionRate || 0,
+          seller_commission_amount: saleWithId.sellerCommissionAmount || 0,
+          seller_commission_rate: saleWithId.sellerCommissionRate || 0,
+
+          // Expenses & Profit
+          expenses: saleWithId.expenses || [],
+          total_expenses: saleWithId.totalExpenses || 0,
+          office_share_rate: saleWithId.officeShareRate || 50,
+          consultant_share_rate: saleWithId.consultantShareRate || 50,
+          office_share_amount: saleWithId.officeShareAmount || 0,
+          consultant_share_amount: saleWithId.consultantShareAmount || 0,
+          net_profit: saleWithId.netProfit || 0,
+          notes: saleWithId.notes || null,
+
+          // Partner Office
+          has_partner_office: saleWithId.hasPartnerOffice || false,
+          partner_office_name: saleWithId.partnerOfficeName || null,
+          partner_office_contact: saleWithId.partnerOfficeContact || null,
+          partner_share_type: saleWithId.partnerShareType || null,
+          partner_share_amount: saleWithId.partnerShareAmount || 0,
+          partner_share_rate: saleWithId.partnerShareRate || 0
+        };
+      }
+
+      return {
+        id: saleWithId.id,
+        propertyId: saleWithId.propertyId,
+        user_id: session?.user.id,
+        office_id: resolvedOfficeId,
+        transactionType: saleWithId.transactionType || 'sale',
+        salePrice: saleWithId.salePrice,
+        saleDate: saleWithId.saleDate,
+        buyerId: saleWithId.buyerId || null,
+        buyerName: saleWithId.buyerName || null,
+
+        // Rental specific
+        monthlyRent: saleWithId.monthlyRent,
+        depositAmount: saleWithId.depositAmount,
+        leaseDuration: saleWithId.leaseDuration,
+        leaseEndDate: saleWithId.leaseEndDate,
+
+        // Commission fields
+        commissionRate: saleWithId.commissionRate || 0,
+        commissionAmount: saleWithId.commissionAmount,
+        buyerCommissionAmount: saleWithId.buyerCommissionAmount || 0,
+        buyerCommissionRate: saleWithId.buyerCommissionRate || 0,
+        sellerCommissionAmount: saleWithId.sellerCommissionAmount || 0,
+        sellerCommissionRate: saleWithId.sellerCommissionRate || 0,
+
+        // Expenses & Profit
+        expenses: saleWithId.expenses || [],
+        totalExpenses: saleWithId.totalExpenses || 0,
+        officeShareRate: saleWithId.officeShareRate || 50,
+        consultantShareRate: saleWithId.consultantShareRate || 50,
+        officeShareAmount: saleWithId.officeShareAmount || 0,
+        consultantShareAmount: saleWithId.consultantShareAmount || 0,
+        netProfit: saleWithId.netProfit || 0,
+        notes: saleWithId.notes || null,
+
+        // Partner Office
+        hasPartnerOffice: saleWithId.hasPartnerOffice || false,
+        partnerOfficeName: saleWithId.partnerOfficeName || null,
+        partnerOfficeContact: saleWithId.partnerOfficeContact || null,
+        partnerShareType: saleWithId.partnerShareType || null,
+        partnerShareAmount: saleWithId.partnerShareAmount || 0,
+        partnerShareRate: saleWithId.partnerShareRate || 0
+      };
+    };
+
+    console.log('Adding sale to DB:', JSON.stringify(buildSalePayload('snake'), null, 2));
 
     // --------------------------------------------------------
     // 2. Optimistic Updates (Local State)
     // --------------------------------------------------------
+    const prevSales = sales;
+    const prevProperties = properties;
+    const prevActivities = activities;
 
     // A. Add Sale
-    setSales((prev) => [sale, ...prev]);
+    setSales((prev) => [saleWithId, ...prev]);
 
     // B. Update Property Status
-    const newStatus = sale.transactionType === 'sale' ? 'Satıldı' : 'Kiralandı';
+    const newStatus = saleWithId.transactionType === 'sale' ? 'Satıldı' : 'Kiralandı';
     setProperties(prev => prev.map(p => {
-      if (p.id === sale.propertyId) {
+      if (p.id === saleWithId.propertyId) {
         return {
           ...p,
           listingStatus: newStatus as any,
           listing_status: newStatus,
-          soldDate: sale.transactionType === 'sale' ? sale.saleDate : undefined,
-          rentedDate: sale.transactionType === 'rental' ? sale.saleDate : undefined
+          soldDate: saleWithId.transactionType === 'sale' ? saleWithId.saleDate : undefined,
+          rentedDate: saleWithId.transactionType === 'rental' ? saleWithId.saleDate : undefined
         };
       }
       return p;
     }));
 
     // C. Create Activities (Auto-generated for Buyer and Seller)
-    const property = properties.find(p => p.id === sale.propertyId);
+    const property = properties.find(p => p.id === saleWithId.propertyId);
 
     console.log('[addSale] Debug - Sale:', sale);
     console.log('[addSale] Debug - Property:', property);
     console.log('[addSale] Debug - Checking params:', {
-      buyerId: sale.buyerId,
+      buyerId: saleWithId.buyerId,
       ownerId: property?.ownerId,
       owner_id: (property as any)?.owner_id
     });
 
     const activitiesToAdd: Activity[] = [];
+    const activityType: Activity['type'] = saleWithId.transactionType === 'rental' ? 'Kira Kontratı' : 'Tapu İşlemi';
+    const currency = property?.currency || '₺';
+    const formatMoney = (amount: number) => `${amount.toLocaleString('tr-TR')} ${currency}`;
+    const rentInfo = saleWithId.monthlyRent ? `Aylık kira: ${formatMoney(saleWithId.monthlyRent)}` : `Komisyon: ${formatMoney(saleWithId.salePrice)}`;
 
     // 1. Buyer Activity
-    if (sale.buyerId) {
+    if (saleWithId.buyerId) {
       activitiesToAdd.push({
         id: `auto_buyer_${Date.now()}`,
-        type: 'Tapu İşlemi',
-        customerId: sale.buyerId,
-        customerName: sale.buyerName || 'Alıcı',
-        propertyId: sale.propertyId,
-        propertyTitle: sale.propertyTitle || 'Mülk Satışı',
-        date: sale.saleDate,
-        description: `${newStatus} işlemi gerçekleştirildi (ALAN). Fiyat: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}`,
+        type: activityType,
+        customerId: saleWithId.buyerId,
+        customerName: saleWithId.buyerName || 'Alıcı',
+        propertyId: saleWithId.propertyId,
+        propertyTitle: saleWithId.propertyTitle || 'Mülk Satışı',
+        date: saleWithId.saleDate,
+        description: saleWithId.transactionType === 'rental'
+          ? `Kira kontratı yapıldı (KİRACI). ${rentInfo}`
+          : `${newStatus} işlemi gerçekleştirildi (ALAN). Fiyat: ${formatMoney(saleWithId.salePrice)}`,
         status: 'Tamamlandı',
         user_id: session?.user.id,
         office_id: userProfile.officeId
@@ -586,15 +1016,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const ownerName = property?.ownerName || (property as any)?.owner_name;
 
     if (ownerId) {
-      activitiesToAdd.push({
+        activitiesToAdd.push({
         id: `auto_seller_${Date.now()}`,
-        type: 'Tapu İşlemi',
+        type: activityType,
         customerId: ownerId,
         customerName: ownerName || 'Satıcı',
-        propertyId: sale.propertyId,
-        propertyTitle: sale.propertyTitle || 'Mülk Satışı',
-        date: sale.saleDate,
-        description: `${newStatus} işlemi gerçekleştirildi (SATAN). Alıcı: ${sale.buyerName}. Fiyat: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}`,
+        propertyId: saleWithId.propertyId,
+        propertyTitle: saleWithId.propertyTitle || 'Mülk Satışı',
+        date: saleWithId.saleDate,
+        description: saleWithId.transactionType === 'rental'
+          ? `Kira kontratı yapıldı (KİRAYA VEREN). Kiracı: ${saleWithId.buyerName || 'Belirtilmedi'}. ${rentInfo}`
+          : `${newStatus} işlemi gerçekleştirildi (SATAN). Alıcı: ${saleWithId.buyerName || 'Belirtilmedi'}. Fiyat: ${formatMoney(saleWithId.salePrice)}`,
         status: 'Tamamlandı',
         user_id: session?.user.id,
         office_id: userProfile.officeId
@@ -604,13 +1036,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 3. Property Activity (for property history display)
     const propertyActivity: Activity = {
       id: `auto_property_${Date.now()}`,
-      type: 'Tapu İşlemi',
-      customerId: sale.buyerId || '',
-      customerName: sale.buyerName || 'Alıcı',
-      propertyId: sale.propertyId,
-      propertyTitle: sale.propertyTitle || property?.title || 'Mülk',
-      date: sale.saleDate,
-      description: `${newStatus} işlemi tamamlandı. Satış bedeli: ${sale.salePrice.toLocaleString('tr-TR')} ${property?.currency || '₺'}. ${sale.buyerName ? 'Alıcı: ' + sale.buyerName : ''}`,
+      type: activityType,
+      customerId: '',
+      customerName: 'Portföy',
+      propertyId: saleWithId.propertyId,
+      propertyTitle: saleWithId.propertyTitle || property?.title || 'Mülk',
+      date: saleWithId.saleDate,
+      description: saleWithId.transactionType === 'rental'
+        ? `Kira kontratı tamamlandı. ${rentInfo}. ${saleWithId.buyerName ? 'Kiracı: ' + saleWithId.buyerName : ''}`
+        : `${newStatus} işlemi tamamlandı. Satış bedeli: ${formatMoney(saleWithId.salePrice)}. ${saleWithId.buyerName ? 'Alıcı: ' + saleWithId.buyerName : ''}`,
       status: 'Tamamlandı',
       user_id: session?.user.id,
       office_id: userProfile.officeId
@@ -625,110 +1059,185 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // --------------------------------------------------------
     // 3. Database Operations
     // --------------------------------------------------------
+    const isUnknownColumnError = (error: any) => {
+      const msg = error?.message || '';
+      return (
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' || // PostgREST: column not in schema cache
+        /column .* does not exist/i.test(msg) ||
+        /Could not find the '.*' column/i.test(msg)
+      );
+    };
+
+    const extractUnknownColumn = (error: any) => {
+      const message = error?.message || '';
+      const match1 = message.match(/column "([^"]+)"/i);
+      if (match1?.[1]) return match1[1];
+      const match2 = message.match(/'([^']+)' column/i);
+      return match2?.[1];
+    };
+
+    const insertSaleWithFallback = async (payload: Record<string, any>) => {
+      let workingPayload = { ...payload };
+      let lastError: any = null;
+
+      for (let i = 0; i < 40; i += 1) {
+        const { error } = await supabase.from('sales').insert([workingPayload]);
+        if (!error) return { ok: true };
+
+        lastError = error;
+        if (!isUnknownColumnError(error)) break;
+
+        const unknownColumn = extractUnknownColumn(error);
+        if (!unknownColumn || !(unknownColumn in workingPayload)) break;
+
+        delete workingPayload[unknownColumn];
+      }
+
+      return { ok: false, error: lastError };
+    };
+
+    const buildActivitiesForDB = (naming: 'snake' | 'camel', includeUserFields: boolean) => {
+      return activitiesToAdd.map(activity => {
+        if (naming === 'snake') {
+          const payload: any = {
+            id: activity.id,
+            type: activity.type,
+            customer_id: activity.customerId,
+            customer_name: activity.customerName,
+            property_id: activity.propertyId,
+            property_title: activity.propertyTitle,
+            date: activity.date,
+            description: activity.description,
+            status: activity.status
+          };
+          if (includeUserFields) {
+            payload.user_id = session?.user.id;
+            payload.office_id = userProfile.officeId;
+          }
+          return payload;
+        }
+        const payload: any = {
+          id: activity.id,
+          type: activity.type,
+          customerId: activity.customerId,
+          customerName: activity.customerName,
+          propertyId: activity.propertyId,
+          propertyTitle: activity.propertyTitle,
+          date: activity.date,
+          description: activity.description,
+          status: activity.status
+        };
+        if (includeUserFields) {
+          payload.user_id = session?.user.id;
+          payload.office_id = userProfile.officeId;
+        }
+        return payload;
+      });
+    };
+
     try {
       // A. Insert Sale
-      const { error: saleError } = await supabase.from('sales').insert([saleForDB]);
-      if (saleError) throw saleError;
-
+      const saleInsertSnake = await insertSaleWithFallback(buildSalePayload('snake'));
+      if (!saleInsertSnake.ok) {
+        const saleInsertCamel = await insertSaleWithFallback(buildSalePayload('camel'));
+        if (!saleInsertCamel.ok) throw saleInsertCamel.error;
+      }
 
       // B. Update Property Status in DB
-      const propertyUpdateData: any = {
-        listing_status: newStatus,
-        inactive_reason: newStatus, // Mark as inactive reason
+      const updatePropertyStatus = async () => {
+        let error: any = null;
+        const snake = await supabase
+          .from('properties')
+        .update({ listing_status: newStatus })
+        .eq('id', saleWithId.propertyId);
+        error = snake.error;
+
+        if (error && isUnknownColumnError(error)) {
+          const camel = await supabase
+            .from('properties')
+          .update({ listingStatus: newStatus })
+          .eq('id', saleWithId.propertyId);
+          error = camel.error;
+        }
+        return error;
       };
 
-      if (sale.transactionType === 'sale') {
-        propertyUpdateData.sold_date = sale.saleDate;
-      } else {
-        propertyUpdateData.rented_date = sale.saleDate;
-        if (sale.monthlyRent) propertyUpdateData.current_monthly_rent = sale.monthlyRent;
-      }
+      const tryUpdatePropertyOptional = async (snakeField: string, camelField: string, value?: any) => {
+        if (value === undefined || value === null) return;
+        let error: any = null;
+        const snake = await supabase
+          .from('properties')
+          .update({ [snakeField]: value })
+          .eq('id', saleWithId.propertyId);
+        error = snake.error;
 
-      console.log(`[addSale] Updating property ${sale.propertyId} status to "${newStatus}"`, propertyUpdateData);
-
-      const { data: updateResult, error: propError } = await supabase
-        .from('properties')
-        .update(propertyUpdateData)
-        .eq('id', sale.propertyId)
-        .select();
-
-      if (propError) {
-        console.error('❌ Property update failed. Rolling back sale...', propError);
-        // Rollback the sale we just inserted
-        await supabase.from('sales').delete().eq('id', sale.id);
-        toast.error(`Mülk durumu güncellenemedi: ${propError.message}`);
-        throw new Error(`Mülk durumu güncellenemedi (${propError.message}). Satış iptal edildi.`);
-      }
-
-      // Verify the update was successful
-      if (!updateResult || updateResult.length === 0) {
-        console.error('❌ Property update returned no data - possible RLS issue');
-        await supabase.from('sales').delete().eq('id', sale.id);
-        toast.error('Mülk durumu güncellenemedi. RLS politikası sorunu olabilir.');
-        throw new Error('Mülk durumu güncellenemedi - güncelleme doğrulanamadı.');
-      }
-
-      console.log('✅ Property status updated successfully:', updateResult[0]);
-
-      // Double-check: Read back the property to confirm status
-      const { data: verifyData, error: verifyError } = await supabase
-        .from('properties')
-        .select('listing_status, sold_date, rented_date')
-        .eq('id', sale.propertyId)
-        .single();
-
-      if (verifyError) {
-        console.warn('⚠️ Could not verify property status update:', verifyError);
-      } else if (verifyData.listing_status !== newStatus) {
-        console.error('❌ CRITICAL: Property status verification failed!', {
-          expected: newStatus,
-          actual: verifyData.listing_status,
-          propertyId: sale.propertyId
-        });
-        toast.error(`UYARI: Mülk durumu kaydedilemedi! Beklenen: ${newStatus}, Gerçek: ${verifyData.listing_status}`);
-      } else {
-        console.log('✅ Property status verified in database:', verifyData);
-      }
-
-
-      // C. Insert Activities in DB (use same format as addActivity - camelCase)
-      if (activitiesToAdd.length > 0) {
-        // Use same pattern as addActivity - send Activity objects directly
-        const activitiesForDB = activitiesToAdd.map(activity => ({
-          ...activity, // Keep all camelCase fields: customerId, customerName, propertyId, propertyTitle
-          id: crypto.randomUUID(),
-          user_id: session?.user.id,
-          office_id: userProfile.officeId
-        }));
-
-        console.log('[addSale] Inserting activities to DB:', activitiesForDB);
-
-        const { data: insertedActivities, error: actError } = await supabase
-          .from('activities')
-          .insert(activitiesForDB)
-          .select();
-
-        if (actError) {
-          console.error('❌ Error inserting activities:', actError);
-        } else if (insertedActivities) {
-          console.log('✅ Activities inserted successfully:', insertedActivities);
-
-          // Sync local state with DB data
-          setActivities(prev => {
-            // Remove optimistic activities (they have temporary IDs)
-            const withoutOptimistic = prev.filter(a =>
-              !activitiesToAdd.some(opt => opt.id === a.id)
-            );
-            // Add DB activities (they have created_at and other DB fields)
-            return [...withoutOptimistic, ...insertedActivities];
-          });
+        if (error && isUnknownColumnError(error)) {
+          const camel = await supabase
+            .from('properties')
+            .update({ [camelField]: value })
+            .eq('id', saleWithId.propertyId);
+          error = camel.error;
         }
+
+        if (error && !isUnknownColumnError(error)) {
+          console.error(`Optional property update failed for ${snakeField}/${camelField}:`, error);
+        }
+      };
+
+      const propError = await updatePropertyStatus();
+      if (propError) {
+        console.error('Property update failed.', propError);
+        toast.error(`Mülk durumu güncellenemedi (${propError.message}). Satış kaydı oluşturuldu ama ilan durumu güncellenemedi.`);
+      }
+
+      if (saleWithId.transactionType === 'sale') {
+        await tryUpdatePropertyOptional('sold_date', 'soldDate', saleWithId.saleDate);
+      } else {
+        await tryUpdatePropertyOptional('rented_date', 'rentedDate', saleWithId.saleDate);
+        if (saleWithId.monthlyRent) {
+          await tryUpdatePropertyOptional('current_monthly_rent', 'currentMonthlyRent', saleWithId.monthlyRent);
+        }
+      }
+      await tryUpdatePropertyOptional('inactive_reason', 'inactiveReason', saleWithId.transactionType === 'sale' ? 'Satıldı' : 'Kiralandı');
+
+      // C. Insert Activities in DB
+      if (activitiesToAdd.length > 0) {
+        const activitiesForDB = buildActivitiesForDB('camel', true);
+        console.log('[addSale] Debug - Inserting activities to DB:', activitiesForDB);
+
+        let actError: any = null;
+        const actResCamel = await supabase.from('activities').insert(activitiesForDB);
+        actError = actResCamel.error;
+
+        if (actError && isUnknownColumnError(actError)) {
+          const actResCamelNoUser = await supabase.from('activities').insert(buildActivitiesForDB('camel', false));
+          actError = actResCamelNoUser.error;
+        }
+
+        if (actError && isUnknownColumnError(actError)) {
+          const actResSnake = await supabase.from('activities').insert(buildActivitiesForDB('snake', true));
+          actError = actResSnake.error;
+        }
+
+        if (actError && isUnknownColumnError(actError)) {
+          const actResSnakeNoUser = await supabase.from('activities').insert(buildActivitiesForDB('snake', false));
+          actError = actResSnakeNoUser.error;
+        }
+
+        if (actError) console.error('Error auto-creating activity:', actError);
       }
 
 
     } catch (error) {
       console.error('Error in addSale transaction:', error);
-      // Rollback optimistic updates (simplified)
+      // Rollback optimistic updates
+      setSales(prevSales);
+      setProperties(prevProperties);
+      setActivities(prevActivities);
+      const errorMessage = (error as any)?.message || 'Bilinmeyen hata';
+      const errorCode = (error as any)?.code ? ` (Kod: ${(error as any).code})` : '';
+      toast.error(`Satış/kiralama kaydı DB’ye yazılamadı: ${errorMessage}${errorCode}`);
     }
   };
 
@@ -772,6 +1281,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteSale = async (saleId: string, propertyId: string) => {
+    const saleToDelete = sales.find(s => s.id === saleId);
+    const saleDate = saleToDelete?.saleDate || saleToDelete?.sale_date;
+    const transactionType = saleToDelete?.transactionType || saleToDelete?.transaction_type || 'sale';
+    const activityType: Activity['type'] = transactionType === 'rental' ? 'Kira Kontratı' : 'Tapu İşlemi';
+
     // 1. Optimistic Update
     setSales(prev => prev.filter(s => s.id !== saleId));
     setProperties(prev => prev.map(p => {
@@ -780,6 +1294,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return p;
     }));
+    if (saleDate) {
+      setActivities(prev => prev.filter(a => !(a.propertyId === propertyId && a.type === activityType && a.date === saleDate)));
+    }
 
     // 2. DB Operations
     try {
@@ -797,8 +1314,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (propError) console.error('Error reverting property:', propError);
 
-      // Add "Sale Cancelled" Activity
-      // ... (Optional, or just delete the previous activity? Hard to find specific one)
+      // Delete auto-created activities for this sale (best effort)
+      if (saleDate) {
+        const deleteActivitiesBy = async (fieldName: string) => {
+          return await supabase
+            .from('activities')
+            .delete()
+            .eq(fieldName, propertyId)
+            .eq('type', activityType)
+            .eq('date', saleDate);
+        };
+
+        let actError = (await deleteActivitiesBy('property_id')).error;
+        if (actError?.code === '42703' || actError?.code === 'PGRST204') {
+          actError = (await deleteActivitiesBy('propertyId')).error;
+        }
+        if (actError) console.error('Error deleting sale activities:', actError);
+      }
 
       toast.success('Satış iptal edildi ve ilan aktif hale getirildi.');
     } catch (error) {
@@ -953,7 +1485,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .range(activities.length, activities.length + PAGE_SIZE - 1);
 
       if (data) {
-        setActivities(prev => [...prev, ...data]);
+        const normalizedActivities = data.map(normalizeActivity);
+        setActivities(prev => [...prev, ...normalizedActivities]);
         setHasMoreActivities(data.length === PAGE_SIZE);
       }
     } catch (error) {

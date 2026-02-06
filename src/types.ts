@@ -209,7 +209,7 @@ export interface Interaction {
 
 export interface Activity {
   id: string;
-  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kapora Alındı' | 'Diğer';
+  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kira Kontratı' | 'Kapora Alındı' | 'Diğer';
   customerId: string;
   customerName: string;
   propertyId?: string;

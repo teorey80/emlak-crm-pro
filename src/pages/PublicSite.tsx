@@ -3,10 +3,17 @@ import { MapPin, Phone, Mail, Search, Menu, Bed, Bath, Maximize, Grid, List, Fac
 import { Property, WebSiteConfig } from '../types';
 import { PublicSiteData } from '../services/publicSiteService';
 import toast from 'react-hot-toast';
+import { FLOOR_OPTIONS } from '../constants/propertyConstants';
 
 interface PublicSiteProps {
     siteData: PublicSiteData;
 }
+
+const getFloorLabel = (value?: number) => {
+    if (value === undefined || value === null) return '';
+    const match = FLOOR_OPTIONS.find(opt => opt.value === value);
+    return match?.label ?? String(value);
+};
 
 const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
     const { siteConfig, properties, type, ownerName, officeName } = siteData;
@@ -626,7 +633,7 @@ const PropertyModal: React.FC<{ property: Property, config: WebSiteConfig, onClo
                         )}
                         {property.currentFloor !== undefined && (
                             <div className="text-center">
-                                <div className="text-2xl font-bold text-slate-800">{property.currentFloor}</div>
+                                <div className="text-2xl font-bold text-slate-800">{getFloorLabel(property.currentFloor)}</div>
                                 <div className="text-sm text-gray-500">Kat</div>
                             </div>
                         )}
