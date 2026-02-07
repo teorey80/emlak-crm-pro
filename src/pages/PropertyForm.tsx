@@ -392,6 +392,33 @@ const PropertyForm: React.FC = () => {
     return new File([blob], newName, { type: 'image/jpeg' });
   };
 
+  const uploadImageToStorage = async (file: File): Promise<string> => {
+    const storageBuckets = ['property-images', 'property_images', 'avatars'];
+    const extension = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const userId = session?.user?.id || 'anonymous';
+    const filePath = `properties/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+
+    let lastError: any = null;
+
+    for (const bucket of storageBuckets) {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
+          upsert: false,
+          contentType: file.type || 'image/jpeg'
+        });
+
+      if (!uploadError) {
+        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+        if (data?.publicUrl) return data.publicUrl;
+      } else {
+        lastError = uploadError;
+      }
+    }
+
+    throw lastError || new Error('Storage upload failed');
+  };
+
   const resizeImageToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -684,6 +711,17 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
         let dataUrl: string;
 
         if (isLargeImage) {
+          try {
+            const storageUrl = await uploadImageToStorage(workingFile);
+            setFormData(prev => ({
+              ...prev,
+              images: [...(prev.images || []), storageUrl]
+            }));
+            continue;
+          } catch (storageError) {
+            console.warn('Storage upload failed, trying resize fallback:', workingFile.name, storageError);
+          }
+
           try {
             dataUrl = await resizeImageToDataUrl(workingFile);
           } catch (resizeError) {
