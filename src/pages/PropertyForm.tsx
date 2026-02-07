@@ -448,6 +448,20 @@ const PropertyForm: React.FC = () => {
     throw lastError || new Error('Storage upload failed');
   };
 
+  const dataUrlToFile = (dataUrl: string, fileName: string): File => {
+    const [header, base64] = dataUrl.split(',');
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mimeType = mimeMatch?.[1] || 'image/jpeg';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+    const normalizedName = fileName.replace(/\.[^.]+$/, '') + `.${ext}`;
+    return new File([bytes], normalizedName, { type: mimeType });
+  };
+
   const resizeImageToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -741,22 +755,23 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
         if (isLargeImage) {
           try {
-            const storageUrl = await uploadImageToStorage(workingFile);
+            dataUrl = await resizeImageToDataUrl(workingFile);
+            const optimizedFile = dataUrlToFile(dataUrl, workingFile.name);
+            const storageUrl = await uploadImageToStorage(optimizedFile);
             setFormData(prev => ({
               ...prev,
               images: [...(prev.images || []), storageUrl]
             }));
             continue;
           } catch (storageError) {
-            console.warn('Storage upload failed, trying resize fallback:', workingFile.name, storageError);
-          }
-
-          try {
-            dataUrl = await resizeImageToDataUrl(workingFile);
-          } catch (resizeError) {
-            console.warn('Resize failed, using original image:', workingFile.name, resizeError);
-            dataUrl = await readFileAsDataUrl(workingFile);
-            toast(`${workingFile.name} orijinal boyutta eklendi`, { icon: 'ℹ️' });
+            console.warn('Large image optimize/upload failed, using resized fallback:', workingFile.name, storageError);
+            try {
+              dataUrl = await resizeImageToDataUrl(workingFile);
+            } catch (resizeError) {
+              console.warn('Resize failed, using original image:', workingFile.name, resizeError);
+              dataUrl = await readFileAsDataUrl(workingFile);
+              toast(`${workingFile.name} orijinal boyutta eklendi`, { icon: 'ℹ️' });
+            }
           }
         } else {
           dataUrl = await readFileAsDataUrl(workingFile);

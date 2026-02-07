@@ -524,14 +524,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
+      let propertiesData = propsRes.data as unknown as Property[] | null;
+      if (!propertiesData && propsRes.error) {
+        console.warn('[DataContext] Slim properties fetch failed, falling back to *:', propsRes.error.message);
+        const fallbackPropsRes = await supabase
+          .from('properties')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE);
+        propertiesData = fallbackPropsRes.data as unknown as Property[] | null;
+      }
+
       let normalizedSales: Sale[] = [];
       if (salesRes.data) {
         normalizedSales = salesRes.data.map(normalizeSale);
         setSales(normalizedSales);
       }
 
-      if (propsRes.data) {
-        let nextProperties = propsRes.data as unknown as Property[];
+      if (propertiesData) {
+        let nextProperties = propertiesData;
         if (normalizedSales.length > 0) {
           nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
         }
@@ -545,8 +556,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (sitesRes.data) setSites(sitesRes.data);
       if (actRes.data) {
         const normalizedActivities = actRes.data.map(normalizeActivity);
-        const mergedActivities = normalizedSales.length > 0 && propsRes.data
-          ? mergeActivitiesWithSales(normalizedActivities, normalizedSales, propsRes.data)
+        const mergedActivities = normalizedSales.length > 0 && propertiesData
+          ? mergeActivitiesWithSales(normalizedActivities, normalizedSales, propertiesData)
           : normalizedActivities;
         setActivities(mergedActivities);
         setHasMoreActivities(actRes.data.length === PAGE_SIZE);
@@ -1439,15 +1450,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!hasMoreProperties || loadingMore) return;
     setLoadingMore(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('properties')
         .select(PROPERTY_LIST_SELECT)
         .order('created_at', { ascending: false })
         .range(properties.length, properties.length + PAGE_SIZE - 1);
 
-      if (data) {
-        setProperties(prev => [...prev, ...(data as unknown as Property[])]);
-        setHasMoreProperties(data.length === PAGE_SIZE);
+      let nextPageData = data as unknown as Property[] | null;
+      if (!nextPageData && error) {
+        const fallbackRes = await supabase
+          .from('properties')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(properties.length, properties.length + PAGE_SIZE - 1);
+        nextPageData = fallbackRes.data as unknown as Property[] | null;
+      }
+
+      if (nextPageData) {
+        setProperties(prev => [...prev, ...nextPageData]);
+        setHasMoreProperties(nextPageData.length === PAGE_SIZE);
       }
     } catch (error) {
       console.error('Error loading more properties:', error);
