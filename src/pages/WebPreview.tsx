@@ -284,7 +284,7 @@ const PropertyGrid: React.FC<{ properties: Property[], config: WebSiteConfig, co
                 <div key={property.id} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 group">
                     <div className="relative h-64 overflow-hidden">
                         <img
-                            src={property.images[0] || 'https://via.placeholder.com/400x300?text=No+Image'}
+                            src={property.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image'}
                             alt={property.title}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                         />

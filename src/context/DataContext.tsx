@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 20; // Reduced from 50 for better performance
+const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,owner_id,owner_name,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at';
 
 interface DataContextType {
   session: Session | null;
@@ -514,7 +515,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
-        supabase.from('properties').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
+        supabase.from('properties').select(PROPERTY_LIST_SELECT).order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('sites').select('*'),
         supabase.from('activities').select('*').order('date', { ascending: false }).limit(PAGE_SIZE),
@@ -530,7 +531,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (propsRes.data) {
-        let nextProperties = propsRes.data;
+        let nextProperties = propsRes.data as unknown as Property[];
         if (normalizedSales.length > 0) {
           nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
         }
@@ -1440,12 +1441,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const { data } = await supabase
         .from('properties')
-        .select('*')
+        .select(PROPERTY_LIST_SELECT)
         .order('created_at', { ascending: false })
         .range(properties.length, properties.length + PAGE_SIZE - 1);
 
       if (data) {
-        setProperties(prev => [...prev, ...data]);
+        setProperties(prev => [...prev, ...(data as unknown as Property[])]);
         setHasMoreProperties(data.length === PAGE_SIZE);
       }
     } catch (error) {

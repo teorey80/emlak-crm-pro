@@ -80,7 +80,7 @@ const RequestDetail: React.FC = () => {
                     {matchingProperties.map(prop => (
                         <div key={prop.id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
                             <div className="h-48 overflow-hidden relative">
-                                <img src={prop.images[0]} alt={prop.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                <img src={prop.images?.[0] || 'https://via.placeholder.com/800x500?text=No+Image'} alt={prop.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                                 <div className="absolute top-3 right-3 bg-white/90 dark:bg-slate-900/90 px-2 py-1 rounded shadow text-xs font-bold text-slate-800 dark:text-white">
                                     {prop.price.toLocaleString()} {prop.currency}
                                 </div>

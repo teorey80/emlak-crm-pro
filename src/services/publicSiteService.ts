@@ -14,7 +14,7 @@ export interface PublicSiteData {
 // Memory cache to prevent repeated Supabase calls
 const siteCache = new Map<string, { data: PublicSiteData | null; timestamp: number }>();
 const CACHE_TTL = 300000; // 5 minute memory cache (reduced)
-const LOCAL_STORAGE_KEY = 'emlak_site_v2'; // Version bump to invalidate old caches
+const LOCAL_STORAGE_KEY = 'emlak_site_v3'; // Version bump to invalidate old caches
 const LOCAL_STORAGE_TTL = 1800000; // 30 minute localStorage cache (reduced from 1 hour)
 
 // Warm-up flag to prevent multiple warm-ups
@@ -61,8 +61,23 @@ function getLocalStorageCache(domain: string): PublicSiteData | null {
  */
 function setLocalStorageCache(domain: string, data: PublicSiteData): void {
     try {
+        const slimProperties = (data.properties || []).slice(0, 24).map((p) => {
+            const firstImage = p.images?.[0];
+            const safeImage = firstImage && !String(firstImage).startsWith('data:') ? [firstImage] : [];
+            return {
+                ...p,
+                images: safeImage,
+                description: p.description ? String(p.description).slice(0, 300) : ''
+            };
+        });
+
+        const slimData: PublicSiteData = {
+            ...data,
+            properties: slimProperties as Property[]
+        };
+
         localStorage.setItem(`${LOCAL_STORAGE_KEY}_${domain}`, JSON.stringify({
-            data,
+            data: slimData,
             timestamp: Date.now()
         }));
     } catch (e) { /* ignore - storage full */ }
@@ -162,7 +177,7 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                             .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
                             .eq('user_id', profile.id)
                             .or('listing_status.eq.Aktif,listing_status.is.null')
-                            .limit(50);
+                            .limit(24);
 
                         // Already filtered at DB level
                         const activeProps = props || [];
@@ -207,7 +222,7 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                             .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
                             .eq('office_id', office.id)
                             .or('listing_status.eq.Aktif,listing_status.is.null')
-                            .limit(50);
+                            .limit(24);
 
                         let allProps = officeProps || [];
 
@@ -218,7 +233,7 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                                 .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
                                 .in('user_id', memberIds)
                                 .or('listing_status.eq.Aktif,listing_status.is.null')
-                                .limit(50);
+                                .limit(24);
 
                             if (memberProps) {
                                 const existingIds = new Set(allProps.map(p => p.id));

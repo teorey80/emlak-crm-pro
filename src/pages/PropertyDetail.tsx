@@ -8,12 +8,15 @@ import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
 import { notifyDeposit } from '../services/notificationService';
+import { supabase } from '../services/supabaseClient';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, updateSale, deleteSale, addActivity, sales } = useData();
-    const property = properties.find(p => p.id === id);
+    const baseProperty = properties.find(p => p.id === id);
+    const [propertyOverride, setPropertyOverride] = useState<any | null>(null);
+    const property = propertyOverride || baseProperty;
     // Find associated sale record if exists
     const currentSale = sales.find(s => s.propertyId === property?.id);
 
@@ -28,6 +31,25 @@ const PropertyDetail: React.FC = () => {
     const [kaporaNotes, setKaporaNotes] = useState('');
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+    useEffect(() => {
+        const fetchFullProperty = async () => {
+            if (!id || !baseProperty) return;
+            if (baseProperty.images && baseProperty.images.length > 0) return;
+
+            const { data } = await supabase
+                .from('properties')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (data) {
+                setPropertyOverride(data);
+            }
+        };
+
+        void fetchFullProperty();
+    }, [id, baseProperty]);
 
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';

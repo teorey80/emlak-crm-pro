@@ -146,6 +146,25 @@ const PropertyForm: React.FC = () => {
 
   // Restore draft (new or edit) or load existing property
   useEffect(() => {
+    const loadEditProperty = async () => {
+      if (!id) return;
+      const { data } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (data) {
+        setFormData({
+          ...data,
+          category: data.category || 'KONUT',
+          subCategory: data.subCategory || data.status || 'Satılık',
+        });
+        return true;
+      }
+      return false;
+    };
+
     let restoredFromLocalDraft = false;
     const raw = localStorage.getItem(draftKey);
     if (raw) {
@@ -163,48 +182,57 @@ const PropertyForm: React.FC = () => {
       }
     }
 
-    if (!restoredFromLocalDraft && id) {
-      // Edit mode: load existing property
-      const existingProperty = properties.find(p => p.id === id);
-      if (existingProperty) {
-        setFormData({
-          ...existingProperty,
-          category: existingProperty.category || 'KONUT',
-          subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
-        });
-      }
-    } else if (!restoredFromLocalDraft) {
-      // New property: try to restore draft from sessionStorage
-      const draftKey = `property-form-draft-new`;
-      const savedDraft = sessionStorage.getItem(draftKey);
-      if (savedDraft) {
-        try {
-          const draftData = JSON.parse(savedDraft);
-          setFormData(draftData.formData);
-          setCurrentStep(draftData.currentStep || 0);
-          toast.success('Taslak geri yüklendi', { duration: 3000 });
-        } catch (error) {
-          console.error('Draft restore error:', error);
-          sessionStorage.removeItem(draftKey);
+    const finalize = async () => {
+      if (!restoredFromLocalDraft && id) {
+        const loaded = await loadEditProperty();
+        if (!loaded) {
+          const existingProperty = properties.find(p => p.id === id);
+          if (existingProperty) {
+            setFormData({
+              ...existingProperty,
+              category: existingProperty.category || 'KONUT',
+              subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
+            });
+          }
+        }
+      } else if (!restoredFromLocalDraft) {
+        // New property: try to restore draft from sessionStorage
+        const draftKey = `property-form-draft-new`;
+        const savedDraft = sessionStorage.getItem(draftKey);
+        if (savedDraft) {
+          try {
+            const draftData = JSON.parse(savedDraft);
+            if (draftData?.formData) {
+              setFormData(prev => ({ ...prev, ...draftData.formData }));
+            }
+            setCurrentStep(draftData?.currentStep || 0);
+            toast.success('Taslak geri yüklendi', { duration: 3000 });
+          } catch (error) {
+            console.error('Draft restore error:', error);
+            sessionStorage.removeItem(draftKey);
+          }
         }
       }
-    }
-    setDraftHydrated(true);
+
+      setDraftHydrated(true);
+    };
+
+    void finalize();
   }, [id, properties, draftKey]);
 
   // Persist draft for new and edit
   useEffect(() => {
     if (!draftHydrated) return;
+    const { images, ...formDataNoImages } = formData;
     try {
       localStorage.setItem(draftKey, JSON.stringify({
-        formData,
+        formData: formDataNoImages,
         currentStep,
         savedAt: new Date().toISOString()
       }));
     } catch {
       // Fallback without images if storage quota is exceeded
       try {
-        const { images, ...formDataNoImages } = formData;
         localStorage.setItem(draftKey, JSON.stringify({
           formData: formDataNoImages,
           currentStep,
@@ -222,8 +250,9 @@ const PropertyForm: React.FC = () => {
     if (!draftHydrated) return;
     if (!id && formData.title) { // Only save drafts for new properties with some content
       const draftKey = `property-form-draft-new`;
+      const { images, ...formDataNoImages } = formData;
       const draftData = {
-        formData,
+        formData: formDataNoImages,
         currentStep,
         timestamp: Date.now()
       };
@@ -688,7 +717,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       return;
     }
 
-    for (const file of Array.from(files)) {
+    for (const file of Array.from(files) as File[]) {
       try {
         let workingFile = file;
 

@@ -339,7 +339,7 @@ const PropertyList: React.FC = () => {
                                         <tr key={property.id} className="hover:bg-sky-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                                             <td className="p-4">
                                                 <Link to={`/properties/${property.id}`}>
-                                                    <img src={property.images[0]} alt={property.title} className="w-16 h-16 object-cover rounded-lg border border-gray-100 dark:border-slate-600 hover:opacity-80 transition-opacity" />
+                                                    <img src={property.images?.[0] || 'https://via.placeholder.com/120x120?text=No+Image'} alt={property.title} className="w-16 h-16 object-cover rounded-lg border border-gray-100 dark:border-slate-600 hover:opacity-80 transition-opacity" />
                                                 </Link>
                                             </td>
                                             <td className="p-4">
