@@ -6,6 +6,7 @@ import {
   List, Image, Home, Briefcase, Map, Save, Search, Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import heic2any from 'heic2any';
 import { useData } from '../context/DataContext';
 import { Property, Customer } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -55,6 +56,7 @@ const PropertyForm: React.FC = () => {
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   // AI states
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
@@ -144,6 +146,7 @@ const PropertyForm: React.FC = () => {
 
   // Restore draft (new or edit) or load existing property
   useEffect(() => {
+    let restoredFromLocalDraft = false;
     const raw = localStorage.getItem(draftKey);
     if (raw) {
       try {
@@ -154,13 +157,13 @@ const PropertyForm: React.FC = () => {
         if (typeof parsed?.currentStep === 'number') {
           setCurrentStep(parsed.currentStep);
         }
-        return;
+        restoredFromLocalDraft = true;
       } catch {
         // Ignore bad draft data
       }
     }
 
-    if (id) {
+    if (!restoredFromLocalDraft && id) {
       // Edit mode: load existing property
       const existingProperty = properties.find(p => p.id === id);
       if (existingProperty) {
@@ -170,7 +173,7 @@ const PropertyForm: React.FC = () => {
           subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
         });
       }
-    } else {
+    } else if (!restoredFromLocalDraft) {
       // New property: try to restore draft from sessionStorage
       const draftKey = `property-form-draft-new`;
       const savedDraft = sessionStorage.getItem(draftKey);
@@ -186,10 +189,12 @@ const PropertyForm: React.FC = () => {
         }
       }
     }
+    setDraftHydrated(true);
   }, [id, properties, draftKey]);
 
   // Persist draft for new and edit
   useEffect(() => {
+    if (!draftHydrated) return;
     try {
       localStorage.setItem(draftKey, JSON.stringify({
         formData,
@@ -210,10 +215,11 @@ const PropertyForm: React.FC = () => {
         // Ignore storage errors
       }
     }
-  }, [draftKey, formData, currentStep]);
+  }, [draftKey, formData, currentStep, draftHydrated]);
 
   // Auto-save draft to sessionStorage
   useEffect(() => {
+    if (!draftHydrated) return;
     if (!id && formData.title) { // Only save drafts for new properties with some content
       const draftKey = `property-form-draft-new`;
       const draftData = {
@@ -223,7 +229,7 @@ const PropertyForm: React.FC = () => {
       };
       sessionStorage.setItem(draftKey, JSON.stringify(draftData));
     }
-  }, [formData, currentStep, id]);
+  }, [formData, currentStep, id, draftHydrated]);
 
   // Fetch neighborhoods when city and district change
   useEffect(() => {
@@ -360,40 +366,92 @@ const PropertyForm: React.FC = () => {
       reader.readAsDataURL(file);
     });
 
+  const isHeicLikeFile = (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    return (
+      file.type === 'image/heic' ||
+      file.type === 'image/heif' ||
+      lowerName.endsWith('.heic') ||
+      lowerName.endsWith('.heif')
+    );
+  };
+
+  const isImageByExtension = (fileName: string) => {
+    const lowerName = fileName.toLowerCase();
+    return ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif', '.heic', '.heif'].some(ext => lowerName.endsWith(ext));
+  };
+
+  const convertHeicToJpegFile = async (file: File): Promise<File> => {
+    const converted = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.85
+    });
+    const blob = (Array.isArray(converted) ? converted[0] : converted) as Blob;
+    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+    return new File([blob], newName, { type: 'image/jpeg' });
+  };
+
   const resizeImageToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
-          const maxDimension = 1600;
-          const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-          const targetWidth = Math.round(img.width * scale);
-          const targetHeight = Math.round(img.height * scale);
+          let maxDimension = 1600;
+          const minDimension = 900;
+          const maxDataUrlLength = 6_000_000; // ~4.5MB
+          let quality = 0.85;
+
+          const getDimensions = () => {
+            const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+            return {
+              width: Math.max(1, Math.round(img.width * scale)),
+              height: Math.max(1, Math.round(img.height * scale))
+            };
+          };
+
           const canvas = document.createElement('canvas');
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
           const ctx = canvas.getContext('2d');
           if (!ctx) {
             reject(new Error('Canvas context unavailable'));
             return;
           }
-          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-          let quality = 0.85;
-          let dataUrl = canvas.toDataURL('image/jpeg', quality);
-          const maxDataUrlLength = 6_000_000; // ~4.5MB
-          while (dataUrl.length > maxDataUrlLength && quality >= 0.6) {
-            quality -= 0.05;
-            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          let lastDataUrl = '';
+
+          for (let attempt = 0; attempt < 12; attempt += 1) {
+            const dims = getDimensions();
+            canvas.width = dims.width;
+            canvas.height = dims.height;
+            ctx.clearRect(0, 0, dims.width, dims.height);
+            ctx.drawImage(img, 0, 0, dims.width, dims.height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            lastDataUrl = dataUrl;
+            if (dataUrl.length <= maxDataUrlLength) {
+              resolve(dataUrl);
+              return;
+            }
+
+            if (quality > 0.5) {
+              quality = Math.max(0.5, quality - 0.08);
+              continue;
+            }
+
+            if (maxDimension > minDimension) {
+              maxDimension = Math.max(minDimension, Math.round(maxDimension * 0.85));
+              quality = 0.8;
+              continue;
+            }
+            break;
           }
 
-          if (dataUrl.length > maxDataUrlLength) {
+          if (!lastDataUrl) {
             reject(new Error('Image too large after resize'));
             return;
           }
-
-          resolve(dataUrl);
+          resolve(lastDataUrl);
         };
         img.onerror = () => reject(new Error('Image load failed'));
         img.src = reader.result as string;
@@ -593,53 +651,6 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
     }
   };
 
-  // Image handling with auto-resize
-  const resizeImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas context not available'));
-            return;
-          }
-
-          // Calculate new dimensions (max 1920px)
-          const MAX_SIZE = 1920;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height = (height * MAX_SIZE) / width;
-              width = MAX_SIZE;
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width = (width * MAX_SIZE) / height;
-              height = MAX_SIZE;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Convert to JPEG with 85% quality
-          const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(resizedDataUrl);
-        };
-        img.onerror = () => reject(new Error('Image load failed'));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('File read failed'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -652,21 +663,45 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
     for (const file of Array.from(files)) {
       try {
-        if (!file.type.startsWith('image/')) {
+        let workingFile = file;
+
+        if (isHeicLikeFile(workingFile)) {
+          try {
+            workingFile = await convertHeicToJpegFile(workingFile);
+          } catch (heicError) {
+            console.error('HEIC conversion failed:', file.name, heicError);
+            toast.error(`${file.name} dönüştürülemedi (HEIC/HEIF desteklenemedi)`);
+            continue;
+          }
+        }
+
+        if (!workingFile.type.startsWith('image/') && !isImageByExtension(workingFile.name)) {
           toast.error(`${file.name} geçersiz dosya türü`);
           continue;
         }
 
-        const dataUrl = file.size > 5 * 1024 * 1024
-          ? await resizeImageToDataUrl(file)
-          : await readFileAsDataUrl(file);
+        const isLargeImage = workingFile.size > 5 * 1024 * 1024;
+        let dataUrl: string;
+
+        if (isLargeImage) {
+          try {
+            dataUrl = await resizeImageToDataUrl(workingFile);
+          } catch (resizeError) {
+            console.warn('Resize failed, using original image:', workingFile.name, resizeError);
+            dataUrl = await readFileAsDataUrl(workingFile);
+            toast(`${workingFile.name} orijinal boyutta eklendi`, { icon: 'ℹ️' });
+          }
+        } else {
+          dataUrl = await readFileAsDataUrl(workingFile);
+        }
 
         setFormData(prev => ({
           ...prev,
           images: [...(prev.images || []), dataUrl]
         }));
-      } catch {
-        toast.error(`${file.name} yüklenemedi (lütfen daha küçük bir dosya deneyin)`);
+      } catch (error: any) {
+        console.error('Image upload failed:', file.name, error);
+        toast.error(`${file.name} yüklenemedi (${error?.message || 'bilinmeyen hata'})`);
       }
     }
 
@@ -720,9 +755,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
         await addProperty(propertyData);
         toast.success('İlan oluşturuldu!');
       }
-      if (!id) {
-        localStorage.removeItem(draftKey);
-      }
+      localStorage.removeItem(draftKey);
       navigate('/properties');
     } catch (err: any) {
       toast.error('İşlem başarısız: ' + (err.message || 'Bilinmeyen hata'));

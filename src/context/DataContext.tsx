@@ -343,6 +343,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     consultant_share_amount: sale.consultant_share_amount ?? sale.consultantShareAmount,
     netProfit: sale.netProfit ?? sale.net_profit ?? 0,
     net_profit: sale.net_profit ?? sale.netProfit,
+    propertyOwnerShareRate: sale.propertyOwnerShareRate ?? sale.property_owner_share_rate,
+    property_owner_share_rate: sale.property_owner_share_rate ?? sale.propertyOwnerShareRate,
     hasPartnerOffice: sale.hasPartnerOffice ?? sale.has_partner_office,
     has_partner_office: sale.has_partner_office ?? sale.hasPartnerOffice,
     partnerOfficeName: sale.partnerOfficeName ?? sale.partner_office_name,
@@ -851,6 +853,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const saleId = isUuid(sale.id) ? sale.id : crypto.randomUUID();
     const saleWithId: Sale = { ...sale, id: saleId };
+    const property = properties.find(p => p.id === saleWithId.propertyId);
 
     // Transform camelCase to snake_case for DB
     const resolvedOfficeId = userProfile.officeId || property?.office_id || (property as any)?.officeId;
@@ -975,7 +978,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
 
     // C. Create Activities (Auto-generated for Buyer and Seller)
-    const property = properties.find(p => p.id === saleWithId.propertyId);
 
     console.log('[addSale] Debug - Sale:', sale);
     console.log('[addSale] Debug - Property:', property);

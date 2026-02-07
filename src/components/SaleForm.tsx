@@ -61,7 +61,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         notes: initialData?.notes || '',
         // Cross-commission fields
         enableCrossCommission: isCrossConsultant && (initialData ? !!initialData.sellerCommissionAmount : false) || (isCrossConsultant || false),
-        propertyOwnerShareRate: 30,
+        propertyOwnerShareRate: initialData?.propertyOwnerShareRate ?? 30,
     });
 
     // Separate commission states for buyer and seller
@@ -202,6 +202,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             officeShareAmount,
             consultantShareAmount,
             netProfit,
+            propertyOwnerShareRate: formData.enableCrossCommission ? formData.propertyOwnerShareRate : undefined,
             notes: formData.notes,
             propertyTitle: property.title,
 

@@ -367,6 +367,8 @@ export interface Sale {
   consultant_share_amount?: number; // DB field
   netProfit: number;
   net_profit?: number; // DB field
+  propertyOwnerShareRate?: number; // Cross-commission split %
+  property_owner_share_rate?: number; // DB field (optional/future)
 
   // Notes
   notes?: string;
