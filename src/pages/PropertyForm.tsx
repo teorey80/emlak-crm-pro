@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import heic2any from 'heic2any';
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { useData } from '../context/DataContext';
-import { Property, Customer } from '../types';
+import { Property, Customer, Site } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import {
@@ -44,10 +46,45 @@ import {
 } from '../constants/propertyConstants';
 import { PROVINCES, getDistricts, getProvinceCoordinates } from '../constants/turkeyLocations';
 
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const DraggableLocationMarker: React.FC<{
+  position: [number, number];
+  onChange: (lat: number, lng: number) => void;
+}> = ({ position, onChange }) => {
+  useMapEvents({
+    click: (e) => {
+      onChange(e.latlng.lat, e.latlng.lng);
+    }
+  });
+
+  return (
+    <Marker
+      position={position}
+      draggable
+      eventHandlers={{
+        dragend: (event) => {
+          const marker = event.target as L.Marker;
+          const next = marker.getLatLng();
+          onChange(next.lat, next.lng);
+        }
+      }}
+    />
+  );
+};
+
 const PropertyForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { addProperty, updateProperty, properties, customers, addCustomer, session } = useData();
+  const { addProperty, updateProperty, properties, customers, addCustomer, session, sites, addSite } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftKey = id
     ? `propertyFormDraft:edit:${id}`
@@ -77,6 +114,8 @@ const PropertyForm: React.FC = () => {
   const [loadingNeighborhoods, setLoadingNeighborhoods] = useState(false);
   const [addressSearch, setAddressSearch] = useState('');
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const [quickSiteName, setQuickSiteName] = useState('');
+  const [isAddingQuickSite, setIsAddingQuickSite] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<Property>>({
@@ -810,6 +849,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       setCurrentStep(1);
       return;
     }
+    if (formData.isInSite && !formData.siteName?.trim()) {
+      toast.error('Site içerisindeyse lütfen bir site seçin veya yeni site ekleyin');
+      setCurrentStep(steps.findIndex((s) => s.id === 'location'));
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -844,6 +888,38 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleQuickAddSite = async () => {
+    const normalizedName = quickSiteName.trim();
+    if (!normalizedName) {
+      toast.error('Site adı giriniz');
+      return;
+    }
+
+    const existing = sites.find(s => s.name.toLowerCase() === normalizedName.toLowerCase());
+    if (existing) {
+      handleChange('siteName', existing.name);
+      setQuickSiteName('');
+      setIsAddingQuickSite(false);
+      toast.success('Mevcut site seçildi');
+      return;
+    }
+
+    const site: Site = {
+      id: Date.now().toString(),
+      name: normalizedName,
+      region: [formData.district, formData.city].filter(Boolean).join(', ') || 'Belirtilmedi',
+      address: formData.address || '',
+      status: 'Aktif',
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
+    await addSite(site);
+    handleChange('siteName', site.name);
+    setQuickSiteName('');
+    setIsAddingQuickSite(false);
+    toast.success('Yeni site eklendi ve seçildi');
   };
 
   // Quick add owner
@@ -1440,8 +1516,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
   // Step: Location
   const renderLocationStep = () => {
     const districts = formData.city ? getDistricts(formData.city) : [];
-    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${(formData.coordinates?.lng || 32.8597) - 0.05}%2C${(formData.coordinates?.lat || 39.9334) - 0.03}%2C${(formData.coordinates?.lng || 32.8597) + 0.05}%2C${(formData.coordinates?.lat || 39.9334) + 0.03}&layer=mapnik&marker=${formData.coordinates?.lat || 39.9334}%2C${formData.coordinates?.lng || 32.8597}`;
     const googleMapsPickerUrl = `https://www.google.com/maps/search/?api=1&query=${formData.coordinates?.lat || 39.9334},${formData.coordinates?.lng || 32.8597}`;
+    const activeSites = sites.filter(s => s.status === 'Aktif').sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    const lat = formData.coordinates?.lat || 39.9334;
+    const lng = formData.coordinates?.lng || 32.8597;
+    const markerPosition: [number, number] = [lat, lng];
 
     return (
       <div className="space-y-6">
@@ -1534,7 +1613,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
             <select
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
               value={formData.isInSite ? 'Evet' : 'Hayır'}
-              onChange={e => handleChange('isInSite', e.target.value === 'Evet')}
+              onChange={e => {
+                const isInSite = e.target.value === 'Evet';
+                handleChange('isInSite', isInSite);
+                if (!isInSite) handleChange('siteName', '');
+              }}
             >
               <option value="Hayır">Hayır</option>
               <option value="Evet">Evet</option>
@@ -1543,14 +1626,48 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
           {/* Site Name */}
           {formData.isInSite && (
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  value={formData.siteName || ''}
+                  onChange={e => handleChange('siteName', e.target.value)}
+                >
+                  <option value="">Site seçiniz</option>
+                  {activeSites.map(site => (
+                    <option key={site.id} value={site.name}>{site.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="px-3 py-2 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 dark:border-emerald-800"
+                  onClick={() => setIsAddingQuickSite(prev => !prev)}
+                >
+                  Yeni Site
+                </button>
+              </div>
+              {isAddingQuickSite && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Yeni site adı"
+                    className="flex-1 p-2.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                    value={quickSiteName}
+                    onChange={e => setQuickSiteName(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-[#1193d4] text-white rounded-lg text-sm"
+                    onClick={handleQuickAddSite}
+                  >
+                    Ekle
+                  </button>
+                </div>
+              )}
               <input
-                type="text"
-                placeholder="Site adı"
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                type="hidden"
                 value={formData.siteName}
-                onChange={e => handleChange('siteName', e.target.value)}
               />
             </div>
           )}
@@ -1637,14 +1754,22 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
           {/* Map Preview */}
           <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
-            <iframe
-              key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
-              width="100%"
-              height="100%"
-              src={mapUrl}
-              title="Konum Haritası"
-              className="border-0"
-            />
+            <MapContainer
+              key={`${lat}-${lng}`}
+              center={markerPosition}
+              zoom={16}
+              scrollWheelZoom
+              className="h-full w-full"
+            >
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <DraggableLocationMarker
+                position={markerPosition}
+                onChange={(nextLat, nextLng) => handleChange('coordinates', { lat: nextLat, lng: nextLng })}
+              />
+            </MapContainer>
             {formData.coordinates?.lat && formData.coordinates?.lng && (
               <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
                 {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
