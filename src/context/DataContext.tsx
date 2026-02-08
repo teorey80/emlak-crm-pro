@@ -750,12 +750,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Generate ID if not provided
     const customerId = customer.id || crypto.randomUUID();
 
+    // Resolve office_id robustly to satisfy RLS policies
+    let resolvedOfficeId = userProfile.officeId || customer.office_id;
+    if (!resolvedOfficeId && session?.user?.id) {
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('office_id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        resolvedOfficeId = profileData?.office_id || undefined;
+      } catch {
+        // Ignore lookup error, handled by validation below
+      }
+    }
+
+    if (!resolvedOfficeId) {
+      throw new Error('Müşteri eklemek için kullanıcıya bir ofis atanmış olmalı.');
+    }
+
     // Attach current user ID and Office ID
     const customerWithUser: Customer = {
       ...customer,
       id: customerId,
       user_id: session?.user.id,
-      office_id: userProfile.officeId || customer.office_id
+      office_id: resolvedOfficeId
     };
 
     if (!customerWithUser.office_id) {
@@ -768,6 +787,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Error adding customer:', error);
       // Rollback optimistic update on error
       setCustomers((prev) => prev.filter(c => c.id !== customerId));
+      if (error.code === '42501' || /row-level security/i.test(error.message || '')) {
+        throw new Error('Müşteri ekleme yetkisi reddedildi (RLS). Hesabın ofis atamasını kontrol edin.');
+      }
       throw error;
     }
 
