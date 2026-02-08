@@ -750,30 +750,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Generate ID if not provided
     const customerId = customer.id || crypto.randomUUID();
 
-    // Resolve office_id robustly to satisfy RLS policies
-    let resolvedOfficeId = userProfile.officeId || customer.office_id;
-    if (!resolvedOfficeId && session?.user?.id) {
-      try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('office_id')
-          .eq('id', session.user.id)
-          .maybeSingle();
-        resolvedOfficeId = profileData?.office_id || undefined;
-      } catch {
-        // Ignore lookup error, handled by validation below
-      }
+    const sessionUserId = session?.user?.id;
+    if (!sessionUserId) {
+      throw new Error('Oturum doğrulanamadı. Lütfen tekrar giriş yapın.');
     }
 
-    if (!resolvedOfficeId) {
-      throw new Error('Müşteri eklemek için kullanıcıya bir ofis atanmış olmalı.');
+    // Resolve office_id robustly to satisfy stricter RLS variants
+    let profileOfficeId: string | undefined;
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('office_id')
+        .eq('id', sessionUserId)
+        .maybeSingle();
+      profileOfficeId = profileData?.office_id || undefined;
+    } catch {
+      // Best effort
     }
+    const resolvedOfficeId = profileOfficeId || userProfile.officeId || customer.office_id;
 
     // Attach current user ID and Office ID
     const customerWithUser: Customer = {
       ...customer,
       id: customerId,
-      user_id: session?.user.id,
+      user_id: sessionUserId,
       office_id: resolvedOfficeId
     };
 
@@ -781,14 +781,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("CRITICAL: Attempting to add customer without office_id!", customerWithUser);
     }
 
+    const isUnknownColumnError = (error: any) => {
+      const msg = error?.message || '';
+      return (
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' ||
+        /column .* does not exist/i.test(msg) ||
+        /Could not find the '.*' column/i.test(msg)
+      );
+    };
+
+    const extractUnknownColumn = (error: any) => {
+      const message = error?.message || '';
+      const match1 = message.match(/column "([^"]+)"/i);
+      if (match1?.[1]) return match1[1];
+      const match2 = message.match(/'([^']+)' column/i);
+      return match2?.[1];
+    };
+
+    const insertWithFallback = async (payload: Record<string, any>) => {
+      let workingPayload = { ...payload };
+      let lastError: any = null;
+
+      for (let i = 0; i < 30; i += 1) {
+        const { error } = await supabase.from('customers').insert([workingPayload]);
+        if (!error) return { ok: true };
+
+        lastError = error;
+        if (!isUnknownColumnError(error)) break;
+
+        const unknownColumn = extractUnknownColumn(error);
+        if (!unknownColumn || !(unknownColumn in workingPayload)) break;
+        delete workingPayload[unknownColumn];
+      }
+
+      return { ok: false, error: lastError };
+    };
+
+    const payloadFull = customerWithUser as unknown as Record<string, any>;
+    const payloadNoOffice = { ...payloadFull };
+    delete payloadNoOffice.office_id;
+    const payloadMinimal = {
+      id: customerId,
+      name: customer.name,
+      email: customer.email || '',
+      phone: customer.phone || '',
+      status: customer.status || 'Aktif',
+      customerType: customer.customerType || 'Mal Sahibi',
+      source: customer.source || 'İlan Girişi',
+      createdAt: customer.createdAt || new Date().toISOString().split('T')[0],
+      interactions: customer.interactions || [],
+      avatar: customer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name || 'Müşteri')}&background=random`,
+      user_id: sessionUserId,
+      office_id: resolvedOfficeId
+    } as Record<string, any>;
+
     setCustomers((prev) => [customerWithUser, ...prev]);
-    const { error } = await supabase.from('customers').insert([customerWithUser]);
-    if (error) {
+
+    let insertResult = await insertWithFallback(payloadFull);
+    if (!insertResult.ok) insertResult = await insertWithFallback(payloadNoOffice);
+    if (!insertResult.ok) insertResult = await insertWithFallback(payloadMinimal);
+
+    if (!insertResult.ok) {
+      const error = insertResult.error;
       console.error('Error adding customer:', error);
       // Rollback optimistic update on error
       setCustomers((prev) => prev.filter(c => c.id !== customerId));
       if (error.code === '42501' || /row-level security/i.test(error.message || '')) {
-        throw new Error('Müşteri ekleme yetkisi reddedildi (RLS). Hesabın ofis atamasını kontrol edin.');
+        throw new Error('Müşteri ekleme yetkisi reddedildi (RLS). Kullanıcı ofis/policy eşleşmesi kontrol edilmeli.');
       }
       throw error;
     }
