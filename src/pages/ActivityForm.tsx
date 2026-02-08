@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Activity, Customer, Property } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 type ShowingPropertySelection = {
     propertyId: string;
@@ -35,6 +35,8 @@ const ActivityForm: React.FC = () => {
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const initializedRef = useRef(false);
 
     const activeProperties = properties.filter((p) => {
         const listingStatus = p.listingStatus || p.listing_status || 'Aktif';
@@ -86,7 +88,7 @@ const ActivityForm: React.FC = () => {
     };
 
     useEffect(() => {
-        if (id) {
+        if (id && !initializedRef.current) {
             const activityToEdit = activities.find(a => a.id === id);
             if (activityToEdit) {
                 setFormData({
@@ -107,36 +109,95 @@ const ActivityForm: React.FC = () => {
                         status: activityToEdit.status
                     }]);
                 }
+                initializedRef.current = true;
             }
         }
     }, [id, activities, properties]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSaving) return;
         if (!formData.customerId || !formData.type) {
             toast.error('Müşteri ve aktivite tipi zorunludur.');
             return;
         }
 
+        setIsSaving(true);
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
         const selectedProperty = properties.find(p => p.id === formData.propertyId);
 
         try {
             if (id) {
-                const activityData: Activity = {
-                    id,
-                    type: formData.type as any,
-                    customerId: formData.customerId,
-                    customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                    propertyId: formData.propertyId,
-                    propertyTitle: selectedProperty?.title,
-                    date: formData.date || '',
-                    time: formData.time,
-                    description: formData.description || '',
-                    status: formData.status as any
-                };
-                await updateActivity(activityData);
-                toast.success('Aktivite güncellendi!');
+                if (formData.type === 'Yer Gösterimi') {
+                    const generalNote = (formData.description || '').trim();
+                    const validShowings = showingProperties.filter((s) => !!s.propertyId);
+                    if (validShowings.length === 0) {
+                        toast.error('Yer gösterimi için en az 1 aktif portföy seçmelisiniz.');
+                        return;
+                    }
+
+                    const first = validShowings[0];
+                    const firstProp = properties.find((p) => p.id === first.propertyId);
+                    const firstDescParts: string[] = [];
+                    if (generalNote) firstDescParts.push(`Genel Not: ${generalNote}`);
+                    if (first.note.trim()) firstDescParts.push(`Portföy Yorumu: ${first.note.trim()}`);
+
+                    const firstActivity: Activity = {
+                        id,
+                        type: 'Yer Gösterimi',
+                        customerId: formData.customerId,
+                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                        propertyId: first.propertyId,
+                        propertyTitle: firstProp?.title,
+                        date: formData.date || '',
+                        time: formData.time,
+                        description: firstDescParts.join('\n') || 'Yer gösterimi yapıldı.',
+                        status: first.status || 'Düşünüyor'
+                    };
+
+                    await updateActivity(firstActivity);
+
+                    const extras = validShowings.slice(1);
+                    if (extras.length > 0) {
+                        await Promise.all(extras.map(async (item) => {
+                            const prop = properties.find((p) => p.id === item.propertyId);
+                            const descParts: string[] = [];
+                            if (generalNote) descParts.push(`Genel Not: ${generalNote}`);
+                            if (item.note.trim()) descParts.push(`Portföy Yorumu: ${item.note.trim()}`);
+
+                            const activityData: Activity = {
+                                id: crypto.randomUUID(),
+                                type: 'Yer Gösterimi',
+                                customerId: formData.customerId!,
+                                customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                                propertyId: item.propertyId,
+                                propertyTitle: prop?.title,
+                                date: formData.date || '',
+                                time: formData.time,
+                                description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
+                                status: item.status || 'Düşünüyor'
+                            };
+                            await addActivity(activityData);
+                        }));
+                    }
+
+                    toast.success(`${validShowings.length} portföy için yer gösterimi güncellendi!`);
+                } else {
+                    const activityData: Activity = {
+                        id,
+                        type: formData.type as any,
+                        customerId: formData.customerId,
+                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                        propertyId: formData.propertyId,
+                        propertyTitle: selectedProperty?.title,
+                        date: formData.date || '',
+                        time: formData.time,
+                        description: formData.description || '',
+                        status: formData.status as any
+                    };
+                    await updateActivity(activityData);
+                    toast.success('Aktivite güncellendi!');
+                }
             } else {
                 if (formData.type === 'Yer Gösterimi') {
                     if (showingProperties.length === 0) {
@@ -195,6 +256,8 @@ const ActivityForm: React.FC = () => {
         } catch (error) {
             console.error(error);
             toast.error('Kayıt sırasında hata oluştu. Lütfen tekrar deneyin.');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -479,9 +542,10 @@ const ActivityForm: React.FC = () => {
                     <div className="pt-4 flex gap-3">
                         <button
                             type="submit"
+                            disabled={isSaving}
                             className="flex-1 bg-[#1193d4] text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity"
                         >
-                            Aktiviteyi Kaydet
+                            {isSaving ? 'Kaydediliyor...' : 'Aktiviteyi Kaydet'}
                         </button>
                         <button
                             type="button"
