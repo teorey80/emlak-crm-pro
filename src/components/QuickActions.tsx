@@ -572,7 +572,7 @@ interface QuickMessageModalProps {
 export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, onClose }) => {
   const { customers, properties, addActivity, addCustomer } = useData();
   const [phone, setPhone] = useState('');
-  const [channel, setChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
+  const [channel, setChannel] = useState<'WhatsApp' | 'SMS' | 'Email' | 'Sahibinden.com'>('WhatsApp');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [propertySearch, setPropertySearch] = useState('');
   const [topic, setTopic] = useState('');
@@ -740,11 +740,12 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
               Kanal
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { value: 'WhatsApp', icon: '💬', color: 'green' },
                 { value: 'SMS', icon: '📱', color: 'blue' },
-                { value: 'Email', icon: '📧', color: 'purple' }
+                { value: 'Email', icon: '📧', color: 'purple' },
+                { value: 'Sahibinden.com', icon: '🏠', color: 'orange' }
               ].map(opt => (
                 <button
                   key={opt.value}
@@ -752,6 +753,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                   className={`py-3 px-3 rounded-xl text-sm font-medium transition-all ${channel === opt.value
                     ? opt.color === 'green' ? 'bg-green-500 text-white' :
                       opt.color === 'blue' ? 'bg-blue-500 text-white' :
+                      opt.color === 'orange' ? 'bg-orange-500 text-white' :
                         'bg-purple-500 text-white'
                     : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
                     }`}

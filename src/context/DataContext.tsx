@@ -884,23 +884,110 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addActivity = async (activity: Activity) => {
-    // Generate ID if not provided
     const activityId = activity.id || crypto.randomUUID();
+    let sessionUserId = session?.user?.id;
 
-    // Attach current user ID
+    if (!sessionUserId) {
+      const { data: authData } = await supabase.auth.getUser();
+      sessionUserId = authData.user?.id;
+    }
+
+    if (!sessionUserId) {
+      throw new Error('Oturum doğrulanamadı. Lütfen tekrar giriş yapın.');
+    }
+
+    let profileOfficeId: string | undefined;
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('office_id')
+        .eq('id', sessionUserId)
+        .maybeSingle();
+      profileOfficeId = profileData?.office_id || undefined;
+    } catch {
+      // Best effort
+    }
+
+    const resolvedOfficeId = profileOfficeId || userProfile.officeId || activity.office_id;
+
     const activityWithUser: Activity = {
       ...activity,
       id: activityId,
-      user_id: session?.user.id,
-      office_id: userProfile.officeId
+      user_id: sessionUserId,
+      office_id: resolvedOfficeId
     };
 
+    const isUnknownColumnError = (error: any) => {
+      const msg = error?.message || '';
+      return (
+        error?.code === '42703' ||
+        error?.code === 'PGRST204' ||
+        /column .* does not exist/i.test(msg) ||
+        /Could not find the '.*' column/i.test(msg)
+      );
+    };
+
+    const extractUnknownColumn = (error: any) => {
+      const message = error?.message || '';
+      const match1 = message.match(/column "([^"]+)"/i);
+      if (match1?.[1]) return match1[1];
+      const match2 = message.match(/'([^']+)' column/i);
+      return match2?.[1];
+    };
+
+    const insertWithFallback = async (payload: Record<string, any>) => {
+      let workingPayload = { ...payload };
+      let lastError: any = null;
+
+      for (let i = 0; i < 30; i += 1) {
+        const { error } = await supabase.from('activities').insert([workingPayload]);
+        if (!error) return { ok: true };
+
+        lastError = error;
+        if (!isUnknownColumnError(error)) break;
+
+        const unknownColumn = extractUnknownColumn(error);
+        if (!unknownColumn || !(unknownColumn in workingPayload)) break;
+        delete workingPayload[unknownColumn];
+      }
+
+      return { ok: false, error: lastError };
+    };
+
+    const payloadCamel = activityWithUser as unknown as Record<string, any>;
+    const payloadSnake = {
+      id: activityId,
+      type: activity.type,
+      customer_id: activity.customerId,
+      customer_name: activity.customerName,
+      property_id: activity.propertyId,
+      property_title: activity.propertyTitle,
+      date: activity.date,
+      time: activity.time,
+      description: activity.description,
+      status: activity.status,
+      user_id: sessionUserId,
+      office_id: resolvedOfficeId
+    } as Record<string, any>;
+    const payloadCamelNoOffice = { ...payloadCamel };
+    delete payloadCamelNoOffice.office_id;
+    const payloadSnakeNoOffice = { ...payloadSnake };
+    delete payloadSnakeNoOffice.office_id;
+
     setActivities((prev) => [activityWithUser, ...prev]);
-    const { error } = await supabase.from('activities').insert([activityWithUser]);
-    if (error) {
+
+    let insertResult = await insertWithFallback(payloadCamel);
+    if (!insertResult.ok) insertResult = await insertWithFallback(payloadSnake);
+    if (!insertResult.ok) insertResult = await insertWithFallback(payloadCamelNoOffice);
+    if (!insertResult.ok) insertResult = await insertWithFallback(payloadSnakeNoOffice);
+
+    if (!insertResult.ok) {
+      const error = insertResult.error;
       console.error('Error adding activity:', error);
-      // Rollback optimistic update on error
       setActivities((prev) => prev.filter(a => a.id !== activityId));
+      if (error?.code === '42501' || /row-level security/i.test(error?.message || '')) {
+        throw new Error('Aktivite kaydı yetkisi reddedildi (RLS). Kullanıcı ofis/policy eşleşmesi kontrol edilmeli.');
+      }
       throw error;
     }
   };
