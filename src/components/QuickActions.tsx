@@ -742,15 +742,15 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { value: 'WhatsApp', icon: '💬', color: 'green' },
-                { value: 'SMS', icon: '📱', color: 'blue' },
-                { value: 'Email', icon: '📧', color: 'purple' },
-                { value: 'Sahibinden.com', icon: '🏠', color: 'orange' }
+                { value: 'WhatsApp', label: 'WhatsApp', icon: '💬', color: 'green' },
+                { value: 'SMS', label: 'SMS', icon: '📱', color: 'blue' },
+                { value: 'Email', label: 'Email', icon: '📧', color: 'purple' },
+                { value: 'Sahibinden.com', label: 'Sahibinden', icon: '🏠', color: 'orange' }
               ].map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setChannel(opt.value as any)}
-                  className={`py-3 px-3 rounded-xl text-sm font-medium transition-all ${channel === opt.value
+                  className={`min-h-[52px] py-2 px-2 rounded-xl text-xs sm:text-sm font-medium leading-tight transition-all ${channel === opt.value
                     ? opt.color === 'green' ? 'bg-green-500 text-white' :
                       opt.color === 'blue' ? 'bg-blue-500 text-white' :
                       opt.color === 'orange' ? 'bg-orange-500 text-white' :
@@ -759,7 +759,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                     }`}
                 >
                   <span className="mr-1">{opt.icon}</span>
-                  {opt.value}
+                  {opt.label}
                 </button>
               ))}
             </div>

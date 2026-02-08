@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { Activity, Customer } from '../types';
+import { Activity, Customer, Property } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -23,9 +23,32 @@ const ActivityForm: React.FC = () => {
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
     const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
+    const [propertySearch, setPropertySearch] = useState('');
+    const [showPropertyResults, setShowPropertyResults] = useState(false);
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
+
+    const activeProperties = properties.filter((p) => {
+        const listingStatus = p.listingStatus || p.listing_status || 'Aktif';
+        return listingStatus === 'Aktif';
+    });
+
+    const selectedProperty = formData.propertyId
+        ? (properties.find((p) => p.id === formData.propertyId) as Property | undefined)
+        : undefined;
+
+    const filteredProperties = activeProperties
+        .filter((p) => {
+            if (!propertySearch.trim()) return true;
+            const q = propertySearch.toLocaleLowerCase('tr');
+            return (
+                p.title?.toLocaleLowerCase('tr').includes(q) ||
+                p.location?.toLocaleLowerCase('tr').includes(q) ||
+                p.id?.toLocaleLowerCase('tr').includes(q)
+            );
+        })
+        .slice(0, 8);
 
     const startListening = () => {
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -68,9 +91,11 @@ const ActivityForm: React.FC = () => {
                     customerId: activityToEdit.customerId,
                     propertyId: activityToEdit.propertyId
                 });
+                const prop = properties.find((p) => p.id === activityToEdit.propertyId);
+                if (prop) setPropertySearch(prop.title || '');
             }
         }
-    }, [id, activities]);
+    }, [id, activities, properties]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -209,18 +234,66 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {/* Property Selection */}
-                    <div>
+                    <div className="relative">
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">İlgili Emlak (Opsiyonel)</label>
-                        <select
+                        <input
+                            type="text"
+                            value={propertySearch}
+                            onChange={(e) => {
+                                setPropertySearch(e.target.value);
+                                setShowPropertyResults(true);
+                            }}
+                            onFocus={() => setShowPropertyResults(true)}
+                            placeholder="Aktif portföy ara (başlık, konum, kod)"
                             className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
-                            value={formData.propertyId || ''}
-                            onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
-                        >
-                            <option value="">Emlak Seçiniz (Yok)</option>
-                            {properties.map(p => (
-                                <option key={p.id} value={p.id}>#{p.id.slice(-4)} - {p.title}</option>
-                            ))}
-                        </select>
+                        />
+
+                        {showPropertyResults && (
+                            <div className="absolute z-20 w-full mt-1 max-h-56 overflow-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
+                                {filteredProperties.length > 0 ? (
+                                    filteredProperties.map((p) => (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setFormData({ ...formData, propertyId: p.id });
+                                                setPropertySearch(p.title || p.id);
+                                                setShowPropertyResults(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 border-b border-gray-100 dark:border-slate-700 last:border-b-0"
+                                        >
+                                            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.title}</div>
+                                            <div className="text-xs text-gray-500 dark:text-slate-400">#{p.id.slice(-6)} • {p.location}</div>
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
+                                        Uygun aktif portföy bulunamadı.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {selectedProperty && (
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-900/20 px-3 py-2">
+                                <div>
+                                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{selectedProperty.title}</p>
+                                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400">#{selectedProperty.id.slice(-6)} • {selectedProperty.location}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData({ ...formData, propertyId: undefined });
+                                        setPropertySearch('');
+                                    }}
+                                    className="text-xs px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300"
+                                >
+                                    Kaldır
+                                </button>
+                            </div>
+                        )}
+
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Sadece aktif portföyler listelenir.</p>
                     </div>
 
                     {/* Notes */}
