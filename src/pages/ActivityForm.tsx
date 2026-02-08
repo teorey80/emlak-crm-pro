@@ -7,6 +7,12 @@ import { Activity, Customer, Property } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
+type ShowingPropertySelection = {
+    propertyId: string;
+    note: string;
+    status: Activity['status'];
+};
+
 const ActivityForm: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -25,6 +31,7 @@ const ActivityForm: React.FC = () => {
     const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
     const [propertySearch, setPropertySearch] = useState('');
     const [showPropertyResults, setShowPropertyResults] = useState(false);
+    const [showingProperties, setShowingProperties] = useState<ShowingPropertySelection[]>([]);
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
@@ -93,42 +100,101 @@ const ActivityForm: React.FC = () => {
                 });
                 const prop = properties.find((p) => p.id === activityToEdit.propertyId);
                 if (prop) setPropertySearch(prop.title || '');
+                if (activityToEdit.type === 'Yer Gösterimi' && activityToEdit.propertyId) {
+                    setShowingProperties([{
+                        propertyId: activityToEdit.propertyId,
+                        note: '',
+                        status: activityToEdit.status
+                    }]);
+                }
             }
         }
     }, [id, activities, properties]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.customerId || !formData.type) return;
+        if (!formData.customerId || !formData.type) {
+            toast.error('Müşteri ve aktivite tipi zorunludur.');
+            return;
+        }
 
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
         const selectedProperty = properties.find(p => p.id === formData.propertyId);
 
-        const activityData: Activity = {
-            id: id || Date.now().toString(),
-            type: formData.type as any,
-            customerId: formData.customerId,
-            customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-            propertyId: formData.propertyId,
-            propertyTitle: selectedProperty?.title,
-            date: formData.date || '',
-            time: formData.time,
-            description: formData.description || '',
-            status: formData.status as any
-        };
-
         try {
             if (id) {
+                const activityData: Activity = {
+                    id,
+                    type: formData.type as any,
+                    customerId: formData.customerId,
+                    customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                    propertyId: formData.propertyId,
+                    propertyTitle: selectedProperty?.title,
+                    date: formData.date || '',
+                    time: formData.time,
+                    description: formData.description || '',
+                    status: formData.status as any
+                };
                 await updateActivity(activityData);
                 toast.success('Aktivite güncellendi!');
             } else {
-                await addActivity(activityData);
-                toast.success('Aktivite eklendi!');
+                if (formData.type === 'Yer Gösterimi') {
+                    if (showingProperties.length === 0) {
+                        toast.error('Yer gösterimi için en az 1 aktif portföy seçmelisiniz.');
+                        return;
+                    }
+
+                    const generalNote = (formData.description || '').trim();
+                    const validShowings = showingProperties.filter((s) => !!s.propertyId);
+                    if (validShowings.length === 0) {
+                        toast.error('Geçerli portföy seçimi bulunamadı.');
+                        return;
+                    }
+
+                    await Promise.all(validShowings.map(async (item) => {
+                        const prop = properties.find((p) => p.id === item.propertyId);
+                        const descParts: string[] = [];
+                        if (generalNote) descParts.push(`Genel Not: ${generalNote}`);
+                        if (item.note.trim()) descParts.push(`Portföy Yorumu: ${item.note.trim()}`);
+
+                        const activityData: Activity = {
+                            id: crypto.randomUUID(),
+                            type: 'Yer Gösterimi',
+                            customerId: formData.customerId!,
+                            customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                            propertyId: item.propertyId,
+                            propertyTitle: prop?.title,
+                            date: formData.date || '',
+                            time: formData.time,
+                            description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
+                            status: item.status || (formData.status as any) || 'Düşünüyor'
+                        };
+
+                        await addActivity(activityData);
+                    }));
+
+                    toast.success(`${validShowings.length} portföy için yer gösterimi kaydedildi!`);
+                } else {
+                    const activityData: Activity = {
+                        id: crypto.randomUUID(),
+                        type: formData.type as any,
+                        customerId: formData.customerId,
+                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+                        propertyId: formData.propertyId,
+                        propertyTitle: selectedProperty?.title,
+                        date: formData.date || '',
+                        time: formData.time,
+                        description: formData.description || '',
+                        status: formData.status as any
+                    };
+                    await addActivity(activityData);
+                    toast.success('Aktivite eklendi!');
+                }
             }
             navigate('/activities');
         } catch (error) {
             console.error(error);
-            toast.error('İşlem başarısız oldu.');
+            toast.error('Kayıt sırasında hata oluştu. Lütfen tekrar deneyin.');
         }
     };
 
@@ -152,6 +218,17 @@ const ActivityForm: React.FC = () => {
         setFormData({ ...formData, customerId: customer.id });
         setNewCustomer({ name: '', phone: '' });
         setShowCustomerModal(false);
+    };
+
+    const addShowingProperty = (property: Property) => {
+        if (showingProperties.some((p) => p.propertyId === property.id)) {
+            toast('Bu portföy zaten eklendi.');
+            return;
+        }
+        setShowingProperties((prev) => [
+            ...prev,
+            { propertyId: property.id, note: '', status: 'Düşünüyor' }
+        ]);
     };
 
     return (
@@ -256,8 +333,13 @@ const ActivityForm: React.FC = () => {
                                             key={p.id}
                                             type="button"
                                             onClick={() => {
-                                                setFormData({ ...formData, propertyId: p.id });
-                                                setPropertySearch(p.title || p.id);
+                                                if (formData.type === 'Yer Gösterimi') {
+                                                    addShowingProperty(p);
+                                                    setPropertySearch('');
+                                                } else {
+                                                    setFormData({ ...formData, propertyId: p.id });
+                                                    setPropertySearch(p.title || p.id);
+                                                }
                                                 setShowPropertyResults(false);
                                             }}
                                             className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 border-b border-gray-100 dark:border-slate-700 last:border-b-0"
@@ -274,7 +356,49 @@ const ActivityForm: React.FC = () => {
                             </div>
                         )}
 
-                        {selectedProperty && (
+                        {formData.type === 'Yer Gösterimi' ? (
+                            <div className="mt-2 space-y-2">
+                                {showingProperties.length === 0 ? (
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">Henüz portföy eklenmedi.</p>
+                                ) : showingProperties.map((item) => {
+                                    const prop = properties.find((p) => p.id === item.propertyId);
+                                    return (
+                                        <div key={item.propertyId} className="rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-900/20 p-3 space-y-2">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{prop?.title || item.propertyId}</p>
+                                                    <p className="text-xs text-emerald-700/80 dark:text-emerald-400">#{item.propertyId.slice(-6)} • {prop?.location || '-'}</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowingProperties((prev) => prev.filter((x) => x.propertyId !== item.propertyId))}
+                                                    className="text-xs px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300"
+                                                >
+                                                    Kaldır
+                                                </button>
+                                            </div>
+                                            <select
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2 text-sm text-gray-900 dark:text-white"
+                                                value={item.status}
+                                                onChange={(e) => setShowingProperties((prev) => prev.map((x) => x.propertyId === item.propertyId ? { ...x, status: e.target.value as Activity['status'] } : x))}
+                                            >
+                                                <option value="Olumlu">Olumlu</option>
+                                                <option value="Düşünüyor">Düşünüyor</option>
+                                                <option value="Olumsuz">Olumsuz</option>
+                                                <option value="Tamamlandı">Tamamlandı</option>
+                                            </select>
+                                            <textarea
+                                                rows={2}
+                                                placeholder="Bu portföy için müşteri yorumu..."
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2 text-sm text-gray-900 dark:text-white"
+                                                value={item.note}
+                                                onChange={(e) => setShowingProperties((prev) => prev.map((x) => x.propertyId === item.propertyId ? { ...x, note: e.target.value } : x))}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : selectedProperty && (
                             <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-900/20 px-3 py-2">
                                 <div>
                                     <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{selectedProperty.title}</p>
