@@ -794,6 +794,17 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
         if (isLargeImage) {
           try {
+            const directUrl = await uploadImageToStorage(workingFile);
+            setFormData(prev => ({
+              ...prev,
+              images: [...(prev.images || []), directUrl]
+            }));
+            continue;
+          } catch (directStorageError) {
+            console.warn('Direct storage upload failed for large image:', workingFile.name, directStorageError);
+          }
+
+          try {
             dataUrl = await resizeImageToDataUrl(workingFile);
             const optimizedFile = dataUrlToFile(dataUrl, workingFile.name);
             const storageUrl = await uploadImageToStorage(optimizedFile);
@@ -803,7 +814,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
             }));
             continue;
           } catch (storageError) {
-            console.warn('Large image optimize/upload failed, using resized fallback:', workingFile.name, storageError);
+            console.warn('Optimized storage upload failed, using local fallback:', workingFile.name, storageError);
             try {
               dataUrl = await resizeImageToDataUrl(workingFile);
             } catch (resizeError) {
@@ -938,15 +949,18 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       interactions: [],
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newOwnerName)}&background=random`
     };
-
-    await addCustomer(customer);
-    handleChange('ownerId', customer.id);
-    handleChange('ownerName', customer.name);
-    handleChange('ownerPhone', customer.phone);
-    setShowOwnerModal(false);
-    setNewOwnerName('');
-    setNewOwnerPhone('');
-    toast.success('Mülk sahibi eklendi');
+    try {
+      const created = await addCustomer(customer);
+      handleChange('ownerId', created.id);
+      handleChange('ownerName', created.name);
+      handleChange('ownerPhone', created.phone);
+      setShowOwnerModal(false);
+      setNewOwnerName('');
+      setNewOwnerPhone('');
+      toast.success('Mülk sahibi eklendi');
+    } catch (error: any) {
+      toast.error(error?.message || 'Mülk sahibi kaydedilemedi');
+    }
   };
 
   // Render step content
@@ -2166,7 +2180,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       {/* Owner Modal */}
       {showOwnerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">Yeni Mülk Sahibi</h3>
               <button onClick={() => setShowOwnerModal(false)} className="text-gray-400 hover:text-gray-600">
