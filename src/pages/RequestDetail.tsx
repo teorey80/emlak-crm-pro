@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Building, MapPin } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { findMatches, MatchCriterion } from '../services/matchingService';
 
 const RequestDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -11,16 +12,19 @@ const RequestDetail: React.FC = () => {
 
   if (!request) return <div className="p-10 text-center text-gray-500 dark:text-slate-400">Talep bulunamadı.</div>;
 
-  // Matching Logic
-  const matchingProperties = properties.filter(p => {
-      const matchType = p.type === request.type;
-      const matchPrice = p.price >= request.minPrice && p.price <= request.maxPrice;
-      const matchCity = p.location.includes(request.city);
-      // Loose text match for district if specified
-      const matchDistrict = request.district === 'Tümü' || p.location.includes(request.district); 
-      
-      return matchType && matchPrice && matchCity && matchDistrict;
-  });
+  const matchingResults = findMatches(properties, [request], undefined, 0);
+
+  const criterionBadge = (criterion: MatchCriterion) => {
+    if (criterion.status === 'pass') return `✓ ${criterion.label}`;
+    if (criterion.status === 'partial') return `~ ${criterion.label}`;
+    return `✗ ${criterion.label}`;
+  };
+
+  const criterionClass = (criterion: MatchCriterion) => {
+    if (criterion.status === 'pass') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400';
+    if (criterion.status === 'partial') return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400';
+    return 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400';
+  };
 
   return (
     <div className="space-y-6">
@@ -72,17 +76,22 @@ const RequestDetail: React.FC = () => {
         <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                 <CheckCircle className="text-[#1193d4] w-5 h-5" />
-                Eşleşen Portföyler ({matchingProperties.length})
+                Eşleşen Portföyler ({matchingResults.length})
             </h2>
             
-            {matchingProperties.length > 0 ? (
+            {matchingResults.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {matchingProperties.map(prop => (
+                    {matchingResults.map(match => {
+                      const prop = match.property;
+                      return (
                         <div key={prop.id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
                             <div className="h-48 overflow-hidden relative">
                                 <img src={prop.images?.[0] || 'https://via.placeholder.com/800x500?text=No+Image'} alt={prop.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                                 <div className="absolute top-3 right-3 bg-white/90 dark:bg-slate-900/90 px-2 py-1 rounded shadow text-xs font-bold text-slate-800 dark:text-white">
                                     {prop.price.toLocaleString()} {prop.currency}
+                                </div>
+                                <div className="absolute top-3 left-3 bg-[#1193d4]/90 text-white px-2 py-1 rounded shadow text-xs font-bold">
+                                    %{match.score}
                                 </div>
                             </div>
                             <div className="p-4">
@@ -98,12 +107,20 @@ const RequestDetail: React.FC = () => {
                                     <span>•</span>
                                     <span>{prop.heating}</span>
                                 </div>
+                                <div className="flex flex-wrap gap-1.5 mb-4">
+                                  {match.criteria.slice(0, 5).map((criterion) => (
+                                    <span key={criterion.key} className={`text-[11px] px-2 py-1 rounded-full ${criterionClass(criterion)}`}>
+                                      {criterionBadge(criterion)}
+                                    </span>
+                                  ))}
+                                </div>
                                 <Link to={`/properties/${prop.id}`} className="block w-full text-center bg-gray-50 dark:bg-slate-700 hover:bg-[#1193d4] dark:hover:bg-[#1193d4] hover:text-white dark:hover:text-white text-gray-700 dark:text-slate-200 font-medium py-2 rounded-lg transition-colors border border-gray-200 dark:border-slate-600 hover:border-[#1193d4] dark:hover:border-[#1193d4]">
                                     Detayları Gör
                                 </Link>
                             </div>
                         </div>
-                    ))}
+                      );
+                    })}
                 </div>
             ) : (
                 <div className="bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-xl p-10 text-center">

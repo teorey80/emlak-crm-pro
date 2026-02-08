@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { findMatches, MatchResult } from '../services/matchingService';
+import { findMatches, MatchCriterion, MatchResult } from '../services/matchingService';
 import { Sparkles, Users, CheckCircle, X, Phone, Mail, MapPin, Home, DollarSign, Filter, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const MatchCenter: React.FC = () => {
@@ -54,6 +54,18 @@ const MatchCenter: React.FC = () => {
         if (score >= 75) return 'bg-green-500';
         if (score >= 60) return 'bg-yellow-500';
         return 'bg-orange-500';
+    };
+
+    const criterionBadge = (criterion: MatchCriterion) => {
+        if (criterion.status === 'pass') return `✓ ${criterion.label}`;
+        if (criterion.status === 'partial') return `~ ${criterion.label}`;
+        return `✗ ${criterion.label}`;
+    };
+
+    const criterionClass = (criterion: MatchCriterion) => {
+        if (criterion.status === 'pass') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400';
+        if (criterion.status === 'partial') return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400';
+        return 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400';
     };
 
     return (
@@ -238,15 +250,15 @@ const MatchCenter: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Match Reasons */}
+                            {/* Match Criteria */}
                             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                                 <div className="flex flex-wrap gap-2">
-                                    {match.matchReasons?.map((reason, i) => (
+                                    {match.criteria.slice(0, 6).map((criterion) => (
                                         <span
-                                            key={i}
-                                            className="text-xs px-2 py-1 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-full"
+                                            key={criterion.key}
+                                            className={`text-xs px-2 py-1 rounded-full ${criterionClass(criterion)}`}
                                         >
-                                            ✓ {reason}
+                                            {criterionBadge(criterion)}
                                         </span>
                                     ))}
                                 </div>
