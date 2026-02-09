@@ -67,7 +67,11 @@ DECLARE
   v_count int;
   v_office uuid;
 BEGIN
-  SELECT COUNT(*), MIN(id) INTO v_count, v_office FROM public.offices;
+  SELECT COUNT(*) INTO v_count FROM public.offices;
+  SELECT id INTO v_office
+  FROM public.offices
+  ORDER BY created_at NULLS LAST, id
+  LIMIT 1;
   IF v_count = 1 THEN
     UPDATE public.profiles
     SET office_id = v_office
