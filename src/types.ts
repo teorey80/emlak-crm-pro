@@ -191,6 +191,11 @@ export interface Request {
   date: string;
   notes?: string;
   minRooms?: string; // e.g. "2+1"
+  minArea?: number;
+  maxArea?: number;
+  maxFloor?: number;
+  balconyRequired?: boolean;
+  neighborhood?: string;
   siteId?: string; // Requested specific site
   siteName?: string; // For display
 

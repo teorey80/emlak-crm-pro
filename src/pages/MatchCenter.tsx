@@ -9,7 +9,7 @@ const MatchCenter: React.FC = () => {
     const { properties, requests, teamMembers, userProfile } = useData();
     const navigate = useNavigate();
     const [showCrossOnly, setShowCrossOnly] = useState(false);
-    const [minScore, setMinScore] = useState(60);
+    const [minScore, setMinScore] = useState(70);
     const [dismissedMatches, setDismissedMatches] = useState<string[]>(() => {
         const saved = localStorage.getItem('dismissedMatches');
         return saved ? JSON.parse(saved) : [];
@@ -57,15 +57,22 @@ const MatchCenter: React.FC = () => {
     };
 
     const criterionBadge = (criterion: MatchCriterion) => {
-        if (criterion.status === 'pass') return `✓ ${criterion.label}`;
-        if (criterion.status === 'partial') return `~ ${criterion.label}`;
-        return `✗ ${criterion.label}`;
+        if (criterion.status === 'pass') return `✅ ${criterion.label}`;
+        if (criterion.status === 'partial') return `⚠️ ${criterion.label}`;
+        return `❌ ${criterion.label}`;
     };
 
     const criterionClass = (criterion: MatchCriterion) => {
         if (criterion.status === 'pass') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400';
         if (criterion.status === 'partial') return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400';
         return 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400';
+    };
+
+    const scoreBadge = (score: number) => {
+        if (score >= 90) return { text: '🔥 Mükemmel Eşleşme', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
+        if (score >= 70) return { text: '⭐ İyi Eşleşme', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+        if (score >= 50) return { text: '📊 Orta Eşleşme', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' };
+        return { text: 'Düşük Eşleşme', className: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200' };
     };
 
     return (
@@ -191,7 +198,7 @@ const MatchCenter: React.FC = () => {
                                         </p>
                                         <p className="flex items-center gap-2">
                                             <MapPin className="w-4 h-4" />
-                                            {match.request.preferredLocations?.join(', ') || 'Belirtilmemiş'}
+                                            {[match.request.district, match.request.city].filter(Boolean).join(', ') || 'Belirtilmemiş'}
                                         </p>
                                         <p className="flex items-center gap-2">
                                             <DollarSign className="w-4 h-4" />
@@ -205,6 +212,9 @@ const MatchCenter: React.FC = () => {
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
                                             PORTFÖY
+                                        </span>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${scoreBadge(match.score).className}`}>
+                                            {scoreBadge(match.score).text}
                                         </span>
                                         {match.propertyOwnerName && (
                                             <span className="text-xs text-slate-500">
