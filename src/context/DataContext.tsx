@@ -577,20 +577,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     try {
       const currentUserId = session?.user?.id;
+      const currentOfficeId = userProfile.officeId;
       if (!currentUserId) {
         setLoading(false);
         return;
       }
 
+      const propertiesQuery = currentOfficeId
+        ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
+        : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
+
+      const requestsQuery = currentOfficeId
+        ? supabase.from('requests').select('*').eq('office_id', currentOfficeId)
+        : supabase.from('requests').select('*').eq('user_id', currentUserId);
+
+      const salesQuery = currentOfficeId
+        ? supabase.from('sales').select('*').eq('office_id', currentOfficeId)
+        : supabase.from('sales').select('*').eq('user_id', currentUserId);
+
+      const teamQuery = currentOfficeId
+        ? supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('office_id', currentOfficeId)
+        : supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('id', currentUserId);
+
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
-        supabase.from('properties').select(PROPERTY_LIST_SELECT).order('created_at', { ascending: false }).limit(PAGE_SIZE),
+        propertiesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('sites').select('*'),
         supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE),
-        supabase.from('requests').select('*'),
-        supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
-        supabase.from('profiles').select('*') // RLS ensures we only see office members
+        requestsQuery.limit(PAGE_SIZE),
+        salesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE),
+        teamQuery
       ]);
 
       let propertiesData = propsRes.data as unknown as Property[] | null;
@@ -1762,20 +1779,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loadMoreProperties = async () => {
     if (!hasMoreProperties || loadingMore) return;
     const currentUserId = session?.user?.id;
+    const currentOfficeId = userProfile.officeId;
     if (!currentUserId) return;
     setLoadingMore(true);
     try {
-      const { data, error } = await supabase
-        .from('properties')
-        .select(PROPERTY_LIST_SELECT)
+      const baseQuery = currentOfficeId
+        ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
+        : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
+
+      const { data, error } = await baseQuery
         .order('created_at', { ascending: false })
         .range(properties.length, properties.length + PAGE_SIZE - 1);
 
       let nextPageData = data as unknown as Property[] | null;
       if (!nextPageData && error) {
-        const fallbackRes = await supabase
-          .from('properties')
-          .select('*')
+        const fallbackQuery = currentOfficeId
+          ? supabase.from('properties').select('*').eq('office_id', currentOfficeId)
+          : supabase.from('properties').select('*').eq('user_id', currentUserId);
+
+        const fallbackRes = await fallbackQuery
           .order('created_at', { ascending: false })
           .range(properties.length, properties.length + PAGE_SIZE - 1);
         nextPageData = fallbackRes.data as unknown as Property[] | null;
