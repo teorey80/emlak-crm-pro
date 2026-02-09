@@ -73,7 +73,7 @@ const Team: React.FC = () => {
 
     useEffect(() => {
         fetchTeam();
-    }, [userProfile.officeId, contextTeamMembers]);
+    }, [userProfile.officeId, userProfile.name, userProfile.title, userProfile.avatar, userProfile.email, userProfile.role, session?.user?.id, contextTeamMembers]);
 
     const fetchTeam = async () => {
         if (!userProfile.officeId) {
@@ -143,11 +143,7 @@ const Team: React.FC = () => {
 
         return teamMembers.map(member => {
             const memberProperties = properties.filter(p => p.user_id === member.id);
-            const memberActivities = activities.filter(a => {
-                // Try to match by context logic: usually activity has user_id, if not maybe link via property
-                // But activity object from useData likely has user_id
-                return a.user_id === member.id || memberProperties.some(p => p.id === a.propertyId);
-            });
+            const memberActivities = activities.filter(a => a.user_id === member.id);
 
             const memberSales = sales?.filter(s => s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id) || [];
             const totalSalesValue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);

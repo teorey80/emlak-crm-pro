@@ -105,9 +105,13 @@ const ActivityList: React.FC = () => {
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mb-3 text-sm">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-gray-500 dark:text-slate-400">Müşteri:</span>
-                                    <Link to={`/customers/${activity.customerId}`} className="font-medium text-[#1193d4] hover:underline">
-                                        {activity.customerName}
-                                    </Link>
+                                    {activity.customerId ? (
+                                        <Link to={`/customers/${activity.customerId}`} className="font-medium text-[#1193d4] hover:underline">
+                                            {activity.customerName}
+                                        </Link>
+                                    ) : (
+                                        <span className="font-medium text-slate-500 dark:text-slate-400">{activity.customerName || 'Belirtilmedi'}</span>
+                                    )}
                                 </div>
                                 {activity.propertyId && (
                                     <div className="flex items-center gap-1.5">

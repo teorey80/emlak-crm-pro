@@ -202,11 +202,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: authUserRes } = await supabase.auth.getUser();
+      const authUser = authUserRes.user;
+      const fallbackEmail = authUser?.email || session?.user?.email || '';
+      const fallbackName =
+        authUser?.user_metadata?.full_name ||
+        authUser?.user_metadata?.name ||
+        (fallbackEmail ? fallbackEmail.split('@')[0] : 'Danışman');
+      const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || 'Danışman')}`;
+
+      let { data, error } = await supabase
         .from('profiles')
         .select('*, offices(*)')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+
+      // Self-heal: profile row might be missing for some old accounts.
+      if (!data) {
+        const { error: upsertError } = await supabase.from('profiles').upsert({
+          id: userId,
+          email: fallbackEmail || null,
+          full_name: fallbackName,
+          avatar_url: fallbackAvatar
+        });
+        if (upsertError) {
+          console.warn('[DataContext] Profile self-heal upsert failed:', upsertError.message);
+        } else {
+          const profileRetry = await supabase
+            .from('profiles')
+            .select('*, offices(*)')
+            .eq('id', userId)
+            .maybeSingle();
+          data = profileRetry.data;
+          error = profileRetry.error;
+        }
+      }
 
       if (data) {
         if (!data.office_id) {
@@ -215,9 +245,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const profile: UserProfile = {
           id: data.id,
-          name: data.full_name || data.email,
+          name: data.full_name || data.email || fallbackName,
           title: data.title || 'Emlak Danışmanı',
-          avatar: data.avatar_url || `https://ui-avatars.com/api/?name=${data.full_name}`,
+          avatar: data.avatar_url || fallbackAvatar,
+          email: data.email || fallbackEmail,
           officeId: data.office_id,
           role: data.role || 'consultant',
           siteConfig: data.site_config
@@ -243,6 +274,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             siteConfig: data.offices.site_config,
             performance_settings: data.offices.performance_settings
           });
+        } else {
+          setOffice(null);
         }
 
         // Fetch Subscription
@@ -261,6 +294,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } else if (error) {
         console.error('Error fetching profile data:', error);
+        setUserProfile({
+          id: userId,
+          name: fallbackName,
+          title: 'Emlak Danışmanı',
+          avatar: fallbackAvatar,
+          email: fallbackEmail
+        });
       }
     } catch (error) {
       console.error('Exception in fetchUserProfile:', error);
@@ -275,7 +315,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // No session - stop loading so login screen can show
       setLoading(false);
     }
-  }, [session]);
+  }, [session, userProfile.id, userProfile.officeId]);
 
   const normalizeActivity = (activity: any): Activity => {
     const normalized: Activity = {
@@ -359,6 +399,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     partnerShareRate: sale.partnerShareRate ?? sale.partner_share_rate,
     partner_share_rate: sale.partner_share_rate ?? sale.partnerShareRate
   });
+
+  const maskPropertyCustomerFields = (property: Property, currentUserId: string): Property => {
+    if (!currentUserId) return property;
+    const propertyOwnerId = (property as any).user_id ?? (property as any).userId;
+    if (propertyOwnerId === currentUserId) return property;
+
+    return {
+      ...property,
+      ownerId: undefined,
+      ownerName: '',
+      ownerPhone: '',
+      depositBuyerId: undefined,
+      deposit_buyer_id: undefined,
+      depositBuyerName: '',
+      deposit_buyer_name: '',
+      depositNotes: '',
+      deposit_notes: ''
+    };
+  };
+
+  const applyPropertyPrivacyMask = (rows: Property[], currentUserId: string): Property[] => {
+    return rows.map((row) => maskPropertyCustomerFields(row, currentUserId));
+  };
 
   const mergeActivitiesWithSales = (activityData: Activity[], salesData: Sale[], props: Property[]) => {
     const existingKeys = new Set(
@@ -524,7 +587,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('properties').select(PROPERTY_LIST_SELECT).order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('sites').select('*'),
-        supabase.from('activities').select('*').order('date', { ascending: false }).limit(PAGE_SIZE),
+        supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('requests').select('*'),
         supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('profiles').select('*') // RLS ensures we only see office members
@@ -546,28 +609,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         normalizedSales = salesRes.data.map(normalizeSale);
         setSales(normalizedSales);
       }
+      const ownSalesForActivities = normalizedSales.filter((sale) => {
+        const saleOwnerId = sale.user_id ?? (sale as any).userId;
+        return saleOwnerId === currentUserId;
+      });
 
       if (propertiesData && propertiesData.length > 0) {
         let nextProperties = propertiesData;
         if (normalizedSales.length > 0) {
           nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
         }
-        setProperties(nextProperties);
+        setProperties(applyPropertyPrivacyMask(nextProperties, currentUserId));
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
       } else {
-        // Fallback: if office-level visibility is broken, at least load own properties.
+        // Fallback: if office-level visibility is broken, try own properties first.
         const ownPropsRes = await supabase
           .from('properties')
           .select('*')
           .eq('user_id', currentUserId)
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
-        if (ownPropsRes.data) {
-          let nextProperties = ownPropsRes.data as unknown as Property[];
+
+        let fallbackProperties = (ownPropsRes.data as unknown as Property[] | null) || [];
+        if (fallbackProperties.length === 0 && userProfile.officeId) {
+          const officePropsRes = await supabase
+            .from('properties')
+            .select('*')
+            .eq('office_id', userProfile.officeId)
+            .order('created_at', { ascending: false })
+            .limit(PAGE_SIZE);
+          fallbackProperties = (officePropsRes.data as unknown as Property[] | null) || [];
+        }
+
+        if (fallbackProperties.length > 0) {
+          let nextProperties = fallbackProperties;
           if (normalizedSales.length > 0) {
             nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
           }
-          setProperties(nextProperties);
+          setProperties(applyPropertyPrivacyMask(nextProperties, currentUserId));
           setHasMoreProperties(nextProperties.length === PAGE_SIZE);
         } else {
           setProperties([]);
@@ -581,13 +660,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHasMoreCustomers(custRes.data.length === PAGE_SIZE);
       }
       if (sitesRes.data) setSites(sitesRes.data);
-      if (actRes.data) {
-        const normalizedActivities = actRes.data.map(normalizeActivity);
-        const mergedActivities = normalizedSales.length > 0 && propertiesData
-          ? mergeActivitiesWithSales(normalizedActivities, normalizedSales, propertiesData)
+      let activityRows = actRes.data as any[] | null;
+      if (!activityRows && actRes.error) {
+        console.warn('[DataContext] Activity owner-filter query failed, fallback to client filter:', actRes.error.message);
+        const activityFallbackRes = await supabase
+          .from('activities')
+          .select('*')
+          .order('date', { ascending: false })
+          .limit(PAGE_SIZE);
+        activityRows = activityFallbackRes.data as any[] | null;
+      }
+      if (activityRows) {
+        const normalizedActivities = activityRows
+          .map(normalizeActivity)
+          .filter((activity) => (activity.user_id ?? (activity as any).userId) === currentUserId);
+        const sourceProperties = (propertiesData as Property[] | null) || [];
+        const mergedActivities = ownSalesForActivities.length > 0 && sourceProperties.length > 0
+          ? mergeActivitiesWithSales(normalizedActivities, ownSalesForActivities, sourceProperties)
           : normalizedActivities;
         setActivities(mergedActivities);
-        setHasMoreActivities(actRes.data.length === PAGE_SIZE);
+        setHasMoreActivities((actRes.data?.length || normalizedActivities.length) === PAGE_SIZE);
       }
       if (reqRes.data) setRequests(reqRes.data);
       if (!salesRes.data) {
@@ -595,15 +687,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (teamRes.data && teamRes.data.length > 0) {
-        setTeamMembers(teamRes.data.map((p: any) => ({
+        const mappedTeamMembers = teamRes.data.map((p: any) => ({
           id: p.id,
-          name: p.full_name,
+          name: p.full_name || p.email || 'Danışman',
           title: p.title || 'Danışman',
-          avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`,
+          avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name || p.email || 'Danışman')}`,
           email: p.email,
           officeId: p.office_id,
           role: p.role
-        })));
+        }));
+
+        if (!mappedTeamMembers.some((member) => member.id === currentUserId)) {
+          mappedTeamMembers.unshift({
+            id: currentUserId,
+            name: userProfile.name || session?.user?.email || 'Danışman',
+            title: userProfile.title || 'Danışman',
+            avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session?.user?.email || 'Danışman')}`,
+            email: userProfile.email || session?.user?.email,
+            officeId: userProfile.officeId,
+            role: userProfile.role || 'consultant'
+          });
+        }
+
+        setTeamMembers(mappedTeamMembers);
       } else {
         // Fallback: always keep current user visible in Team-related UIs.
         setTeamMembers([{
@@ -1655,6 +1761,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- Pagination Functions ---
   const loadMoreProperties = async () => {
     if (!hasMoreProperties || loadingMore) return;
+    const currentUserId = session?.user?.id;
+    if (!currentUserId) return;
     setLoadingMore(true);
     try {
       const { data, error } = await supabase
@@ -1674,7 +1782,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (nextPageData) {
-        setProperties(prev => [...prev, ...nextPageData]);
+        const visibleProperties = applyPropertyPrivacyMask(nextPageData, currentUserId);
+        setProperties(prev => {
+          const existingIds = new Set(prev.map((property) => property.id));
+          const uniqueNewRows = visibleProperties.filter((property) => !existingIds.has(property.id));
+          return [...prev, ...uniqueNewRows];
+        });
         setHasMoreProperties(nextPageData.length === PAGE_SIZE);
       }
     } catch (error) {
@@ -1711,18 +1824,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loadMoreActivities = async () => {
     if (!hasMoreActivities || loadingMore) return;
+    const currentUserId = session?.user?.id;
+    if (!currentUserId) return;
     setLoadingMore(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('activities')
         .select('*')
+        .eq('user_id', currentUserId)
         .order('date', { ascending: false })
         .range(activities.length, activities.length + PAGE_SIZE - 1);
 
-      if (data) {
-        const normalizedActivities = data.map(normalizeActivity);
-        setActivities(prev => [...prev, ...normalizedActivities]);
-        setHasMoreActivities(data.length === PAGE_SIZE);
+      let activityRows = data as any[] | null;
+      if (!activityRows && error) {
+        const activityFallbackRes = await supabase
+          .from('activities')
+          .select('*')
+          .order('date', { ascending: false })
+          .range(activities.length, activities.length + PAGE_SIZE - 1);
+        activityRows = activityFallbackRes.data as any[] | null;
+      }
+
+      if (activityRows) {
+        const normalizedActivities = activityRows
+          .map(normalizeActivity)
+          .filter((activity) => (activity.user_id ?? (activity as any).userId) === currentUserId);
+        setActivities(prev => {
+          const existingIds = new Set(prev.map((activity) => activity.id));
+          const uniqueNewRows = normalizedActivities.filter((activity) => !existingIds.has(activity.id));
+          return [...prev, ...uniqueNewRows];
+        });
+        setHasMoreActivities((data?.length || normalizedActivities.length) === PAGE_SIZE);
       }
     } catch (error) {
       console.error('Error loading more activities:', error);

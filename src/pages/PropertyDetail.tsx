@@ -51,8 +51,11 @@ const PropertyDetail: React.FC = () => {
         void fetchFullProperty();
     }, [id, baseProperty]);
 
-    // Privacy Check
-    const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
+    // Permission model:
+    // - Property can be managed by owner or broker.
+    // - Customer-sensitive owner data is visible only to listing owner.
+    const canManageProperty = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
+    const canViewOwnerCustomerData = session?.user?.id === property?.user_id;
 
     const placeholderImage = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23e2e8f0'/><stop offset='100%' stop-color='%23c7d2fe'/></linearGradient></defs><rect width='1200' height='800' fill='url(%23g)'/><rect x='140' y='140' width='920' height='520' rx='40' fill='white' opacity='0.65'/><path d='M340 560l160-200 150 170 140-150 210 180H340z' fill='%2394a3b8'/><circle cx='430' cy='360' r='55' fill='%2394a3b8'/><text x='600' y='660' text-anchor='middle' font-family='Arial, Helvetica, sans-serif' font-size='36' fill='%2364748b'>Görsel Yok</text></svg>";
     const images = property?.images?.length ? property.images : [placeholderImage];
@@ -499,7 +502,7 @@ const PropertyDetail: React.FC = () => {
                     </div>
 
                     {/* Documents Section */}
-                    {isOwner && (
+                    {canManageProperty && (
                         <DocumentManager
                             entityType="property"
                             entityId={property.id}
@@ -612,7 +615,7 @@ const PropertyDetail: React.FC = () => {
                                 <Map className="w-4 h-4" />
                                 Yer Gösterimi Ekle
                             </Link>
-                            {isOwner ? (
+                            {canManageProperty ? (
                                 <>
                                     <Link to={`/properties/edit/${id}`} className="w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
                                         <Edit className="w-4 h-4" />
@@ -781,7 +784,7 @@ const PropertyDetail: React.FC = () => {
                         </div>
 
                         {/* Property Owner Info - ONLY VISIBLE TO OWNER/BROKER */}
-                        {isOwner && (
+                        {canViewOwnerCustomerData && (
                             <div className="mt-6 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50">
                                 <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
                                     <User className="w-4 h-4" />
