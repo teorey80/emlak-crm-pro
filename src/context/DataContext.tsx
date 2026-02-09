@@ -604,9 +604,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           officeId: p.office_id,
           role: p.role
         })));
-      } else if (userProfile.id) {
+      } else {
         // Fallback: always keep current user visible in Team-related UIs.
-        setTeamMembers([userProfile]);
+        setTeamMembers([{
+          id: currentUserId,
+          name: userProfile.name || session?.user?.email || 'Danışman',
+          title: userProfile.title || 'Danışman',
+          avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session?.user?.email || 'Danışman')}`,
+          email: userProfile.email || session?.user?.email,
+          officeId: userProfile.officeId,
+          role: userProfile.role || 'consultant'
+        }]);
       }
 
     } catch (error) {
