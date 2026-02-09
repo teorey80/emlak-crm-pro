@@ -54,12 +54,8 @@ const PropertyDetail: React.FC = () => {
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
 
-    if (!property) {
-        return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
-    }
-
     const placeholderImage = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23e2e8f0'/><stop offset='100%' stop-color='%23c7d2fe'/></linearGradient></defs><rect width='1200' height='800' fill='url(%23g)'/><rect x='140' y='140' width='920' height='520' rx='40' fill='white' opacity='0.65'/><path d='M340 560l160-200 150 170 140-150 210 180H340z' fill='%2394a3b8'/><circle cx='430' cy='360' r='55' fill='%2394a3b8'/><text x='600' y='660' text-anchor='middle' font-family='Arial, Helvetica, sans-serif' font-size='36' fill='%2364748b'>Görsel Yok</text></svg>";
-    const images = property.images?.length ? property.images : [placeholderImage];
+    const images = property?.images?.length ? property.images : [placeholderImage];
     const maxGridImages = 5;
     const gridImages = images.slice(0, maxGridImages);
     const remainingCount = images.length - gridImages.length;
@@ -95,6 +91,10 @@ const PropertyDetail: React.FC = () => {
             document.body.style.overflow = '';
         };
     }, [isGalleryOpen, images.length]);
+
+    if (!property) {
+        return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
+    }
 
     // Filter activities related to this property
     const propertyActivities = activities.filter(a => a.propertyId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
