@@ -514,6 +514,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     try {
       const currentUserId = session?.user?.id;
+      if (!currentUserId) {
+        setLoading(false);
+        return;
+      }
 
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
@@ -543,13 +547,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSales(normalizedSales);
       }
 
-      if (propertiesData) {
+      if (propertiesData && propertiesData.length > 0) {
         let nextProperties = propertiesData;
         if (normalizedSales.length > 0) {
           nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
         }
         setProperties(nextProperties);
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
+      } else {
+        // Fallback: if office-level visibility is broken, at least load own properties.
+        const ownPropsRes = await supabase
+          .from('properties')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE);
+        if (ownPropsRes.data) {
+          let nextProperties = ownPropsRes.data as unknown as Property[];
+          if (normalizedSales.length > 0) {
+            nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
+          }
+          setProperties(nextProperties);
+          setHasMoreProperties(nextProperties.length === PAGE_SIZE);
+        } else {
+          setProperties([]);
+          setHasMoreProperties(false);
+        }
       }
       if (custRes.data) {
         // Defense-in-depth: even if RLS is loose, keep only current user's customers in UI.
@@ -571,7 +594,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSales([]);
       }
 
-      if (teamRes.data) {
+      if (teamRes.data && teamRes.data.length > 0) {
         setTeamMembers(teamRes.data.map((p: any) => ({
           id: p.id,
           name: p.full_name,
@@ -581,6 +604,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           officeId: p.office_id,
           role: p.role
         })));
+      } else if (userProfile.id) {
+        // Fallback: always keep current user visible in Team-related UIs.
+        setTeamMembers([userProfile]);
       }
 
     } catch (error) {
