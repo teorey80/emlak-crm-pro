@@ -14,7 +14,7 @@ const PropertyList: React.FC = () => {
     // Filter States - Initialize from URL params
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'Tümü'); // Satılık/Kiralık
-    const [listingStatusFilter, setListingStatusFilter] = useState(searchParams.get('listing_status') || 'Aktif'); // Aktif/Pasif/Satıldı/Kiralandı
+    const [listingStatusFilter, setListingStatusFilter] = useState(searchParams.get('listing_status') || 'Tümü'); // Aktif/Pasif/Satıldı/Kiralandı
     const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || 'Tümü');
     const [minPrice, setMinPrice] = useState(searchParams.get('min_price') || '');
     const [maxPrice, setMaxPrice] = useState(searchParams.get('max_price') || '');
@@ -27,7 +27,7 @@ const PropertyList: React.FC = () => {
         const params = new URLSearchParams();
         if (searchTerm) params.set('search', searchTerm);
         if (statusFilter !== 'Tümü') params.set('status', statusFilter);
-        if (listingStatusFilter !== 'Aktif') params.set('listing_status', listingStatusFilter);
+        if (listingStatusFilter !== 'Tümü') params.set('listing_status', listingStatusFilter);
         if (typeFilter !== 'Tümü') params.set('type', typeFilter);
         if (minPrice) params.set('min_price', minPrice);
         if (maxPrice) params.set('max_price', maxPrice);
@@ -145,7 +145,7 @@ const PropertyList: React.FC = () => {
     const clearFilters = () => {
         setSearchTerm('');
         setStatusFilter('Tümü');
-        setListingStatusFilter('Aktif'); // Reset to Aktif
+        setListingStatusFilter('Tümü'); // Reset to Tümü
         setTypeFilter('Tümü');
         setMinPrice('');
         setMaxPrice('');
@@ -178,7 +178,7 @@ const PropertyList: React.FC = () => {
                         <Filter className="w-4 h-4" />
                         <span>Filtreleme Seçenekleri</span>
                     </div>
-                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Aktif' || typeFilter !== 'Tümü' || minPrice || maxPrice || cityFilter) && (
+                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Tümü' || typeFilter !== 'Tümü' || minPrice || maxPrice || cityFilter) && (
                         <button
                             onClick={clearFilters}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"

@@ -20,7 +20,7 @@ interface TeamMemberWithStats extends UserProfile {
 }
 
 const Team: React.FC = () => {
-    const { userProfile, session, properties, activities, sales, office } = useData();
+    const { userProfile, session, properties, activities, sales, office, teamMembers: contextTeamMembers } = useData();
     const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -73,10 +73,26 @@ const Team: React.FC = () => {
 
     useEffect(() => {
         fetchTeam();
-    }, [userProfile.officeId]);
+    }, [userProfile.officeId, contextTeamMembers]);
 
     const fetchTeam = async () => {
-        if (!userProfile.officeId) return;
+        if (!userProfile.officeId) {
+            if (contextTeamMembers.length > 0) {
+                setTeamMembers(contextTeamMembers);
+            } else if (session?.user?.id) {
+                setTeamMembers([{
+                    id: session.user.id,
+                    name: userProfile.name || session.user.email || 'Danışman',
+                    title: userProfile.title || 'Danışman',
+                    avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session.user.email || 'Danışman')}`,
+                    email: userProfile.email || session.user.email,
+                    role: userProfile.role || 'consultant',
+                    officeId: userProfile.officeId
+                }]);
+            }
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const { data, error } = await supabase
@@ -86,7 +102,7 @@ const Team: React.FC = () => {
 
             if (error) throw error;
 
-            if (data) {
+            if (data && data.length > 0) {
                 const members: UserProfile[] = data.map((p: any) => ({
                     id: p.id,
                     name: p.full_name,
@@ -98,9 +114,24 @@ const Team: React.FC = () => {
                     officeId: p.office_id
                 }));
                 setTeamMembers(members);
+            } else if (contextTeamMembers.length > 0) {
+                setTeamMembers(contextTeamMembers);
+            } else if (session?.user?.id) {
+                setTeamMembers([{
+                    id: session.user.id,
+                    name: userProfile.name || session.user.email || 'Danışman',
+                    title: userProfile.title || 'Danışman',
+                    avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session.user.email || 'Danışman')}`,
+                    email: userProfile.email || session.user.email,
+                    role: userProfile.role || 'consultant',
+                    officeId: userProfile.officeId
+                }]);
             }
         } catch (error) {
             console.error('Error fetching team:', error);
+            if (contextTeamMembers.length > 0) {
+                setTeamMembers(contextTeamMembers);
+            }
         } finally {
             setLoading(false);
         }
@@ -248,7 +279,7 @@ const Team: React.FC = () => {
         }
     };
 
-    if (!userProfile.officeId) {
+    if (!userProfile.officeId && teamMembers.length === 0 && contextTeamMembers.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center h-[50vh]">
                 <div className="bg-orange-100 p-4 rounded-full mb-4">
