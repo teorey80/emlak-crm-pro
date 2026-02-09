@@ -202,6 +202,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      const profileSelect =
+        'id,email,full_name,title,avatar_url,phone,office_id,role,site_config,offices(id,name,domain,owner_id,logo_url,address,phone,site_config,performance_settings)';
       const { data: authUserRes } = await supabase.auth.getUser();
       const authUser = authUserRes.user;
       const fallbackEmail = authUser?.email || session?.user?.email || '';
@@ -213,7 +215,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let { data, error } = await supabase
         .from('profiles')
-        .select('*, offices(*)')
+        .select(profileSelect)
         .eq('id', userId)
         .maybeSingle();
 
@@ -230,7 +232,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else {
           const profileRetry = await supabase
             .from('profiles')
-            .select('*, offices(*)')
+            .select(profileSelect)
             .eq('id', userId)
             .maybeSingle();
           data = profileRetry.data;
@@ -241,6 +243,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data) {
         if (!data.office_id) {
           console.warn(`USER PROFILE ALERT: User ${userId} (${data.full_name}) has no office_id assigned!`);
+          const { data: ownedOffice, error: ownedOfficeError } = await supabase
+            .from('offices')
+            .select('id,name,domain,owner_id,logo_url,address,phone,site_config,performance_settings')
+            .eq('owner_id', userId)
+            .maybeSingle();
+
+          if (ownedOfficeError) {
+            console.warn('[DataContext] Owned office lookup failed:', ownedOfficeError.message);
+          } else if (ownedOffice?.id) {
+            const { error: assignOfficeError } = await supabase
+              .from('profiles')
+              .update({ office_id: ownedOffice.id })
+              .eq('id', userId);
+
+            if (assignOfficeError) {
+              console.warn('[DataContext] Failed to self-heal profile.office_id:', assignOfficeError.message);
+            } else {
+              data = {
+                ...data,
+                office_id: ownedOffice.id,
+                offices: ownedOffice
+              };
+            }
+          }
         }
 
         const profile: UserProfile = {
@@ -599,23 +625,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('office_id', currentOfficeId)
         : supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('id', currentUserId);
 
+      const safeQuery = async <T,>(queryPromise: Promise<{ data: T; error: any }>) => {
+        try {
+          return await queryPromise;
+        } catch (queryError) {
+          return { data: null as unknown as T, error: queryError };
+        }
+      };
+
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
-        propertiesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE),
-        supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE),
-        supabase.from('sites').select('*'),
-        supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE),
-        requestsQuery.limit(PAGE_SIZE),
-        salesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE),
-        teamQuery
+        safeQuery(propertiesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(supabase.from('sites').select('*')),
+        safeQuery(supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(requestsQuery.limit(PAGE_SIZE)),
+        safeQuery(salesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(teamQuery)
       ]);
 
       let propertiesData = propsRes.data as unknown as Property[] | null;
       if (!propertiesData && propsRes.error) {
-        console.warn('[DataContext] Slim properties fetch failed, falling back to *:', propsRes.error.message);
-        const fallbackPropsRes = await supabase
-          .from('properties')
-          .select('*')
+        console.warn('[DataContext] Slim properties fetch failed, running scoped fallback query:', (propsRes.error as any)?.message || propsRes.error);
+        const fallbackPropsQuery = currentOfficeId
+          ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
+          : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
+        const fallbackPropsRes = await fallbackPropsQuery
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
         propertiesData = fallbackPropsRes.data as unknown as Property[] | null;
@@ -642,7 +677,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Fallback: if office-level visibility is broken, try own properties first.
         const ownPropsRes = await supabase
           .from('properties')
-          .select('*')
+          .select(PROPERTY_LIST_SELECT)
           .eq('user_id', currentUserId)
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
@@ -651,7 +686,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (fallbackProperties.length === 0 && userProfile.officeId) {
           const officePropsRes = await supabase
             .from('properties')
-            .select('*')
+            .select(PROPERTY_LIST_SELECT)
             .eq('office_id', userProfile.officeId)
             .order('created_at', { ascending: false })
             .limit(PAGE_SIZE);
@@ -683,6 +718,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const activityFallbackRes = await supabase
           .from('activities')
           .select('*')
+          .eq('user_id', currentUserId)
           .order('date', { ascending: false })
           .limit(PAGE_SIZE);
         activityRows = activityFallbackRes.data as any[] | null;
@@ -1794,8 +1830,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let nextPageData = data as unknown as Property[] | null;
       if (!nextPageData && error) {
         const fallbackQuery = currentOfficeId
-          ? supabase.from('properties').select('*').eq('office_id', currentOfficeId)
-          : supabase.from('properties').select('*').eq('user_id', currentUserId);
+          ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
+          : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
 
         const fallbackRes = await fallbackQuery
           .order('created_at', { ascending: false })
@@ -1862,6 +1898,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const activityFallbackRes = await supabase
           .from('activities')
           .select('*')
+          .eq('user_id', currentUserId)
           .order('date', { ascending: false })
           .range(activities.length, activities.length + PAGE_SIZE - 1);
         activityRows = activityFallbackRes.data as any[] | null;

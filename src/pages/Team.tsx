@@ -76,10 +76,14 @@ const Team: React.FC = () => {
     }, [userProfile.officeId, userProfile.name, userProfile.title, userProfile.avatar, userProfile.email, userProfile.role, session?.user?.id, contextTeamMembers]);
 
     const fetchTeam = async () => {
+        if (contextTeamMembers.length > 0) {
+            setTeamMembers(contextTeamMembers);
+            setLoading(false);
+            return;
+        }
+
         if (!userProfile.officeId) {
-            if (contextTeamMembers.length > 0) {
-                setTeamMembers(contextTeamMembers);
-            } else if (session?.user?.id) {
+            if (session?.user?.id) {
                 setTeamMembers([{
                     id: session.user.id,
                     name: userProfile.name || session.user.email || 'Danışman',
@@ -97,7 +101,7 @@ const Team: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('*')
+                .select('id,full_name,title,avatar_url,email,phone,role,office_id')
                 .eq('office_id', userProfile.officeId);
 
             if (error) throw error;

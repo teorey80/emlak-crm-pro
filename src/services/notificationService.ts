@@ -25,6 +25,12 @@ export type NotificationType =
     | 'activity_reminder' // Aktivite hatırlatma
     | 'system';           // Sistem bildirimi
 
+async function resolveUserId(explicitUserId?: string): Promise<string | null> {
+    if (explicitUserId) return explicitUserId;
+    const { data: authData } = await supabase.auth.getUser();
+    return authData.user?.id ?? null;
+}
+
 // =====================================================
 // BİLDİRİM OLUŞTURMA
 // =====================================================
@@ -61,12 +67,17 @@ export async function createNotification(
 // =====================================================
 export async function getNotifications(
     limit: number = 20,
-    unreadOnly: boolean = false
+    unreadOnly: boolean = false,
+    userId?: string
 ): Promise<Notification[]> {
     try {
+        const targetUserId = await resolveUserId(userId);
+        if (!targetUserId) return [];
+
         let query = supabase
             .from('notifications')
-            .select('*')
+            .select('id,user_id,type,title,message,data,is_read,read_at,created_at')
+            .eq('user_id', targetUserId)
             .order('created_at', { ascending: false })
             .limit(limit);
 
@@ -89,9 +100,13 @@ export async function getNotifications(
 // =====================================================
 export async function getUnreadCount(): Promise<number> {
     try {
+        const targetUserId = await resolveUserId();
+        if (!targetUserId) return 0;
+
         const { count, error } = await supabase
             .from('notifications')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', targetUserId)
             .eq('is_read', false);
 
         if (error) throw error;
@@ -125,10 +140,10 @@ export async function markAsRead(notificationId: string): Promise<boolean> {
 // =====================================================
 // TÜM BİLDİRİMLERİ OKUNDU OLARAK İŞARETLE
 // =====================================================
-export async function markAllAsRead(): Promise<boolean> {
+export async function markAllAsRead(userId?: string): Promise<boolean> {
     try {
-        const { data: user } = await supabase.auth.getUser();
-        if (!user.user) return false;
+        const targetUserId = await resolveUserId(userId);
+        if (!targetUserId) return false;
 
         const { error } = await supabase
             .from('notifications')
@@ -136,7 +151,7 @@ export async function markAllAsRead(): Promise<boolean> {
                 is_read: true,
                 read_at: new Date().toISOString()
             })
-            .eq('user_id', user.user.id)
+            .eq('user_id', targetUserId)
             .eq('is_read', false);
 
         return !error;
@@ -194,16 +209,18 @@ export async function cleanOldNotifications(): Promise<number> {
 // REALTIME SUBSCRIPTION
 // =====================================================
 export function subscribeToNotifications(
+    userId: string,
     onNewNotification: (notification: Notification) => void
 ): () => void {
     const channel = supabase
-        .channel('notifications_realtime')
+        .channel(`notifications_realtime_${userId}`)
         .on(
             'postgres_changes',
             {
                 event: 'INSERT',
                 schema: 'public',
-                table: 'notifications'
+                table: 'notifications',
+                filter: `user_id=eq.${userId}`
             },
             (payload) => {
                 onNewNotification(payload.new as Notification);

@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { createNotification, notifyMatch } from './notificationService';
+import { notifyMatch } from './notificationService';
 
 // Types
 export interface Match {
@@ -43,13 +43,16 @@ export interface MatchResult {
 function calculateMatchScore(request: any, property: any): number {
     let score = 0;
     let maxScore = 0;
+    const minPrice = request.minPrice ?? request.min_price ?? 0;
+    const maxPrice = request.maxPrice ?? request.max_price ?? Infinity;
+    const requestType = request.propertyType ?? request.property_type;
+    const minRooms = request.minRooms ?? request.min_rooms ?? 0;
+    const maxRooms = request.maxRooms ?? request.max_rooms ?? Infinity;
 
     // Fiyat uyumu (40 puan max)
-    if (request.minPrice || request.maxPrice) {
+    if (request.minPrice || request.min_price || request.maxPrice || request.max_price) {
         maxScore += 40;
         const price = property.price || 0;
-        const minPrice = request.minPrice || 0;
-        const maxPrice = request.maxPrice || Infinity;
 
         if (price >= minPrice && price <= maxPrice) {
             score += 40;
@@ -73,11 +76,9 @@ function calculateMatchScore(request: any, property: any): number {
     }
 
     // Oda sayısı uyumu (15 puan max)
-    if (request.minRooms || request.maxRooms) {
+    if (request.minRooms || request.min_rooms || request.maxRooms || request.max_rooms) {
         maxScore += 15;
         const rooms = property.rooms || 0;
-        const minRooms = request.minRooms || 0;
-        const maxRooms = request.maxRooms || Infinity;
 
         if (rooms >= minRooms && rooms <= maxRooms) {
             score += 15;
@@ -85,9 +86,9 @@ function calculateMatchScore(request: any, property: any): number {
     }
 
     // Tip uyumu (15 puan max)
-    if (request.propertyType) {
+    if (requestType) {
         maxScore += 15;
-        if (property.type === request.propertyType) {
+        if (property.type === requestType) {
             score += 15;
         }
     }
@@ -107,7 +108,7 @@ export async function findMatchesForRequest(
         // Get request details
         const { data: request, error: requestError } = await supabase
             .from('requests')
-            .select('*, profiles:user_id(id, full_name, office_id)')
+            .select('*')
             .eq('id', requestId)
             .single();
 
@@ -119,21 +120,26 @@ export async function findMatchesForRequest(
         // Get matching properties
         let query = supabase
             .from('properties')
-            .select('*, profiles:user_id(id, full_name, office_id)')
+            .select('*')
             .eq('listing_status', 'Aktif');
 
         // Apply filters
-        if (request.requestType) {
-            query = query.eq('status', request.requestType);
+        const requestTransactionType = request.requestType ?? request.request_type;
+        const requestMinPrice = request.minPrice ?? request.min_price;
+        const requestMaxPrice = request.maxPrice ?? request.max_price;
+        const requestPropertyType = request.propertyType ?? request.property_type;
+
+        if (requestTransactionType) {
+            query = query.eq('status', requestTransactionType);
         }
-        if (request.minPrice) {
-            query = query.gte('price', request.minPrice * 0.85);
+        if (requestMinPrice) {
+            query = query.gte('price', requestMinPrice * 0.85);
         }
-        if (request.maxPrice) {
-            query = query.lte('price', request.maxPrice * 1.15);
+        if (requestMaxPrice) {
+            query = query.lte('price', requestMaxPrice * 1.15);
         }
-        if (request.propertyType) {
-            query = query.eq('type', request.propertyType);
+        if (requestPropertyType) {
+            query = query.eq('type', requestPropertyType);
         }
 
         const { data: properties, error: propError } = await query;
@@ -180,7 +186,7 @@ export async function saveMatchAndNotify(match: MatchResult): Promise<Match | nu
             .select('id')
             .eq('request_id', match.requestId)
             .eq('property_id', match.propertyId)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             console.log('Match already exists');
@@ -203,18 +209,15 @@ export async function saveMatchAndNotify(match: MatchResult): Promise<Match | nu
 
         if (error) throw error;
 
-        // Get owner names for notifications
-        const { data: requestOwner } = await supabase
+        // Fetch both owner names in one query to avoid N+1 profile reads.
+        const ownerIds = Array.from(new Set([match.requestOwnerId, match.propertyOwnerId]));
+        const { data: owners } = await supabase
             .from('profiles')
-            .select('full_name')
-            .eq('id', match.requestOwnerId)
-            .single();
-
-        const { data: propertyOwner } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', match.propertyOwnerId)
-            .single();
+            .select('id,full_name')
+            .in('id', ownerIds);
+        const ownerNameById = new Map<string, string>(
+            (owners || []).map((owner: any) => [owner.id, owner.full_name || ''])
+        );
 
         // Send notifications
         await notifyMatch(
@@ -224,8 +227,8 @@ export async function saveMatchAndNotify(match: MatchResult): Promise<Match | nu
             match.propertyId,
             match.propertyTitle,
             match.score,
-            requestOwner?.full_name,
-            propertyOwner?.full_name
+            ownerNameById.get(match.requestOwnerId),
+            ownerNameById.get(match.propertyOwnerId)
         );
 
         return savedMatch;
@@ -244,7 +247,7 @@ export async function getUserMatches(
     try {
         let query = supabase
             .from('matches')
-            .select('*')
+            .select('id,request_id,property_id,request_owner_id,property_owner_id,score,status,notes,contacted_at,created_at,updated_at')
             .order('created_at', { ascending: false });
 
         if (status) {
@@ -303,15 +306,53 @@ export async function scanAllRequestsForMatches(): Promise<number> {
     try {
         const { data: requests } = await supabase
             .from('requests')
-            .select('id')
+            .select('*')
             .eq('status', 'Aktif');
 
-        if (!requests) return 0;
+        if (!requests || requests.length === 0) return 0;
+
+        const { data: activeProperties } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('listing_status', 'Aktif');
+
+        if (!activeProperties || activeProperties.length === 0) return 0;
 
         let matchCount = 0;
 
         for (const request of requests) {
-            const matches = await findMatchesForRequest(request.id, 70);
+            const matches: MatchResult[] = activeProperties
+                .filter((property: any) => {
+                    const requestTransactionType = request.requestType ?? request.request_type;
+                    const requestPropertyType = request.propertyType ?? request.property_type;
+                    const requestMinPrice = request.minPrice ?? request.min_price;
+                    const requestMaxPrice = request.maxPrice ?? request.max_price;
+
+                    if (requestTransactionType && property.status !== requestTransactionType) return false;
+                    if (requestPropertyType && property.type !== requestPropertyType) return false;
+
+                    const price = property.price || 0;
+                    if (requestMinPrice && price < requestMinPrice * 0.85) return false;
+                    if (requestMaxPrice && price > requestMaxPrice * 1.15) return false;
+
+                    return true;
+                })
+                .map((property: any) => {
+                    const score = calculateMatchScore(request, property);
+                    return {
+                        requestId: request.id,
+                        propertyId: property.id,
+                        score,
+                        requestOwnerId: request.user_id,
+                        propertyOwnerId: property.user_id,
+                        isCrossConsultant: request.user_id !== property.user_id,
+                        propertyTitle: property.title || 'İsimsiz İlan',
+                        propertyPrice: property.price || 0,
+                        propertyLocation: property.location || ''
+                    };
+                })
+                .filter((match) => match.score >= 70)
+                .sort((a, b) => b.score - a.score);
 
             for (const match of matches.slice(0, 5)) { // Max 5 eşleşme per request
                 const saved = await saveMatchAndNotify(match);

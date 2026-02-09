@@ -14,7 +14,7 @@ export async function getAllPlanLimits(): Promise<PlanLimits[]> {
 
   const { data, error } = await supabase
     .from('plan_limits')
-    .select('*');
+    .select('plan,max_properties,max_customers,price_monthly,description');
 
   if (error) {
     console.error('Plan limits fetch error:', error);
@@ -57,7 +57,7 @@ export async function getPlanLimits(plan: PlanType): Promise<PlanLimits> {
 export async function getSubscription(userId: string): Promise<Subscription | null> {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('*')
+    .select('id,user_id,office_id,plan,status,started_at,expires_at,admin_notes,created_at,updated_at')
     .eq('user_id', userId)
     .single();
 
@@ -158,7 +158,7 @@ export async function createSubscription(
       plan,
       status: 'active'
     })
-    .select()
+    .select('id,user_id,office_id,plan,status,started_at,expires_at,admin_notes,created_at,updated_at')
     .single();
 
   if (error) {
@@ -199,7 +199,7 @@ export async function isAdmin(userId: string): Promise<boolean> {
 export async function getAdminUser(userId: string): Promise<AdminUser | null> {
   const { data, error } = await supabase
     .from('admin_users')
-    .select('*')
+    .select('id,user_id,role')
     .eq('user_id', userId)
     .single();
 
@@ -219,7 +219,16 @@ export async function getAllSubscriptions(): Promise<Subscription[]> {
   const { data, error } = await supabase
     .from('subscriptions')
     .select(`
-      *,
+      id,
+      user_id,
+      office_id,
+      plan,
+      status,
+      started_at,
+      expires_at,
+      admin_notes,
+      created_at,
+      updated_at,
       profiles:user_id (full_name, email)
     `)
     .order('created_at', { ascending: false });

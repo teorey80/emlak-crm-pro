@@ -18,21 +18,19 @@ const NotificationBell: React.FC = () => {
   // Fetch notifications from database
   useEffect(() => {
     if (session?.user) {
-      fetchNotifications();
+      fetchNotifications(session.user.id);
 
       // Subscribe to realtime notifications
-      const unsubscribe = subscribeToNotifications((newNotification) => {
-        if (newNotification.user_id === session.user.id) {
-          setNotifications(prev => [newNotification, ...prev]);
-        }
+      const unsubscribe = subscribeToNotifications(session.user.id, (newNotification) => {
+        setNotifications(prev => [newNotification, ...prev]);
       });
 
       return () => unsubscribe();
     }
   }, [session?.user?.id]);
 
-  const fetchNotifications = async () => {
-    const data = await getNotifications(20);
+  const fetchNotifications = async (userId: string) => {
+    const data = await getNotifications(20, false, userId);
     setNotifications(data);
   };
 
@@ -72,7 +70,9 @@ const NotificationBell: React.FC = () => {
     setDismissedMatches(prev => [...prev, ...allMatchIds]);
 
     // Mark all notifications as read
-    await markAllAsRead();
+    if (session?.user?.id) {
+      await markAllAsRead(session.user.id);
+    }
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setIsOpen(false);
   };
