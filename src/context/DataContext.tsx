@@ -513,10 +513,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchData = async () => {
     setLoading(true);
     try {
+      const currentUserId = session?.user?.id;
+
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
         supabase.from('properties').select(PROPERTY_LIST_SELECT).order('created_at', { ascending: false }).limit(PAGE_SIZE),
-        supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
+        supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('sites').select('*'),
         supabase.from('activities').select('*').order('date', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('requests').select('*'),
@@ -550,7 +552,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
       }
       if (custRes.data) {
-        setCustomers(custRes.data);
+        // Defense-in-depth: even if RLS is loose, keep only current user's customers in UI.
+        const ownCustomers = custRes.data.filter((c: any) => c.user_id === currentUserId);
+        setCustomers(ownCustomers);
         setHasMoreCustomers(custRes.data.length === PAGE_SIZE);
       }
       if (sitesRes.data) setSites(sitesRes.data);
@@ -1648,16 +1652,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loadMoreCustomers = async () => {
     if (!hasMoreCustomers || loadingMore) return;
+    const currentUserId = session?.user?.id;
+    if (!currentUserId) return;
     setLoadingMore(true);
     try {
       const { data } = await supabase
         .from('customers')
         .select('*')
+        .eq('user_id', currentUserId)
         .order('created_at', { ascending: false })
         .range(customers.length, customers.length + PAGE_SIZE - 1);
 
       if (data) {
-        setCustomers(prev => [...prev, ...data]);
+        const ownCustomers = data.filter((c: any) => c.user_id === currentUserId);
+        setCustomers(prev => [...prev, ...ownCustomers]);
         setHasMoreCustomers(data.length === PAGE_SIZE);
       }
     } catch (error) {

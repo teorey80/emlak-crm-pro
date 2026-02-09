@@ -86,9 +86,12 @@ const PropertyForm: React.FC = () => {
   const { id } = useParams();
   const { addProperty, updateProperty, properties, customers, addCustomer, session, sites, addSite } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const NEW_LOCAL_DRAFT_KEY = 'propertyFormDraft:new';
+  const NEW_SESSION_DRAFT_KEY = 'property-form-draft-new';
+  const JUST_SAVED_MARKER_KEY = 'property-form-just-saved-at';
   const draftKey = id
     ? `propertyFormDraft:edit:${id}`
-    : 'propertyFormDraft:new';
+    : NEW_LOCAL_DRAFT_KEY;
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -185,6 +188,15 @@ const PropertyForm: React.FC = () => {
 
   // Restore draft (new or edit) or load existing property
   useEffect(() => {
+    const justSavedAt = Number(sessionStorage.getItem(JUST_SAVED_MARKER_KEY) || 0);
+    const justSavedRecently = !id && Number.isFinite(justSavedAt) && (Date.now() - justSavedAt) < 2 * 60 * 1000;
+
+    if (justSavedRecently) {
+      localStorage.removeItem(NEW_LOCAL_DRAFT_KEY);
+      sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
+      sessionStorage.removeItem(JUST_SAVED_MARKER_KEY);
+    }
+
     const loadEditProperty = async () => {
       if (!id) return;
       const { data } = await supabase
@@ -205,7 +217,7 @@ const PropertyForm: React.FC = () => {
     };
 
     let restoredFromLocalDraft = false;
-    const raw = localStorage.getItem(draftKey);
+    const raw = justSavedRecently ? null : localStorage.getItem(draftKey);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -236,8 +248,7 @@ const PropertyForm: React.FC = () => {
         }
       } else if (!restoredFromLocalDraft) {
         // New property: try to restore draft from sessionStorage
-        const draftKey = `property-form-draft-new`;
-        const savedDraft = sessionStorage.getItem(draftKey);
+        const savedDraft = sessionStorage.getItem(NEW_SESSION_DRAFT_KEY);
         if (savedDraft) {
           try {
             const draftData = JSON.parse(savedDraft);
@@ -248,7 +259,7 @@ const PropertyForm: React.FC = () => {
             toast.success('Taslak geri yüklendi', { duration: 3000 });
           } catch (error) {
             console.error('Draft restore error:', error);
-            sessionStorage.removeItem(draftKey);
+            sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
           }
         }
       }
@@ -288,16 +299,15 @@ const PropertyForm: React.FC = () => {
   useEffect(() => {
     if (!draftHydrated) return;
     if (!id && formData.title) { // Only save drafts for new properties with some content
-      const draftKey = `property-form-draft-new`;
       const { images, ...formDataNoImages } = formData;
       const draftData = {
         formData: formDataNoImages,
         currentStep,
         timestamp: Date.now()
       };
-      sessionStorage.setItem(draftKey, JSON.stringify(draftData));
+      sessionStorage.setItem(NEW_SESSION_DRAFT_KEY, JSON.stringify(draftData));
     }
-  }, [formData, currentStep, id, draftHydrated]);
+  }, [formData, currentStep, id, draftHydrated, NEW_SESSION_DRAFT_KEY]);
 
   // Fetch neighborhoods when city and district change
   useEffect(() => {
@@ -870,7 +880,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
     try {
       // Clear draft from sessionStorage before submitting
       if (!id) {
-        sessionStorage.removeItem('property-form-draft-new');
+        sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
       }
 
       const propertyData: Property = {
@@ -891,6 +901,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       } else {
         await addProperty(propertyData);
         toast.success('İlan oluşturuldu!');
+      }
+      if (!id) {
+        sessionStorage.setItem(JUST_SAVED_MARKER_KEY, String(Date.now()));
+        localStorage.removeItem(NEW_LOCAL_DRAFT_KEY);
+        sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
       }
       localStorage.removeItem(draftKey);
       navigate('/properties');
