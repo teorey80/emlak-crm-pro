@@ -330,12 +330,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } else if (error) {
         console.error('Error fetching profile data:', error);
+        // Try to get office_id from a simple query
+        let fallbackOfficeId: string | undefined;
+        try {
+          const { data: simpleProfile } = await supabase
+            .from('profiles')
+            .select('office_id')
+            .eq('id', userId)
+            .single();
+          fallbackOfficeId = simpleProfile?.office_id;
+          console.log('[fetchUserProfile] Fallback office_id:', fallbackOfficeId);
+        } catch (e) {
+          console.warn('[fetchUserProfile] Could not get fallback office_id');
+        }
         setUserProfile({
           id: userId,
           name: fallbackName,
           title: 'Emlak Danışmanı',
           avatar: fallbackAvatar,
-          email: fallbackEmail
+          email: fallbackEmail,
+          officeId: fallbackOfficeId
         });
       }
     } catch (error) {
@@ -344,19 +358,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Fetch all data from Supabase when session is available
+  // Only depend on session.user.id to prevent multiple fetchData calls
+  const sessionUserId = session?.user?.id;
   useEffect(() => {
     console.log('[useEffect] Checking fetchData trigger:', {
       hasSession: !!session,
+      sessionUserId,
       userProfileId: userProfile.id,
       userProfileOfficeId: userProfile.officeId
     });
-    if (session) {
+    if (sessionUserId) {
       fetchData();
     } else {
       // No session - stop loading so login screen can show
       setLoading(false);
     }
-  }, [session, userProfile.id, userProfile.officeId]);
+  }, [sessionUserId]);
 
   const normalizeActivity = (activity: any): Activity => {
     const normalized: Activity = {
@@ -625,12 +642,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const currentUserId = session?.user?.id;
-      const currentOfficeId = userProfile.officeId;
       if (!currentUserId) {
         clearTimeout(safetyTimeout);
         setLoading(false);
         return;
       }
+
+      // Get officeId - try userProfile first, then fetch directly from DB
+      let currentOfficeId = userProfile.officeId;
+      if (!currentOfficeId) {
+        console.log('[fetchData] officeId not in userProfile, fetching directly from DB');
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('office_id')
+            .eq('id', currentUserId)
+            .maybeSingle();
+
+          if (profileData?.office_id) {
+            currentOfficeId = profileData.office_id;
+            console.log('[fetchData] Got officeId from direct DB query:', currentOfficeId);
+          } else if (profileError) {
+            console.warn('[fetchData] Error fetching officeId:', profileError.message);
+          }
+        } catch (e) {
+          console.warn('[fetchData] Exception fetching officeId:', e);
+        }
+      }
+
+      console.log('[fetchData] Using officeId:', currentOfficeId, 'userId:', currentUserId);
 
       const propertiesQuery = currentOfficeId
         ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
