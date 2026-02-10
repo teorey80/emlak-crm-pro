@@ -204,8 +204,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const profileSelect =
         'id,email,full_name,title,avatar_url,phone,office_id,role,site_config,offices(id,name,domain,owner_id,logo_url,address,phone,site_config,performance_settings)';
-      const { data: authUserRes } = await supabase.auth.getUser();
-      const authUser = authUserRes.user;
+
+      // Get auth user with timeout to prevent hanging
+      let authUser = null;
+      try {
+        const authPromise = supabase.auth.getUser();
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+        const result = await Promise.race([authPromise, timeoutPromise]);
+        authUser = result && 'data' in result ? result.data.user : null;
+      } catch (authErr) {
+        console.warn('Auth getUser failed, using session fallback:', authErr);
+      }
+
       const fallbackEmail = authUser?.email || session?.user?.email || '';
       const fallbackName =
         authUser?.user_metadata?.full_name ||
@@ -601,10 +611,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchData = async () => {
     setLoading(true);
+
+    // Safety timeout - ensure loading never stays forever
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[fetchData] Safety timeout reached - forcing loading to false');
+      setLoading(false);
+    }, 30000); // 30 seconds max
+
     try {
       const currentUserId = session?.user?.id;
       const currentOfficeId = userProfile.officeId;
       if (!currentUserId) {
+        clearTimeout(safetyTimeout);
         setLoading(false);
         return;
       }
@@ -780,6 +798,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error("Error fetching data from Supabase:", error);
     } finally {
+      clearTimeout(safetyTimeout);
       setLoading(false);
     }
   };
