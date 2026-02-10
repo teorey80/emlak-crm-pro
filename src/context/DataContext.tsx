@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 20; // Reduced from 50 for better performance
-const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,owner_id,owner_name,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at';
+const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,ownerId,ownerName,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at';
 
 interface DataContextType {
   session: Session | null;
@@ -604,7 +604,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const currentUserId = session?.user?.id;
       const currentOfficeId = userProfile.officeId;
+
+      console.log('[fetchData] Starting with:', { currentUserId, currentOfficeId, userProfileId: userProfile.id });
+
       if (!currentUserId) {
+        console.log('[fetchData] No currentUserId, returning early');
         setLoading(false);
         return;
       }
@@ -645,6 +649,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ]);
 
       let propertiesData = propsRes.data as unknown as Property[] | null;
+      console.log('[fetchData] Properties query result:', {
+        dataLength: propertiesData?.length || 0,
+        error: propsRes.error?.message || null,
+        rawData: propertiesData?.slice(0, 2) // First 2 items for debug
+      });
+
       if (!propertiesData && propsRes.error) {
         console.warn('[DataContext] Slim properties fetch failed, running scoped fallback query:', (propsRes.error as any)?.message || propsRes.error);
         const fallbackPropsQuery = currentOfficeId
@@ -675,6 +685,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
       } else {
         // Fallback: if office-level visibility is broken, try own properties first.
+        console.log('[fetchData] No properties from main query, trying fallback...');
+
         const ownPropsRes = await supabase
           .from('properties')
           .select(PROPERTY_LIST_SELECT)
@@ -682,14 +694,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
 
+        console.log('[fetchData] Fallback by user_id result:', {
+          dataLength: ownPropsRes.data?.length || 0,
+          error: ownPropsRes.error?.message || null
+        });
+
         let fallbackProperties = (ownPropsRes.data as unknown as Property[] | null) || [];
         if (fallbackProperties.length === 0 && userProfile.officeId) {
+          console.log('[fetchData] Trying office_id fallback with:', userProfile.officeId);
           const officePropsRes = await supabase
             .from('properties')
             .select(PROPERTY_LIST_SELECT)
             .eq('office_id', userProfile.officeId)
             .order('created_at', { ascending: false })
             .limit(PAGE_SIZE);
+
+          console.log('[fetchData] Fallback by office_id result:', {
+            dataLength: officePropsRes.data?.length || 0,
+            error: officePropsRes.error?.message || null
+          });
+
           fallbackProperties = (officePropsRes.data as unknown as Property[] | null) || [];
         }
 
