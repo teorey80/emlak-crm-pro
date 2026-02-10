@@ -3,7 +3,7 @@ import { config } from './config';
 
 const supabaseUrl = config.supabaseUrl;
 const supabaseAnonKey = config.supabaseAnonKey;
-const QUERY_TIMEOUT_MS = 12000;
+const QUERY_TIMEOUT_MS = 60000; // 60 seconds - increased due to slow RLS queries
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.warn("Supabase URL or Anon Key is missing. Make sure to set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.");
