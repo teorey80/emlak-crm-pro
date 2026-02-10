@@ -345,6 +345,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch all data from Supabase when session is available
   useEffect(() => {
+    console.log('[useEffect] Checking fetchData trigger:', {
+      hasSession: !!session,
+      userProfileId: userProfile.id,
+      userProfileOfficeId: userProfile.officeId
+    });
     if (session) {
       fetchData();
     } else {
@@ -663,6 +668,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ]);
 
       let propertiesData = propsRes.data as unknown as Property[] | null;
+      console.log('[fetchData] Properties result:', {
+        count: propertiesData?.length || 0,
+        error: propsRes.error?.message || null,
+        currentOfficeId,
+        currentUserId
+      });
+
       if (!propertiesData && propsRes.error) {
         console.warn('[DataContext] Slim properties fetch failed, running scoped fallback query:', (propsRes.error as any)?.message || propsRes.error);
         const fallbackPropsQuery = currentOfficeId
@@ -689,9 +701,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (normalizedSales.length > 0) {
           nextProperties = mergePropertiesWithSales(nextProperties, normalizedSales);
         }
+        console.log('[fetchData] Setting properties:', nextProperties.length);
         setProperties(applyPropertyPrivacyMask(nextProperties, currentUserId));
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
       } else {
+        console.log('[fetchData] No properties from main query, trying fallback');
         // Fallback: if office-level visibility is broken, try own properties first.
         const ownPropsRes = await supabase
           .from('properties')
