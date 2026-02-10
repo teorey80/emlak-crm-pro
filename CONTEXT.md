@@ -115,7 +115,31 @@
 
 ---
 
-## Son Yapılan İşler (2026-02-05)
+## Son Yapılan İşler (2026-02-10)
+
+### RLS ve Sütun Adı Düzeltmeleri (Claude)
+1. **Properties görünmeme sorunu çözüldü:**
+   - `PROPERTY_LIST_SELECT` içinde `owner_id` ve `owner_name` yanlışlıkla snake_case idi
+   - Gerçek sütun adları `ownerId` ve `ownerName` (camelCase)
+   - DataContext.tsx'te düzeltildi
+
+2. **RLS Politikası Düzeltmesi:**
+   - `publishedOnPersonalSite` ve `publishedOnMarketplace` sütunları eksikti
+   - `supabase/migrations/106_fix_properties_rls_column_issue.sql` eklendi
+   - Bu sütunlar eklendi ve RLS politikası yeniden oluşturuldu
+
+3. **Profil İsim Düzeltmesi:**
+   - Profiles tablosunda full_name "teorey" olarak kaydedilmişti
+   - SQL ile "Adem Aslan" olarak düzeltildi
+
+### Veritabanı Sütun Adları (DİKKAT!)
+Properties tablosunda KARIŞIK naming convention var:
+- camelCase: `ownerId`, `ownerName`, `grossArea`, `netArea`, `buildingAge`, `currentFloor`, `kitchenType`, `listingDate`, `publishedOnMarketplace`, `publishedOnPersonalSite`
+- snake_case: `user_id`, `office_id`, `listing_status`, `sold_date`, `rented_date`, `deposit_amount`, `deposit_buyer_id`
+
+---
+
+## Önceki İşler (2026-02-05)
 
 ### Satış Formu Geliştirmeleri
 1. **Komisyon Girişi Ayrıldı:**
@@ -258,6 +282,33 @@ Lütfen önce şu dosyaları oku:
 | 2026-02-05 | Satış/kiralama aktivitelerinin kalıcı yazımı ve "Kira Kontratı" tipi | Codex |
 | 2026-02-05 | addSale DB update/insert alan adlarında camelCase/snake_case fallback | Codex |
 | 2026-02-05 | activities normalize + property update best-effort | Codex |
+| 2026-02-09 | Çeşitli RLS ve sorgu optimizasyonları | Codex |
+| 2026-02-10 | PROPERTY_LIST_SELECT sütun adları düzeltmesi (ownerId/ownerName) | Claude |
+| 2026-02-10 | RLS için publishedOnPersonalSite/publishedOnMarketplace sütunları eklendi | Claude |
+
+---
+
+## Codex İçin Hazır Promptlar
+
+### Portföy Listesi Küçük Resim Sorunu
+```
+Proje: Emlak CRM Pro (React + TypeScript + Supabase)
+Repo: https://github.com/teorey80/emlak-crm-pro
+
+Lütfen önce şu dosyaları oku:
+1. CONTEXT.md - Proje durumu
+2. src/pages/PropertyList.tsx - Portföy listesi sayfası
+3. src/context/DataContext.tsx - Veri çekme mantığı (PROPERTY_LIST_SELECT)
+
+SORUN:
+Emlaklarım (/properties) sayfasında portföyler listeleniyor ancak her portföyün solundaki küçük resim (thumbnail) görünmüyor. Resimler Supabase Storage'da mevcut ve PropertyDetail sayfasında düzgün görünüyor.
+
+YAPILACAK:
+1. PropertyList.tsx'te property.images array'inin nasıl kullanıldığını kontrol et
+2. PROPERTY_LIST_SELECT'te "images" sütununun dahil olup olmadığını kontrol et
+3. Eğer images dahil değilse ekle, dahilse neden görüntülenmediğini bul ve düzelt
+4. Resim yoksa placeholder göster (https://via.placeholder.com/120x120?text=No+Image gibi)
+```
 
 ---
 
