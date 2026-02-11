@@ -1,7 +1,28 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon } from 'lucide-react';
-import { Sale, UserProfile } from '../types';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon, Target, Activity, ArrowUpRight, ArrowDownRight, Minus, Loader2 } from 'lucide-react';
+import { Sale, UserProfile, ActivityTrendData, ConversionFunnelData, PerformanceInsight, GoalProgress } from '../types';
+import {
+  getActivityTrend,
+  getConversionFunnel,
+  getPerformanceInsights,
+  getGoalProgress,
+  getMetricTypeLabel,
+  formatMetricValue,
+} from '../services/analyticsService';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  Legend
+} from 'recharts';
 
 // ==========================================
 // BROKER VIEW COMPONENT
@@ -15,7 +36,7 @@ interface BrokerReportViewProps {
 }
 
 const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers, properties, customers, activities }) => {
-  const [viewMode, setViewMode] = useState<'overview' | 'commission'>('overview');
+  const [viewMode, setViewMode] = useState<'overview' | 'commission' | 'analytics'>('overview');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -130,6 +151,15 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
               }`}
           >
             Komisyon Raporu
+          </button>
+          <button
+            onClick={() => setViewMode('analytics')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewMode === 'analytics'
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+              }`}
+          >
+            Analitik
           </button>
         </div>
       </div>
@@ -370,6 +400,428 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
           </div>
         </>
       )}
+
+      {/* Analytics View */}
+      {viewMode === 'analytics' && (
+        <AnalyticsView />
+      )}
+    </div>
+  );
+};
+
+// ==========================================
+// ANALYTICS VIEW COMPONENT
+// ==========================================
+const AnalyticsView: React.FC = () => {
+  const { userProfile } = useData();
+  const [loading, setLoading] = useState(true);
+  const [activityTrend, setActivityTrend] = useState<ActivityTrendData[]>([]);
+  const [conversionFunnel, setConversionFunnel] = useState<ConversionFunnelData[]>([]);
+  const [insights, setInsights] = useState<PerformanceInsight[]>([]);
+  const [goalProgress, setGoalProgress] = useState<GoalProgress[]>([]);
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
+
+  // Calculate date range
+  const getDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    switch (dateRange) {
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        break;
+      case '90d':
+        start.setDate(end.getDate() - 90);
+        break;
+    }
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
+  };
+
+  // Load analytics data
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      setLoading(true);
+      try {
+        const { start, end } = getDateRange();
+        const officeId = userProfile?.officeId || undefined;
+
+        const [trendData, funnelData, insightData, goalData] = await Promise.all([
+          getActivityTrend(undefined, officeId, start, end, dateRange === '90d' ? 'weekly' : 'daily').catch(() => []),
+          getConversionFunnel(undefined, officeId, start, end).catch(() => []),
+          getPerformanceInsights(undefined, officeId, start, end).catch(() => []),
+          getGoalProgress(undefined, officeId).catch(() => []),
+        ]);
+
+        setActivityTrend(trendData);
+        setConversionFunnel(funnelData);
+        setInsights(insightData);
+        setGoalProgress(goalData);
+      } catch (error) {
+        console.error('Error loading analytics:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, [dateRange, userProfile?.officeId]);
+
+  // Get insight by name
+  const getInsight = (name: string): PerformanceInsight | undefined => {
+    return insights.find(i => i.metric_name === name);
+  };
+
+  // Funnel colors
+  const FUNNEL_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#6366F1'];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-[#1193d4]" />
+        <span className="ml-3 text-slate-600 dark:text-slate-400">Analitik verileri yükleniyor...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Date Range Selector */}
+      <div className="flex justify-end">
+        <div className="bg-gray-100 dark:bg-slate-700 rounded-lg p-1 flex">
+          {(['7d', '30d', '90d'] as const).map((range) => (
+            <button
+              key={range}
+              onClick={() => setDateRange(range)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                dateRange === range
+                  ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              {range === '7d' ? '7 Gün' : range === '30d' ? '30 Gün' : '90 Gün'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Insight Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <InsightCard
+          title="Dönüşüm Oranı"
+          value={getInsight('conversion_rate')?.metric_value || 0}
+          unit="%"
+          change={getInsight('conversion_rate')?.change_from_previous}
+          icon={<Target className="w-5 h-5" />}
+          color="blue"
+        />
+        <InsightCard
+          title="Aktivite/Sonuç"
+          value={getInsight('activity_per_result')?.metric_value || 0}
+          unit="aktivite"
+          icon={<Activity className="w-5 h-5" />}
+          color="purple"
+        />
+        <InsightCard
+          title="Ort. Satış Süresi"
+          value={getInsight('avg_sale_duration')?.metric_value || 0}
+          unit="gün"
+          icon={<Calendar className="w-5 h-5" />}
+          color="amber"
+        />
+        <InsightCard
+          title="En Verimli Gün"
+          value={getInsight('best_day')?.metric_value || 0}
+          unit={getInsight('best_day')?.metric_unit || '-'}
+          icon={<TrendingUp className="w-5 h-5" />}
+          color="emerald"
+          isText
+        />
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Activity Trend Chart */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-500" />
+            Aktivite Trendi
+          </h3>
+          {activityTrend.length > 0 ? (
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activityTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="period_label"
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={false}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="total_activities"
+                    name="Toplam"
+                    stroke="#3B82F6"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="showings"
+                    name="Gösterim"
+                    stroke="#10B981"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="phone_calls"
+                    name="Arama"
+                    stroke="#8B5CF6"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-slate-400">
+              Bu dönem için aktivite verisi bulunamadı
+            </div>
+          )}
+        </div>
+
+        {/* Conversion Funnel */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-purple-500" />
+            Dönüşüm Hunisi
+          </h3>
+          {conversionFunnel.length > 0 ? (
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={conversionFunnel}
+                  layout="vertical"
+                  margin={{ left: 20, right: 30 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis
+                    type="category"
+                    dataKey="stage"
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    width={80}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value} (${props.payload.percentage}%)`,
+                      'Adet',
+                    ]}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {conversionFunnel.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={FUNNEL_COLORS[index % FUNNEL_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-slate-400">
+              Bu dönem için huni verisi bulunamadı
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Goal Progress Section */}
+      {goalProgress.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <Target className="w-5 h-5 text-emerald-500" />
+            Hedef Takibi
+          </h3>
+          <div className="space-y-4">
+            {goalProgress.map((goal) => (
+              <GoalProgressBar key={goal.goal_id} goal={goal} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Period Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <DollarSign className="w-6 h-6 opacity-80" />
+            <span className="text-sm opacity-90">Dönem Komisyonu</span>
+          </div>
+          <p className="text-2xl font-bold">
+            {(getInsight('period_commission')?.metric_value || 0).toLocaleString('tr-TR')} TL
+          </p>
+          <ChangeIndicator change={getInsight('period_commission')?.change_from_previous} />
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-xl text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-6 h-6 opacity-80" />
+            <span className="text-sm opacity-90">Dönem İşlemleri</span>
+          </div>
+          <p className="text-2xl font-bold">
+            {getInsight('period_transactions')?.metric_value || 0} işlem
+          </p>
+          <ChangeIndicator change={getInsight('period_transactions')?.change_from_previous} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// INSIGHT CARD COMPONENT
+// ==========================================
+interface InsightCardProps {
+  title: string;
+  value: number;
+  unit: string;
+  change?: number;
+  icon: React.ReactNode;
+  color: 'blue' | 'purple' | 'amber' | 'emerald';
+  isText?: boolean;
+}
+
+const InsightCard: React.FC<InsightCardProps> = ({ title, value, unit, change, icon, color, isText }) => {
+  const colorClasses = {
+    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+    purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
+    amber: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',
+    emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+      <div className="flex items-center gap-3 mb-2">
+        <div className={`p-2 rounded-lg ${colorClasses[color]}`}>{icon}</div>
+        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">{title}</span>
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          {isText ? (
+            <p className="text-xl font-bold text-slate-800 dark:text-white">{unit}</p>
+          ) : (
+            <p className="text-2xl font-bold text-slate-800 dark:text-white">
+              {typeof value === 'number' ? value.toLocaleString('tr-TR') : value}
+              <span className="text-sm font-normal text-slate-400 ml-1">{unit}</span>
+            </p>
+          )}
+        </div>
+        {change !== undefined && change !== 0 && <ChangeIndicator change={change} small />}
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// CHANGE INDICATOR COMPONENT
+// ==========================================
+interface ChangeIndicatorProps {
+  change?: number;
+  small?: boolean;
+}
+
+const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({ change, small }) => {
+  if (change === undefined || change === 0) return null;
+
+  const isPositive = change > 0;
+  const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+  const colorClass = isPositive
+    ? 'text-emerald-400 bg-emerald-400/20'
+    : 'text-red-400 bg-red-400/20';
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+      <Icon className={small ? 'w-3 h-3' : 'w-4 h-4'} />
+      {Math.abs(change).toFixed(1)}%
+    </span>
+  );
+};
+
+// ==========================================
+// GOAL PROGRESS BAR COMPONENT
+// ==========================================
+interface GoalProgressBarProps {
+  goal: GoalProgress;
+}
+
+const GoalProgressBar: React.FC<GoalProgressBarProps> = ({ goal }) => {
+  const progressPercent = Math.min(goal.progress_percentage, 100);
+  const isComplete = goal.actual_value >= goal.target_value;
+  const barColor = isComplete ? 'bg-emerald-500' : goal.on_track ? 'bg-blue-500' : 'bg-amber-500';
+
+  return (
+    <div className="p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-slate-800 dark:text-white">
+            {getMetricTypeLabel(goal.metric_type)}
+          </span>
+          {isComplete && (
+            <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">
+              Tamamlandı
+            </span>
+          )}
+          {!isComplete && goal.on_track && (
+            <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+              Yolunda
+            </span>
+          )}
+          {!isComplete && !goal.on_track && (
+            <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
+              Geride
+            </span>
+          )}
+        </div>
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          {goal.days_remaining > 0 ? `${goal.days_remaining} gün kaldı` : 'Süre doldu'}
+        </span>
+      </div>
+      <div className="relative">
+        <div className="w-full bg-gray-200 dark:bg-slate-600 h-3 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${barColor} transition-all duration-500 rounded-full`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5 text-sm">
+          <span className="text-slate-600 dark:text-slate-300 font-medium">
+            {formatMetricValue(goal.actual_value, goal.metric_type)}
+          </span>
+          <span className="text-slate-400">
+            / {formatMetricValue(goal.target_value, goal.metric_type)} ({progressPercent.toFixed(0)}%)
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

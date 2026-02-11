@@ -474,3 +474,137 @@ export interface AdminUser {
   createdAt?: string;
   created_at?: string;
 }
+
+// ==================== ANALYTICS SYSTEM ====================
+
+export interface DailyStats {
+  id: string;
+  userId: string;
+  user_id?: string;
+  officeId?: string;
+  office_id?: string;
+  statDate: string;
+  stat_date?: string;
+
+  // Activity counters
+  totalActivities: number;
+  total_activities?: number;
+  phoneCalls: number;
+  phone_calls?: number;
+  showings: number;
+  appointments: number;
+
+  // New records
+  newProperties: number;
+  new_properties?: number;
+  newCustomers: number;
+  new_customers?: number;
+
+  // Results
+  salesClosed: number;
+  sales_closed?: number;
+  rentalsClosed: number;
+  rentals_closed?: number;
+  depositsTaken: number;
+  deposits_taken?: number;
+
+  // Revenue
+  totalCommission: number;
+  total_commission?: number;
+  totalRevenue: number;
+  total_revenue?: number;
+
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+}
+
+export type GoalMetricType =
+  | 'sales_count'
+  | 'rental_count'
+  | 'total_commission'
+  | 'total_revenue'
+  | 'new_properties'
+  | 'new_customers'
+  | 'activities_count'
+  | 'showings_count';
+
+export type GoalPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export type GoalStatus = 'active' | 'completed' | 'cancelled' | 'expired';
+
+export interface Goal {
+  id: string;
+  userId: string;
+  user_id?: string;
+  officeId?: string;
+  office_id?: string;
+
+  metricType: GoalMetricType;
+  metric_type?: string;
+  targetValue: number;
+  target_value?: number;
+  actualValue: number;
+  actual_value?: number;
+
+  period: GoalPeriod;
+  periodStart: string;
+  period_start?: string;
+  periodEnd: string;
+  period_end?: string;
+
+  autoCalculated: boolean;
+  auto_calculated?: boolean;
+  insightText?: string;
+  insight_text?: string;
+
+  status: GoalStatus;
+
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+}
+
+// RPC Response Types
+export interface ActivityTrendData {
+  period_label: string;
+  period_start: string;
+  total_activities: number;
+  phone_calls: number;
+  showings: number;
+  appointments: number;
+  positive_outcomes: number;
+  negative_outcomes: number;
+}
+
+export interface ConversionFunnelData {
+  stage: string;
+  stage_order: number;
+  count: number;
+  percentage: number;
+  from_previous_percentage: number;
+}
+
+export interface PerformanceInsight {
+  metric_name: string;
+  metric_value: number;
+  metric_unit: string;
+  change_from_previous: number;
+  insight_text: string;
+}
+
+export interface GoalProgress {
+  goal_id: string;
+  metric_type: GoalMetricType;
+  target_value: number;
+  actual_value: number;
+  progress_percentage: number;
+  period: GoalPeriod;
+  period_start: string;
+  period_end: string;
+  days_remaining: number;
+  on_track: boolean;
+  status: GoalStatus;
+}
