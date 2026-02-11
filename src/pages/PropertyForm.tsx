@@ -883,9 +883,12 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
         sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
       }
 
+      // Always generate a fresh ID for new properties to avoid duplicate key errors
+      const propertyId = id ? formData.id : `PRT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       const propertyData: Property = {
         ...formData,
-        id: formData.id || `PRT-${Date.now()}`,
+        id: propertyId,
         location: `${formData.district || ''}, ${formData.city || ''}`.trim() || 'Belirtilmemiş',
         area: formData.netArea || formData.grossArea || 0,
         status: formData.subCategory || 'Satılık',
