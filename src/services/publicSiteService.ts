@@ -166,7 +166,8 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         if (profiles) {
             for (const profile of profiles) {
                 const config = profile.site_config as WebSiteConfig | null;
-                if (config?.domain && config.isActive) {
+                // isActive !== false: site is active by default unless explicitly disabled
+                if (config?.domain && config.isActive !== false) {
                     const configDomain = cleanDomainString(config.domain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
@@ -202,7 +203,8 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         if (offices) {
             for (const office of offices) {
                 const config = office.site_config as WebSiteConfig | null;
-                if (config?.domain && config.isActive) {
+                // isActive !== false: site is active by default unless explicitly disabled
+                if (config?.domain && config.isActive !== false) {
                     const configDomain = cleanDomainString(config.domain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Office site:', office.name);
