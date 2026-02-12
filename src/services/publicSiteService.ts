@@ -195,12 +195,16 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
 
                         // Fetch properties - optimized with specific columns and DB-level filtering
-                        const { data: props } = await supabase
+                        const { data: props, error: propsError } = await supabase
                             .from('properties')
                             .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
                             .eq('user_id', profile.id)
                             .or('listing_status.eq.Aktif,listing_status.is.null')
                             .limit(24);
+
+                        console.log('[PublicSite] Properties query for user:', profile.id);
+                        console.log('[PublicSite] Properties found:', props?.length || 0);
+                        if (propsError) console.error('[PublicSite] Properties error:', propsError);
 
                         // Already filtered at DB level
                         const activeProps = props || [];
