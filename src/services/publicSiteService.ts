@@ -162,6 +162,28 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         const profiles = profilesResult.data;
         const offices = officesResult.data;
 
+        // DEBUG: Log all found domains for troubleshooting
+        console.log('[PublicSite] Looking for domain:', cleanDomain);
+        console.log('[PublicSite] Found profiles with site_config:', profiles?.length || 0);
+        console.log('[PublicSite] Found offices with site_config:', offices?.length || 0);
+
+        if (profiles) {
+            profiles.forEach(p => {
+                const cfg = p.site_config as WebSiteConfig | null;
+                if (cfg?.domain) {
+                    console.log('[PublicSite] Profile domain:', cfg.domain, '-> cleaned:', cleanDomainString(cfg.domain), '| isActive:', cfg.isActive);
+                }
+            });
+        }
+        if (offices) {
+            offices.forEach(o => {
+                const cfg = o.site_config as WebSiteConfig | null;
+                if (cfg?.domain) {
+                    console.log('[PublicSite] Office domain:', cfg.domain, '-> cleaned:', cleanDomainString(cfg.domain), '| isActive:', cfg.isActive);
+                }
+            });
+        }
+
         // Check profiles for domain match
         if (profiles) {
             for (const profile of profiles) {
