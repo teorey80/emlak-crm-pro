@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon, Target, Activity, ArrowUpRight, ArrowDownRight, Minus, Loader2 } from 'lucide-react';
-import { Sale, UserProfile, ActivityTrendData, ConversionFunnelData, PerformanceInsight, GoalProgress } from '../types';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon, Target, Activity, ArrowUpRight, ArrowDownRight, Minus, Loader2, Sparkles, Lightbulb, ThumbsUp, AlertCircle, MessageCircle } from 'lucide-react';
+import { Sale, UserProfile, ActivityTrendData, ConversionFunnelData, PerformanceInsight, GoalProgress, AIPerformanceAnalysis } from '../types';
+import { generatePerformanceAnalysis, prepareAnalyticsData } from '../services/aiInsightService';
 import {
   getActivityTrend,
   getConversionFunnel,
@@ -421,6 +422,12 @@ const AnalyticsView: React.FC = () => {
   const [goalProgress, setGoalProgress] = useState<GoalProgress[]>([]);
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
 
+  // AI Analysis State
+  const [aiAnalysis, setAiAnalysis] = useState<AIPerformanceAnalysis | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiExpanded, setAiExpanded] = useState(true);
+
   // Calculate date range
   const getDateRange = () => {
     const end = new Date();
@@ -440,6 +447,27 @@ const AnalyticsView: React.FC = () => {
       start: start.toISOString().split('T')[0],
       end: end.toISOString().split('T')[0],
     };
+  };
+
+  // Handle AI Analysis
+  const handleAIAnalysis = async () => {
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      // Prepare analytics data for AI
+      const analyticsData = prepareAnalyticsData(activityTrend, insights, goalProgress);
+
+      // Generate AI analysis
+      const analysis = await generatePerformanceAnalysis(analyticsData);
+      setAiAnalysis(analysis);
+      setAiExpanded(true);
+    } catch (error) {
+      console.error('AI Analysis Error:', error);
+      setAiError('Analiz sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   // Load analytics data
@@ -507,6 +535,158 @@ const AnalyticsView: React.FC = () => {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* AI Performance Analysis Section */}
+      <div className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-slate-800 dark:to-slate-800 border border-violet-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+        {/* AI Header */}
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
+              <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white">AI Performans Analizi</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Yapay zeka destekli performans değerlendirmesi ve öneriler
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleAIAnalysis}
+            disabled={aiLoading || loading}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              aiLoading || loading
+                ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 cursor-not-allowed'
+                : 'bg-violet-600 hover:bg-violet-700 text-white shadow-lg shadow-violet-200 dark:shadow-none'
+            }`}
+          >
+            {aiLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Analiz Ediliyor...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Analiz Yap</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* AI Error */}
+        {aiError && (
+          <div className="mx-4 mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700 dark:text-red-400">{aiError}</p>
+          </div>
+        )}
+
+        {/* AI Results */}
+        {aiAnalysis && (
+          <div className="border-t border-violet-200 dark:border-slate-700">
+            {/* Toggle Header */}
+            <button
+              onClick={() => setAiExpanded(!aiExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-violet-100/50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              <span className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                Son analiz: {new Date(aiAnalysis.generatedAt).toLocaleString('tr-TR')}
+              </span>
+              <ChevronRight className={`w-5 h-5 text-violet-500 transition-transform ${aiExpanded ? 'rotate-90' : ''}`} />
+            </button>
+
+            {/* Expanded Content */}
+            {aiExpanded && (
+              <div className="px-4 pb-4 space-y-4">
+                {/* Summary */}
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <h4 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-blue-500" />
+                    Özet
+                  </h4>
+                  <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">{aiAnalysis.summary}</p>
+                </div>
+
+                {/* Strengths & Improvements */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Strengths */}
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <h4 className="font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+                      <ThumbsUp className="w-4 h-4 text-emerald-500" />
+                      Güçlü Yönler
+                    </h4>
+                    {aiAnalysis.strengths.length > 0 ? (
+                      <ul className="space-y-2">
+                        {aiAnalysis.strengths.map((strength, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2 flex-shrink-0" />
+                            {strength}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-slate-400">Henüz analiz yapılmadı</p>
+                    )}
+                  </div>
+
+                  {/* Improvements */}
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <h4 className="font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-amber-500" />
+                      Gelişim Alanları
+                    </h4>
+                    {aiAnalysis.improvements.length > 0 ? (
+                      <ul className="space-y-2">
+                        {aiAnalysis.improvements.map((improvement, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2 flex-shrink-0" />
+                            {improvement}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-slate-400">Henüz analiz yapılmadı</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <h4 className="font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-violet-500" />
+                    Öneriler
+                  </h4>
+                  {aiAnalysis.recommendations.length > 0 ? (
+                    <div className="space-y-2">
+                      {aiAnalysis.recommendations.map((rec, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-300 text-xs font-bold flex-shrink-0">
+                            {i + 1}
+                          </span>
+                          <p className="text-sm text-slate-700 dark:text-slate-300">{rec}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">Henüz öneri yok</p>
+                  )}
+                </div>
+
+                {/* Motivational Note */}
+                {aiAnalysis.motivationalNote && (
+                  <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl text-white">
+                    <div className="flex items-start gap-3">
+                      <MessageCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm font-medium leading-relaxed">{aiAnalysis.motivationalNote}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Insight Cards */}

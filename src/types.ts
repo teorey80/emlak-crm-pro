@@ -608,3 +608,29 @@ export interface GoalProgress {
   on_track: boolean;
   status: GoalStatus;
 }
+
+// ==================== AI PERFORMANCE ANALYSIS ====================
+
+export interface AIPerformanceAnalysis {
+  summary: string;           // Genel özet
+  strengths: string[];       // Güçlü yönler
+  improvements: string[];    // Geliştirilecek alanlar
+  recommendations: string[]; // Öneriler
+  motivationalNote: string;  // Motivasyonel not
+  generatedAt: string;       // Oluşturulma zamanı
+}
+
+export interface AIInsightRequest {
+  totalActivities: number;
+  phoneCalls: number;
+  showings: number;
+  newProperties: number;
+  newCustomers: number;
+  salesClosed: number;
+  rentalsClosed: number;
+  conversionRate: number;
+  avgSalesDays: number;
+  activityChange: number;
+  topPerformingDay: string;
+  goalProgress: number;
+}
