@@ -31,6 +31,7 @@ import AdminPanel from './pages/AdminPanel';
 import ResetPassword from './pages/ResetPassword';
 import JoinOffice from './pages/JoinOffice';
 import MatchCenter from './pages/MatchCenter';
+import Expenses from './pages/Expenses';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -205,6 +206,7 @@ const CRMApp: React.FC = () => {
             <Route path="web-builder" element={<WebBuilder />} />
 
             <Route path="reports" element={<Reports />} />
+            <Route path="expenses" element={<Expenses />} />
             <Route path="team" element={<Team />} />
             <Route path="matches" element={<MatchCenter />} />
             <Route path="settings" element={<Settings />} />
