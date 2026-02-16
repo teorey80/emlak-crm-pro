@@ -73,14 +73,39 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       .map(m => m.id);
   }, [teamMembers]);
 
+  // Aylık trend hesaplama fonksiyonu - useMemo'dan önce tanımlanmalı
+  const getMonthlyTrend = (salesData: Sale[], type: 'sales' | 'rental') => {
+    const months: { [key: string]: { month: string; commission: number; count: number } } = {};
+
+    salesData.forEach(sale => {
+      if ((type === 'sales' && sale.transactionType === 'rental') ||
+          (type === 'rental' && sale.transactionType !== 'rental')) {
+        return;
+      }
+
+      const date = new Date(sale.saleDate || sale.sale_date || '');
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleString('tr-TR', { month: 'short' });
+
+      if (!months[monthKey]) {
+        months[monthKey] = { month: monthLabel, commission: 0, count: 0 };
+      }
+
+      months[monthKey].commission += (sale.commissionAmount || sale.commission_amount || 0);
+      months[monthKey].count += 1;
+    });
+
+    return Object.values(months).slice(-6); // Son 6 ay
+  };
+
   // Komisyon hesaplama fonksiyonu - Broker vs Danışman mantığı
-  const calculateCommissionShares = (sale: Sale) => {
+  const calculateCommissionShares = (sale: Sale, brokerIdList: string[]) => {
     const totalCommission = (sale.buyerCommissionAmount || sale.buyer_commission_amount || 0) +
                            (sale.sellerCommissionAmount || sale.seller_commission_amount || 0);
     const grossCommission = sale.commissionAmount || sale.commission_amount || totalCommission;
 
     const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
-    const isBroker = brokerIds.includes(saleUserId);
+    const isBroker = brokerIdList.includes(saleUserId);
 
     if (isBroker) {
       // Broker işlemi: %100 ofise
@@ -133,7 +158,7 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     let totalRentalValue = 0;
 
     typedSales.forEach(sale => {
-      const shares = calculateCommissionShares(sale);
+      const shares = calculateCommissionShares(sale, brokerIds);
       totalCommission += (sale.commissionAmount || sale.commission_amount || 0);
       totalOfficeShare += shares.officeShare;
       totalAgentShare += shares.agentShare;
@@ -154,7 +179,7 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       let commission = 0;
       let officeContribution = 0;
       memberSales.forEach(s => {
-        const shares = calculateCommissionShares(s);
+        const shares = calculateCommissionShares(s, brokerIds);
         commission += shares.agentShare;
         officeContribution += shares.officeShare;
       });
@@ -192,31 +217,6 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       monthlyTrend
     };
   }, [sales, teamMembers, dateRange, selectedAgent, commissionTab, brokerIds]);
-
-  // Aylık trend hesaplama fonksiyonu
-  const getMonthlyTrend = (salesData: Sale[], type: 'sales' | 'rental') => {
-    const months: { [key: string]: { month: string; commission: number; count: number } } = {};
-
-    salesData.forEach(sale => {
-      if ((type === 'sales' && sale.transactionType === 'rental') ||
-          (type === 'rental' && sale.transactionType !== 'rental')) {
-        return;
-      }
-
-      const date = new Date(sale.saleDate || sale.sale_date || '');
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = date.toLocaleString('tr-TR', { month: 'short' });
-
-      if (!months[monthKey]) {
-        months[monthKey] = { month: monthLabel, commission: 0, count: 0 };
-      }
-
-      months[monthKey].commission += (sale.commissionAmount || sale.commission_amount || 0);
-      months[monthKey].count += 1;
-    });
-
-    return Object.values(months).slice(-6); // Son 6 ay
-  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     const [year, month] = selectedMonth.split('-').map(Number);
