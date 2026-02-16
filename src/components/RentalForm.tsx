@@ -7,6 +7,7 @@ interface RentalFormProps {
     property: Property;
     onClose: () => void;
     onSave: (sale: Sale) => void;
+    initialData?: Sale; // Düzenleme modu için
 }
 
 const EXPENSE_TYPES = [
@@ -18,8 +19,11 @@ const EXPENSE_TYPES = [
     'Diğer'
 ];
 
-const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) => {
+const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, initialData }) => {
     const { customers, session, userProfile, teamMembers } = useData();
+
+    // Düzenleme modu mu?
+    const isEditMode = !!initialData;
 
     // Detect if this is a cross-consultant rental
     const propertyOwner = useMemo(() => {
@@ -30,23 +34,23 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
     const isCrossConsultant = propertyOwner && propertyOwner.id !== session?.user?.id;
 
     const [formData, setFormData] = useState({
-        monthlyRent: property.price || 0,
-        depositAmount: (property.price || 0) * 2, // Default: 2 months deposit
-        leaseStartDate: new Date().toISOString().split('T')[0],
-        leaseDuration: 12, // Default: 1 year
-        tenantId: '',
-        tenantName: '',
-        consultantId: session?.user?.id || '',
-        consultantName: userProfile?.name || '',
-        commissionRate: 100, // Default: 1 month rent as commission (100% of monthly)
-        officeShareRate: 50, // Default 50%
-        notes: '',
+        monthlyRent: initialData?.monthlyRent || initialData?.monthly_rent || property.price || 0,
+        depositAmount: initialData?.depositAmount || initialData?.deposit_amount || (property.price || 0) * 2,
+        leaseStartDate: initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
+        leaseDuration: initialData?.leaseDuration || initialData?.lease_duration || 12,
+        tenantId: initialData?.buyerId || initialData?.buyer_id || '',
+        tenantName: initialData?.buyerName || initialData?.buyer_name || '',
+        consultantId: initialData?.consultantId || initialData?.consultant_id || session?.user?.id || '',
+        consultantName: initialData?.consultantName || initialData?.consultant_name || userProfile?.name || '',
+        commissionRate: initialData?.commissionRate || initialData?.commission_rate || 100,
+        officeShareRate: initialData?.officeShareRate || initialData?.office_share_rate || 50,
+        notes: initialData?.notes || '',
         // Cross-commission fields
         enableCrossCommission: isCrossConsultant || false,
-        propertyOwnerShareRate: 30,
+        propertyOwnerShareRate: initialData?.propertyOwnerShareRate || initialData?.property_owner_share_rate || 30,
     });
 
-    const [expenses, setExpenses] = useState<SaleExpense[]>([]);
+    const [expenses, setExpenses] = useState<SaleExpense[]>(initialData?.expenses || []);
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
 
@@ -107,7 +111,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         e.preventDefault();
 
         const sale: Sale = {
-            id: crypto.randomUUID(),
+            id: initialData?.id || crypto.randomUUID(), // Düzenleme modunda mevcut ID'yi koru
             propertyId: property.id,
             transactionType: 'rental',
 
@@ -170,7 +174,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Home className="w-5 h-5 text-blue-500" />
-                            Kiralama İşlemi
+                            {isEditMode ? 'Kiralama Düzenle' : 'Kiralama İşlemi'}
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                             {property.title}
@@ -484,7 +488,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                             disabled={!formData.tenantId || !formData.monthlyRent}
                             className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Kiralamayı Kaydet
+                            {isEditMode ? 'Değişiklikleri Kaydet' : 'Kiralamayı Kaydet'}
                         </button>
                     </div>
                 </form>
