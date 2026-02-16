@@ -43,6 +43,20 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
+  // Commission Report States
+  const [commissionTab, setCommissionTab] = useState<'sales' | 'rental'>('sales');
+  const [commissionPeriod, setCommissionPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      start: firstDay.toISOString().split('T')[0],
+      end: lastDay.toISOString().split('T')[0]
+    };
+  });
+
   // Parse selected month
   const monthRange = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -52,61 +66,193 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     return { firstDay, lastDay, monthName, year, month };
   }, [selectedMonth]);
 
-  // Calculate monthly commission stats
-  const commissionStats = useMemo(() => {
-    const { firstDay, lastDay } = monthRange;
+  // Broker'ları tespit et (role === 'broker' veya 'admin' veya 'owner')
+  const brokerIds = useMemo(() => {
+    return teamMembers
+      .filter(m => m.role === 'broker' || m.role === 'admin' || m.role === 'owner')
+      .map(m => m.id);
+  }, [teamMembers]);
 
-    const monthlySales = sales?.filter(s => {
+  // Komisyon hesaplama fonksiyonu - Broker vs Danışman mantığı
+  const calculateCommissionShares = (sale: Sale) => {
+    const totalCommission = (sale.buyerCommissionAmount || sale.buyer_commission_amount || 0) +
+                           (sale.sellerCommissionAmount || sale.seller_commission_amount || 0);
+    const grossCommission = sale.commissionAmount || sale.commission_amount || totalCommission;
+
+    const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
+    const isBroker = brokerIds.includes(saleUserId);
+
+    if (isBroker) {
+      // Broker işlemi: %100 ofise
+      return {
+        officeShare: grossCommission,
+        agentShare: 0,
+        agentName: 'Ofis (Broker)',
+        isBrokerSale: true
+      };
+    } else {
+      // Danışman işlemi: %50/%50
+      return {
+        officeShare: grossCommission * 0.5,
+        agentShare: grossCommission * 0.5,
+        agentName: sale.consultantName || sale.consultant_name || 'Danışman',
+        isBrokerSale: false
+      };
+    }
+  };
+
+  // Calculate commission stats with new logic
+  const commissionStats = useMemo(() => {
+    // Tarih aralığına göre filtrele
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+    endDate.setHours(23, 59, 59, 999);
+
+    let filteredSales = sales?.filter(s => {
       const saleDate = new Date(s.saleDate || s.sale_date || '');
-      return saleDate >= firstDay && saleDate <= lastDay;
+      return saleDate >= startDate && saleDate <= endDate;
     }) || [];
 
-    const totalCommission = monthlySales.reduce((sum, s) => sum + (s.commissionAmount || s.commission_amount || 0), 0);
-    const totalOfficeShare = monthlySales.reduce((sum, s) => sum + (s.officeShareAmount || s.office_share_amount || 0), 0);
-    const totalConsultantShare = monthlySales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
-    const totalExpenses = monthlySales.reduce((sum, s) => sum + (s.totalExpenses || s.total_expenses || 0), 0);
-    const totalRevenue = monthlySales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+    // Danışman filtresini uygula
+    if (selectedAgent !== 'all') {
+      filteredSales = filteredSales.filter(s =>
+        s.consultantId === selectedAgent || s.consultant_id === selectedAgent || s.user_id === selectedAgent
+      );
+    }
 
-    // Per consultant breakdown
+    // Satış/Kiralama filtresini uygula
+    const typedSales = filteredSales.filter(s =>
+      commissionTab === 'sales' ? s.transactionType !== 'rental' : s.transactionType === 'rental'
+    );
+
+    // Toplam hesaplamalar
+    let totalCommission = 0;
+    let totalOfficeShare = 0;
+    let totalAgentShare = 0;
+    let totalSaleValue = 0;
+    let totalRentalValue = 0;
+
+    typedSales.forEach(sale => {
+      const shares = calculateCommissionShares(sale);
+      totalCommission += (sale.commissionAmount || sale.commission_amount || 0);
+      totalOfficeShare += shares.officeShare;
+      totalAgentShare += shares.agentShare;
+
+      if (sale.transactionType === 'rental') {
+        totalRentalValue += (sale.monthlyRent || sale.monthly_rent || 0);
+      } else {
+        totalSaleValue += (sale.salePrice || sale.sale_price || 0);
+      }
+    });
+
+    // Danışman bazında dağılım (yeni hesaplama mantığıyla)
     const consultantBreakdown = teamMembers.map(member => {
-      const memberSales = monthlySales.filter(s =>
+      const memberSales = typedSales.filter(s =>
         s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id
       );
-      const commission = memberSales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
+
+      let commission = 0;
+      let officeContribution = 0;
+      memberSales.forEach(s => {
+        const shares = calculateCommissionShares(s);
+        commission += shares.agentShare;
+        officeContribution += shares.officeShare;
+      });
+
       const revenue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
       const saleCount = memberSales.filter(s => s.transactionType !== 'rental').length;
       const rentalCount = memberSales.filter(s => s.transactionType === 'rental').length;
+      const isBroker = brokerIds.includes(member.id);
 
       return {
         ...member,
         commission,
+        officeContribution,
         saleCount,
         rentalCount,
-        revenue
+        revenue,
+        isBroker
       };
-    }).sort((a, b) => b.commission - a.commission);
+    }).sort((a, b) => (b.commission + b.officeContribution) - (a.commission + a.officeContribution));
 
-    const saleTxCount = monthlySales.filter(s => s.transactionType !== 'rental').length;
-    const rentalTxCount = monthlySales.filter(s => s.transactionType === 'rental').length;
+    // Aylık trend verisi
+    const monthlyTrend = getMonthlyTrend(filteredSales, commissionTab);
 
     return {
-      monthlySales,
+      filteredSales: typedSales,
       totalCommission,
       totalOfficeShare,
-      totalConsultantShare,
-      totalExpenses,
-      totalRevenue,
-      saleCount: saleTxCount,
-      rentalCount: rentalTxCount,
-      totalTx: monthlySales.length,
-      consultantBreakdown
+      totalAgentShare,
+      totalSaleValue,
+      totalRentalValue,
+      saleCount: typedSales.filter(s => s.transactionType !== 'rental').length,
+      rentalCount: typedSales.filter(s => s.transactionType === 'rental').length,
+      totalTx: typedSales.length,
+      consultantBreakdown,
+      monthlyTrend
     };
-  }, [sales, teamMembers, monthRange]);
+  }, [sales, teamMembers, dateRange, selectedAgent, commissionTab, brokerIds]);
+
+  // Aylık trend hesaplama fonksiyonu
+  const getMonthlyTrend = (salesData: Sale[], type: 'sales' | 'rental') => {
+    const months: { [key: string]: { month: string; commission: number; count: number } } = {};
+
+    salesData.forEach(sale => {
+      if ((type === 'sales' && sale.transactionType === 'rental') ||
+          (type === 'rental' && sale.transactionType !== 'rental')) {
+        return;
+      }
+
+      const date = new Date(sale.saleDate || sale.sale_date || '');
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleString('tr-TR', { month: 'short' });
+
+      if (!months[monthKey]) {
+        months[monthKey] = { month: monthLabel, commission: 0, count: 0 };
+      }
+
+      months[monthKey].commission += (sale.commissionAmount || sale.commission_amount || 0);
+      months[monthKey].count += 1;
+    });
+
+    return Object.values(months).slice(-6); // Son 6 ay
+  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const newDate = new Date(year, month - 1 + (direction === 'next' ? 1 : -1), 1);
     setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  // Tarih aralığı hızlı seçimleri
+  const setQuickDateRange = (period: 'thisMonth' | 'lastMonth' | 'thisQuarter' | 'thisYear') => {
+    const now = new Date();
+    let start: Date, end: Date;
+
+    switch (period) {
+      case 'thisMonth':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'lastMonth':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case 'thisQuarter':
+        const quarter = Math.floor(now.getMonth() / 3);
+        start = new Date(now.getFullYear(), quarter * 3, 1);
+        end = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+        break;
+      case 'thisYear':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31);
+        break;
+    }
+
+    setDateRange({
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    });
   };
 
   // Calculate Stats
@@ -165,132 +311,298 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
         </div>
       </div>
 
-      {/* Commission Report View */}
+      {/* Commission Report View - YENİ TASARIM */}
       {viewMode === 'commission' && (
         <div className="space-y-6">
-          {/* Month Selector */}
+          {/* Filtre ve Kontroller */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              {/* Satış/Kiralama Sekmeleri */}
+              <div className="bg-gray-100 dark:bg-slate-700 rounded-lg p-1 flex">
+                <button
+                  onClick={() => setCommissionTab('sales')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    commissionTab === 'sales'
+                      ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  Satış
+                </button>
+                <button
+                  onClick={() => setCommissionTab('rental')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    commissionTab === 'rental'
+                      ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  Kiralama
+                </button>
+              </div>
+
+              {/* Tarih Aralığı Hızlı Seçim */}
               <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#1193d4]" />
-                <span className="text-lg font-bold text-slate-800 dark:text-white capitalize">{monthRange.monthName}</span>
+                <button
+                  onClick={() => setQuickDateRange('thisMonth')}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Bu Ay
+                </button>
+                <button
+                  onClick={() => setQuickDateRange('lastMonth')}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Geçen Ay
+                </button>
+                <button
+                  onClick={() => setQuickDateRange('thisQuarter')}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Bu Çeyrek
+                </button>
+                <button
+                  onClick={() => setQuickDateRange('thisYear')}
+                  className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Bu Yıl
+                </button>
               </div>
-              <button
-                onClick={() => navigateMonth('next')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+
+              {/* Danışman Filtresi */}
+              <select
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border-0 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500"
               >
-                <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              </button>
-            </div>
-          </div>
+                <option value="all">Tüm Danışmanlar</option>
+                {teamMembers.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.name} {brokerIds.includes(member.id) ? '(Broker)' : ''}
+                  </option>
+                ))}
+              </select>
 
-          {/* Commission Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 rounded-xl text-white">
-              <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="w-6 h-6 opacity-80" />
-                <span className="text-sm opacity-90">Toplam Komisyon</span>
-              </div>
-              <p className="text-2xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} TL</p>
-              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} satış, {commissionStats.rentalCount} kiralama</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl text-white">
-              <div className="flex items-center gap-3 mb-2">
-                <Wallet className="w-6 h-6 opacity-80" />
-                <span className="text-sm opacity-90">Ofis Payı</span>
-              </div>
-              <p className="text-2xl font-bold">{commissionStats.totalOfficeShare.toLocaleString('tr-TR')} TL</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-5 rounded-xl text-white">
-              <div className="flex items-center gap-3 mb-2">
-                <Users className="w-6 h-6 opacity-80" />
-                <span className="text-sm opacity-90">Danışmanlara Ödenen</span>
-              </div>
-              <p className="text-2xl font-bold">{commissionStats.totalConsultantShare.toLocaleString('tr-TR')} TL</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-xl text-white">
-              <div className="flex items-center gap-3 mb-2">
-                <TrendingUp className="w-6 h-6 opacity-80" />
-                <span className="text-sm opacity-90">Toplam Ciro</span>
-              </div>
-              <p className="text-2xl font-bold">{(commissionStats.totalRevenue / 1000000).toFixed(1)}M TL</p>
-            </div>
-          </div>
-
-          {/* Transaction Summary Table */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">İşlem Özeti</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{commissionStats.saleCount}</div>
-                <div className="text-sm text-blue-600/70 dark:text-blue-400/70 font-medium">Satış</div>
-              </div>
-              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{commissionStats.rentalCount}</div>
-                <div className="text-sm text-indigo-600/70 dark:text-indigo-400/70 font-medium">Kiralama</div>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-slate-700">
-                <div className="text-2xl font-bold text-slate-800 dark:text-white">{commissionStats.totalTx}</div>
-                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">Toplam İşlem</div>
-              </div>
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{(commissionStats.totalRevenue / 1000000).toFixed(2)}M</div>
-                <div className="text-sm text-emerald-600/70 dark:text-emerald-400/70 font-medium">Toplam Hacim</div>
+              {/* Tarih Aralığı Seçici */}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border-0 rounded-lg text-sm text-slate-700 dark:text-slate-300"
+                />
+                <span className="text-slate-400">-</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border-0 rounded-lg text-sm text-slate-700 dark:text-slate-300"
+                />
               </div>
             </div>
           </div>
 
-          {/* Consultant Breakdown */}
+          {/* ÖNCELİKLİ KARTLAR - Büyük */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Toplam Komisyon */}
+            <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-medium opacity-90">Toplam Komisyon</span>
+              </div>
+              <p className="text-3xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-sm opacity-80 mt-2">{commissionStats.totalTx} işlem</p>
+            </div>
+
+            {/* Ofis Payı (Alınan) */}
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-2xl text-white shadow-lg shadow-blue-200 dark:shadow-none">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Wallet className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-medium opacity-90">Ofis Payı</span>
+              </div>
+              <p className="text-3xl font-bold">{commissionStats.totalOfficeShare.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-sm opacity-80 mt-2">Broker: %100 | Danışman: %50</p>
+            </div>
+
+            {/* Danışman Payları */}
+            <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 rounded-2xl text-white shadow-lg shadow-violet-200 dark:shadow-none">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Users className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-medium opacity-90">Danışman Payları</span>
+              </div>
+              <p className="text-3xl font-bold">{commissionStats.totalAgentShare.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-sm opacity-80 mt-2">Danışmanlara ödenen</p>
+            </div>
+          </div>
+
+          {/* İKİNCİL KARTLAR - Küçük */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Toplam Satış Değeri */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <HomeIcon className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Satış Hacmi</span>
+              </div>
+              <p className="text-lg font-bold text-slate-800 dark:text-white">
+                {commissionStats.totalSaleValue > 0 ? `${(commissionStats.totalSaleValue / 1000000).toFixed(1)}M ₺` : '-'}
+              </p>
+            </div>
+
+            {/* Toplam Kira Değeri */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <HomeIcon className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Kira Bedeli</span>
+              </div>
+              <p className="text-lg font-bold text-slate-800 dark:text-white">
+                {commissionStats.totalRentalValue > 0 ? `${commissionStats.totalRentalValue.toLocaleString('tr-TR')} ₺/ay` : '-'}
+              </p>
+            </div>
+
+            {/* Satış Sayısı */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Satış</span>
+              </div>
+              <p className="text-lg font-bold text-slate-800 dark:text-white">{commissionStats.saleCount}</p>
+            </div>
+
+            {/* Kiralama Sayısı */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-amber-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Kiralama</span>
+              </div>
+              <p className="text-lg font-bold text-slate-800 dark:text-white">{commissionStats.rentalCount}</p>
+            </div>
+          </div>
+
+          {/* Komisyon Trend Grafiği */}
+          {commissionStats.monthlyTrend.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-blue-500" />
+                Komisyon Trendi
+              </h3>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={commissionStats.monthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 12, fill: '#64748b' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      tickLine={false}
+                      tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1e293b',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff',
+                      }}
+                      formatter={(value: number) => [`${value.toLocaleString('tr-TR')} ₺`, 'Komisyon']}
+                    />
+                    <Bar
+                      dataKey="commission"
+                      fill="#10b981"
+                      radius={[4, 4, 0, 0]}
+                      name="Komisyon"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Danışman Bazında Dağılım - Yeni Mantık */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-slate-800 dark:to-slate-800">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Users className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                Danışman Bazında Komisyon Dağılımı
+                Danışman Performansı
               </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Broker işlemleri: %100 ofise | Danışman işlemleri: %50 ofise, %50 danışmana
+              </p>
             </div>
             <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {commissionStats.consultantBreakdown.map((consultant, index) => (
                 <div key={consultant.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                        index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
-                          index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                            'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                      }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
+                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                      'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                    }`}>
                       {index + 1}
                     </div>
                     <img src={consultant.avatar} alt={consultant.name} className="w-10 h-10 rounded-full object-cover" />
                     <div>
-                      <p className="font-semibold text-slate-800 dark:text-white">{consultant.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-800 dark:text-white">{consultant.name}</p>
+                        {consultant.isBroker && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full">
+                            Broker
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500">{consultant.saleCount} satış, {consultant.rentalCount} kiralama</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-green-600 dark:text-green-400">{consultant.commission.toLocaleString('tr-TR')} TL</p>
-                    <p className="text-xs text-slate-400">Ciro: {(consultant.revenue / 1000000).toFixed(1)}M</p>
+                    {consultant.isBroker ? (
+                      <>
+                        <p className="font-bold text-blue-600 dark:text-blue-400">
+                          {consultant.officeContribution.toLocaleString('tr-TR')} ₺
+                        </p>
+                        <p className="text-xs text-slate-400">Ofise katkı (%100)</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold text-green-600 dark:text-green-400">
+                          {consultant.commission.toLocaleString('tr-TR')} ₺
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Ofis: {consultant.officeContribution.toLocaleString('tr-TR')} ₺
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
               {commissionStats.consultantBreakdown.length === 0 && (
                 <div className="p-8 text-center text-slate-400">
-                  Bu ay henüz satış yapılmamış.
+                  Bu dönemde henüz işlem yapılmamış.
                 </div>
               )}
             </div>
           </div>
 
-          {/* Recent Sales Table */}
-          {commissionStats.monthlySales.length > 0 && (
-            <SalesTable sales={commissionStats.monthlySales} isBroker={true} />
+          {/* İşlem Listesi */}
+          {commissionStats.filteredSales.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-500" />
+                  {commissionTab === 'sales' ? 'Satış İşlemleri' : 'Kiralama İşlemleri'}
+                </h3>
+              </div>
+              <SalesTable sales={commissionStats.filteredSales} isBroker={true} />
+            </div>
           )}
         </div>
       )}
