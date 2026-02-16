@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, UserPlus, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { Request } from '../types';
+import { Request, Customer } from '../types';
+import { isValidPhoneNumber, isValidEmail } from '../utils/validation';
 
 // Moved ALL_CITIES_DISTRICTS to a shared location usually, but redefining here for simplicity as it was in PropertyForm
 // In a real app, this should be in a constants file.
@@ -18,7 +19,17 @@ const ALL_CITIES_DISTRICTS: Record<string, string[]> = {
 const RequestForm: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const { customers, addRequest, updateRequest, requests, sites } = useData();
+    const { customers, addRequest, updateRequest, requests, sites, addCustomer } = useData();
+
+    // New customer modal state
+    const [showCustomerModal, setShowCustomerModal] = useState(false);
+    const [newCustomerData, setNewCustomerData] = useState({
+        name: '',
+        phone: '',
+        email: ''
+    });
+    const [customerModalLoading, setCustomerModalLoading] = useState(false);
+    const [customerModalErrors, setCustomerModalErrors] = useState<{ phone?: string; email?: string }>({});
 
     const [formData, setFormData] = useState<Partial<Request>>({
         type: 'Daire',
@@ -102,6 +113,59 @@ const RequestForm: React.FC = () => {
         return ALL_CITIES_DISTRICTS[formData.city] || [];
     };
 
+    // Quick add customer handler
+    const handleQuickAddCustomer = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validate
+        const errors: { phone?: string; email?: string } = {};
+        if (newCustomerData.phone && !isValidPhoneNumber(newCustomerData.phone)) {
+            errors.phone = 'Geçerli bir telefon numarası giriniz';
+        }
+        if (newCustomerData.email && !isValidEmail(newCustomerData.email)) {
+            errors.email = 'Geçerli bir e-posta adresi giriniz';
+        }
+        setCustomerModalErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+
+        if (!newCustomerData.name.trim()) {
+            toast.error('Müşteri adı zorunludur');
+            return;
+        }
+
+        setCustomerModalLoading(true);
+        try {
+            const newCustomer: Customer = {
+                id: `cust-${Date.now()}`,
+                name: newCustomerData.name.trim(),
+                phone: newCustomerData.phone.trim(),
+                email: newCustomerData.email.trim(),
+                status: 'Aktif',
+                source: 'Talep Formu',
+                createdAt: new Date().toISOString().split('T')[0],
+                avatar: `https://i.pravatar.cc/150?u=${Date.now()}`,
+                interactions: []
+            };
+
+            await addCustomer(newCustomer);
+
+            // Auto-select the new customer
+            setFormData(prev => ({ ...prev, customerId: newCustomer.id }));
+
+            // Close modal and reset
+            setShowCustomerModal(false);
+            setNewCustomerData({ name: '', phone: '', email: '' });
+            setCustomerModalErrors({});
+
+            toast.success(`"${newCustomer.name}" müşteri olarak eklendi ve seçildi`);
+        } catch (error: any) {
+            console.error('Error adding customer:', error);
+            toast.error('Müşteri eklenirken hata: ' + (error.message || 'Bilinmeyen hata'));
+        } finally {
+            setCustomerModalLoading(false);
+        }
+    };
+
     const formatCurrency = (value: number) => {
         if (!value) return '';
         // Force Turkish locale for correct thousand separators
@@ -133,10 +197,14 @@ const RequestForm: React.FC = () => {
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Müşteri</label>
                             {!id && (
-                                <Link to="/customers/new" className="text-xs text-[#1193d4] hover:underline flex items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCustomerModal(true)}
+                                    className="text-xs text-[#1193d4] hover:underline flex items-center"
+                                >
                                     <UserPlus className="w-3 h-3 mr-1" />
                                     Yeni Müşteri Ekle
-                                </Link>
+                                </button>
                             )}
                         </div>
                         <select
@@ -302,6 +370,108 @@ const RequestForm: React.FC = () => {
                     </div>
                 </form>
             </div>
+
+            {/* Quick Add Customer Modal */}
+            {showCustomerModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <UserPlus className="w-5 h-5 text-[#1193d4]" />
+                                Hızlı Müşteri Ekle
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowCustomerModal(false);
+                                    setNewCustomerData({ name: '', phone: '', email: '' });
+                                    setCustomerModalErrors({});
+                                }}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleQuickAddCustomer} className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                                    Ad Soyad <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Örn: Ahmet Yılmaz"
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                    value={newCustomerData.name}
+                                    onChange={(e) => setNewCustomerData({ ...newCustomerData, name: e.target.value })}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                                    Telefon
+                                </label>
+                                <input
+                                    type="tel"
+                                    placeholder="Örn: 555 123 4567"
+                                    className={`w-full rounded-lg bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4] ${customerModalErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
+                                    value={newCustomerData.phone}
+                                    onChange={(e) => {
+                                        setNewCustomerData({ ...newCustomerData, phone: e.target.value });
+                                        if (customerModalErrors.phone) setCustomerModalErrors({ ...customerModalErrors, phone: undefined });
+                                    }}
+                                />
+                                {customerModalErrors.phone && <p className="mt-1 text-sm text-red-500">{customerModalErrors.phone}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                                    E-posta
+                                </label>
+                                <input
+                                    type="email"
+                                    placeholder="Örn: ahmet@email.com"
+                                    className={`w-full rounded-lg bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4] ${customerModalErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
+                                    value={newCustomerData.email}
+                                    onChange={(e) => {
+                                        setNewCustomerData({ ...newCustomerData, email: e.target.value });
+                                        if (customerModalErrors.email) setCustomerModalErrors({ ...customerModalErrors, email: undefined });
+                                    }}
+                                />
+                                {customerModalErrors.email && <p className="mt-1 text-sm text-red-500">{customerModalErrors.email}</p>}
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={customerModalLoading}
+                                    className="flex-1 bg-[#1193d4] text-white py-2.5 rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {customerModalLoading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Ekleniyor...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UserPlus className="w-4 h-4" />
+                                            Ekle ve Seç
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowCustomerModal(false);
+                                        setNewCustomerData({ name: '', phone: '', email: '' });
+                                        setCustomerModalErrors({});
+                                    }}
+                                    className="flex-1 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white py-2.5 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+                                >
+                                    İptal
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
