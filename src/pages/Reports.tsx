@@ -44,9 +44,9 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
   });
 
   // Commission Report States
-  const [commissionTab, setCommissionTab] = useState<'sales' | 'rental'>('sales');
+  const [commissionTab, setCommissionTab] = useState<'all' | 'sales' | 'rental'>('all'); // 'all' varsayılan
   const [commissionPeriod, setCommissionPeriod] = useState<'monthly' | 'yearly'>('monthly');
-  const [selectedAgent, setSelectedAgent] = useState<string>('all');
+  const [selectedAgent, setSelectedAgent] = useState<string>('office_all'); // 'office_all' = Ofis Geneli varsayılan
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -74,13 +74,16 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
   }, [teamMembers]);
 
   // Aylık trend hesaplama fonksiyonu - useMemo'dan önce tanımlanmalı
-  const getMonthlyTrend = (salesData: Sale[], type: 'sales' | 'rental') => {
+  const getMonthlyTrend = (salesData: Sale[], type: 'all' | 'sales' | 'rental') => {
     const months: { [key: string]: { month: string; commission: number; count: number } } = {};
 
     salesData.forEach(sale => {
-      if ((type === 'sales' && sale.transactionType === 'rental') ||
-          (type === 'rental' && sale.transactionType !== 'rental')) {
-        return;
+      // 'all' ise tüm işlemleri dahil et
+      if (type !== 'all') {
+        if ((type === 'sales' && sale.transactionType === 'rental') ||
+            (type === 'rental' && sale.transactionType !== 'rental')) {
+          return;
+        }
       }
 
       const date = new Date(sale.saleDate || sale.sale_date || '');
@@ -138,17 +141,29 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       return saleDate >= startDate && saleDate <= endDate;
     }) || [];
 
-    // Danışman filtresini uygula
-    if (selectedAgent !== 'all') {
+    // Danışman/Broker filtresini uygula
+    if (selectedAgent === 'office_all') {
+      // Ofis Geneli - tüm işlemler (filtre yok)
+    } else if (selectedAgent === 'brokers_only') {
+      // Sadece broker'ların işlemleri
+      filteredSales = filteredSales.filter(s => {
+        const saleUserId = s.consultantId || s.consultant_id || s.user_id || '';
+        return brokerIds.includes(saleUserId);
+      });
+    } else {
+      // Belirli bir kişinin işlemleri
       filteredSales = filteredSales.filter(s =>
         s.consultantId === selectedAgent || s.consultant_id === selectedAgent || s.user_id === selectedAgent
       );
     }
 
     // Satış/Kiralama filtresini uygula
-    const typedSales = filteredSales.filter(s =>
-      commissionTab === 'sales' ? s.transactionType !== 'rental' : s.transactionType === 'rental'
-    );
+    let typedSales = filteredSales;
+    if (commissionTab !== 'all') {
+      typedSales = filteredSales.filter(s =>
+        commissionTab === 'sales' ? s.transactionType !== 'rental' : s.transactionType === 'rental'
+      );
+    }
 
     // Toplam hesaplamalar
     let totalCommission = 0;
@@ -317,8 +332,18 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
           {/* Filtre ve Kontroller */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              {/* Satış/Kiralama Sekmeleri */}
+              {/* İşlem Tipi Sekmeleri */}
               <div className="bg-gray-100 dark:bg-slate-700 rounded-lg p-1 flex">
+                <button
+                  onClick={() => setCommissionTab('all')}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    commissionTab === 'all'
+                      ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  Tümü
+                </button>
                 <button
                   onClick={() => setCommissionTab('sales')}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -369,18 +394,28 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
                 </button>
               </div>
 
-              {/* Danışman Filtresi */}
+              {/* Danışman/Broker Filtresi */}
               <select
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}
                 className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border-0 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">Tüm Danışmanlar</option>
-                {teamMembers.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.name} {brokerIds.includes(member.id) ? '(Broker)' : ''}
-                  </option>
-                ))}
+                <option value="office_all">📊 Ofis Geneli</option>
+                <option value="brokers_only">👔 Sadece Brokerlar</option>
+                <optgroup label="Brokerlar">
+                  {teamMembers.filter(m => brokerIds.includes(m.id)).map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Danışmanlar">
+                  {teamMembers.filter(m => !brokerIds.includes(m.id)).map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
 
               {/* Tarih Aralığı Seçici */}
