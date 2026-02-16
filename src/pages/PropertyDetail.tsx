@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight, UserPlus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
 import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
-import { Sale } from '../types';
+import { Sale, Customer } from '../types';
 import { notifyDeposit } from '../services/notificationService';
 import { supabase } from '../services/supabaseClient';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, updateSale, deleteSale, addActivity, sales } = useData();
+    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, updateSale, deleteSale, addActivity, sales, addCustomer } = useData();
     const baseProperty = properties.find(p => p.id === id);
     const [propertyOverride, setPropertyOverride] = useState<any | null>(null);
     const property = propertyOverride || baseProperty;
@@ -29,8 +29,77 @@ const PropertyDetail: React.FC = () => {
     const [kaporaDate, setKaporaDate] = useState(new Date().toISOString().split('T')[0]);
     const [kaporaBuyerId, setKaporaBuyerId] = useState('');
     const [kaporaNotes, setKaporaNotes] = useState('');
+    const [kaporaCustomerSearch, setKaporaCustomerSearch] = useState('');
+    const [showKaporaCustomerResults, setShowKaporaCustomerResults] = useState(false);
+    const [showKaporaCustomerModal, setShowKaporaCustomerModal] = useState(false);
+    const [newKaporaCustomer, setNewKaporaCustomer] = useState({ name: '', phone: '' });
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+    // Filtered customer list for kapora dropdown
+    const filteredKaporaCustomers = (() => {
+        const query = kaporaCustomerSearch.trim().toLocaleLowerCase('tr');
+        if (!query) {
+            return customers.filter(
+                c => c.customerType === 'Alıcı' || c.customerType === 'Kiracı Adayı'
+            );
+        }
+        return customers.filter(c => {
+            const name = (c.name || '').toLocaleLowerCase('tr');
+            const phone = (c.phone || '').replace(/\s/g, '');
+            const normalizedQuery = query.replace(/\s/g, '');
+            return name.includes(query) || phone.includes(normalizedQuery);
+        });
+    })();
+
+    // Quick-add customer handler for kapora modal
+    const handleKaporaQuickAddCustomer = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newKaporaCustomer.name || !newKaporaCustomer.phone) return;
+
+        const customerType: Customer['customerType'] =
+            property?.status === 'Kiralık' ? 'Kiracı Adayı' : 'Alıcı';
+
+        const customer: Customer = {
+            id: crypto.randomUUID(),
+            name: newKaporaCustomer.name,
+            phone: newKaporaCustomer.phone,
+            email: '',
+            status: 'Aktif',
+            customerType,
+            source: 'Kapora Girişi',
+            createdAt: new Date().toISOString().split('T')[0],
+            interactions: [],
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newKaporaCustomer.name)}&background=random`
+        };
+
+        try {
+            const savedCustomer = await addCustomer(customer);
+            setKaporaBuyerId(savedCustomer.id);
+            setKaporaCustomerSearch(savedCustomer.name);
+            setShowKaporaCustomerResults(false);
+            setNewKaporaCustomer({ name: '', phone: '' });
+            setShowKaporaCustomerModal(false);
+            toast.success('Müşteri eklendi ve seçildi!');
+        } catch (error: any) {
+            if (error?.message !== 'LIMIT_REACHED') {
+                toast.error('Müşteri eklenemedi.');
+                console.error('Quick add customer error:', error);
+            }
+        }
+    };
+
+    // Helper to close kapora modal and reset all state
+    const closeKaporaModal = () => {
+        setShowStatusModal(null);
+        setKaporaAmount('');
+        setKaporaBuyerId('');
+        setKaporaNotes('');
+        setKaporaCustomerSearch('');
+        setShowKaporaCustomerResults(false);
+        setShowKaporaCustomerModal(false);
+        setNewKaporaCustomer({ name: '', phone: '' });
+    };
 
     useEffect(() => {
         const fetchFullProperty = async () => {
@@ -719,6 +788,10 @@ const PropertyDetail: React.FC = () => {
                                                     setKaporaDate(property.depositDate || property.deposit_date || new Date().toISOString().split('T')[0]);
                                                     setKaporaBuyerId(property.depositBuyerId || property.deposit_buyer_id || '');
                                                     setKaporaNotes(property.depositNotes || property.deposit_notes || '');
+                                                    const prefillCustomer = customers.find(
+                                                        c => c.id === (property.depositBuyerId || property.deposit_buyer_id)
+                                                    );
+                                                    setKaporaCustomerSearch(prefillCustomer?.name || property.depositBuyerName || property.deposit_buyer_name || '');
                                                     setShowStatusModal('kapora');
                                                 }}
                                                 className="w-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 py-3 rounded-xl font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors border border-orange-100 dark:border-orange-900/50"
@@ -1005,7 +1078,7 @@ const PropertyDetail: React.FC = () => {
                                 <Banknote className="w-5 h-5 text-orange-500" />
                                 Kapora Alındı
                             </h3>
-                            <button onClick={() => setShowStatusModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <button onClick={closeKaporaModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -1035,17 +1108,84 @@ const PropertyDetail: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Kapora Veren Müşteri</label>
-                                <select
-                                    value={kaporaBuyerId}
-                                    onChange={(e) => setKaporaBuyerId(e.target.value)}
-                                    className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                >
-                                    <option value="">Müşteri seçiniz...</option>
-                                    {customers.filter(c => c.customerType === 'Alıcı' || c.customerType === 'Kiracı Adayı').map(customer => (
-                                        <option key={customer.id} value={customer.id}>{customer.name}</option>
-                                    ))}
-                                </select>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Kapora Veren Müşteri</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowKaporaCustomerModal(true)}
+                                        className="text-xs text-orange-500 hover:underline flex items-center"
+                                    >
+                                        <UserPlus className="w-3 h-3 mr-1" />
+                                        Yeni Müşteri Ekle
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={kaporaCustomerSearch}
+                                            onChange={(e) => {
+                                                setKaporaCustomerSearch(e.target.value);
+                                                setShowKaporaCustomerResults(true);
+                                                if (kaporaBuyerId) {
+                                                    const selected = customers.find(c => c.id === kaporaBuyerId);
+                                                    if (selected && e.target.value !== selected.name) {
+                                                        setKaporaBuyerId('');
+                                                    }
+                                                }
+                                            }}
+                                            onFocus={() => setShowKaporaCustomerResults(true)}
+                                            placeholder="Müşteri ara (ad veya telefon)..."
+                                            className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-3 pl-9 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                        />
+                                    </div>
+
+                                    {showKaporaCustomerResults && (
+                                        <>
+                                            <div className="fixed inset-0 z-20" onClick={() => setShowKaporaCustomerResults(false)} />
+                                            <div className="absolute z-30 w-full mt-1 max-h-48 overflow-auto rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
+                                                {filteredKaporaCustomers.length > 0 ? (
+                                                    filteredKaporaCustomers.map((c) => (
+                                                        <button
+                                                            key={c.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setKaporaBuyerId(c.id);
+                                                                setKaporaCustomerSearch(c.name);
+                                                                setShowKaporaCustomerResults(false);
+                                                            }}
+                                                            className={`w-full text-left px-3 py-2 hover:bg-orange-50 dark:hover:bg-slate-700 border-b border-gray-100 dark:border-slate-700 last:border-b-0 ${
+                                                                kaporaBuyerId === c.id ? 'bg-orange-50 dark:bg-orange-900/20' : ''
+                                                            }`}
+                                                        >
+                                                            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.name}</div>
+                                                            <div className="text-xs text-gray-500 dark:text-slate-400">
+                                                                {c.phone}{c.customerType ? ` • ${c.customerType}` : ''}
+                                                            </div>
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-3 py-3 text-sm text-gray-500 dark:text-slate-400 text-center">
+                                                        Müşteri bulunamadı.
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setShowKaporaCustomerModal(true);
+                                                                setNewKaporaCustomer(prev => ({ ...prev, name: kaporaCustomerSearch }));
+                                                                setShowKaporaCustomerResults(false);
+                                                            }}
+                                                            className="block mx-auto mt-1 text-orange-500 hover:underline text-xs"
+                                                        >
+                                                            <UserPlus className="w-3 h-3 inline mr-1" />
+                                                            Yeni müşteri olarak ekle
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Notlar (Opsiyonel)</label>
@@ -1059,7 +1199,7 @@ const PropertyDetail: React.FC = () => {
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <button
-                                    onClick={() => setShowStatusModal(null)}
+                                    onClick={closeKaporaModal}
                                     className="flex-1 py-3 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
                                 >
                                     İptal
@@ -1067,7 +1207,7 @@ const PropertyDetail: React.FC = () => {
                                 <button
                                     onClick={async () => {
                                         if (!kaporaAmount || !kaporaBuyerId) {
-                                            toast.error('Lütfen kapora miktarı ve müşteri seçiniz.');
+                                            toast.error(!kaporaAmount ? 'Lütfen kapora miktarını giriniz.' : 'Lütfen listeden bir müşteri seçiniz.');
                                             return;
                                         }
                                         try {
@@ -1117,10 +1257,7 @@ const PropertyDetail: React.FC = () => {
                                             }
 
                                             // Close modal and reset form
-                                            setShowStatusModal(null);
-                                            setKaporaAmount('');
-                                            setKaporaBuyerId('');
-                                            setKaporaNotes('');
+                                            closeKaporaModal();
                                             toast.success('Kapora başarıyla kaydedildi!');
 
                                             // Small delay then refresh to show updates
@@ -1137,6 +1274,73 @@ const PropertyDetail: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Quick Add Customer Mini-Modal */}
+                    {showKaporaCustomerModal && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
+                            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-5 border border-gray-200 dark:border-slate-700 animate-fade-in">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                        <UserPlus className="w-4 h-4 text-orange-500" />
+                                        Hızlı Müşteri Ekle
+                                    </h4>
+                                    <button
+                                        onClick={() => {
+                                            setShowKaporaCustomerModal(false);
+                                            setNewKaporaCustomer({ name: '', phone: '' });
+                                        }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <form onSubmit={handleKaporaQuickAddCustomer} className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Ad Soyad</label>
+                                        <input
+                                            type="text"
+                                            autoFocus
+                                            className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-2.5 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                            value={newKaporaCustomer.name}
+                                            onChange={e => setNewKaporaCustomer({ ...newKaporaCustomer, name: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Telefon</label>
+                                        <input
+                                            type="tel"
+                                            className="w-full border border-gray-200 dark:border-slate-600 rounded-xl p-2.5 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                            value={newKaporaCustomer.phone}
+                                            onChange={e => setNewKaporaCustomer({ ...newKaporaCustomer, phone: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-400 dark:text-slate-500">
+                                        Müşteri tipi otomatik: <strong>{property?.status === 'Kiralık' ? 'Kiracı Adayı' : 'Alıcı'}</strong>
+                                    </p>
+                                    <div className="pt-1 flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowKaporaCustomerModal(false);
+                                                setNewKaporaCustomer({ name: '', phone: '' });
+                                            }}
+                                            className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-xl text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700"
+                                        >
+                                            İptal
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600"
+                                        >
+                                            Kaydet ve Seç
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
