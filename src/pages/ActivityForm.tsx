@@ -22,7 +22,7 @@ const ActivityForm: React.FC = () => {
         type: 'Yer Gösterimi',
         date: new Date().toISOString().split('T')[0],
         time: '09:00',
-        status: 'Düşünüyor',
+        status: 'Planlandı',
         description: ''
     });
 
@@ -152,7 +152,7 @@ const ActivityForm: React.FC = () => {
                         date: formData.date || '',
                         time: formData.time,
                         description: firstDescParts.join('\n') || 'Yer gösterimi yapıldı.',
-                        status: first.status || 'Düşünüyor'
+                        status: first.status || formData.status || 'Planlandı'
                     };
 
                     await updateActivity(firstActivity);
@@ -175,7 +175,7 @@ const ActivityForm: React.FC = () => {
                                 date: formData.date || '',
                                 time: formData.time,
                                 description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
-                                status: item.status || 'Düşünüyor'
+                                status: item.status || formData.status || 'Planlandı'
                             };
                             await addActivity(activityData);
                         }));
@@ -228,7 +228,7 @@ const ActivityForm: React.FC = () => {
                             date: formData.date || '',
                             time: formData.time,
                             description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
-                            status: item.status || (formData.status as any) || 'Düşünüyor'
+                            status: item.status || (formData.status as any) || 'Planlandı'
                         };
 
                         await addActivity(activityData);
@@ -288,9 +288,10 @@ const ActivityForm: React.FC = () => {
             toast('Bu portföy zaten eklendi.');
             return;
         }
+        // Use the form's current status instead of hardcoding 'Düşünüyor'
         setShowingProperties((prev) => [
             ...prev,
-            { propertyId: property.id, note: '', status: 'Düşünüyor' }
+            { propertyId: property.id, note: '', status: (formData.status as Activity['status']) || 'Planlandı' }
         ]);
     };
 
@@ -445,6 +446,7 @@ const ActivityForm: React.FC = () => {
                                                 value={item.status}
                                                 onChange={(e) => setShowingProperties((prev) => prev.map((x) => x.propertyId === item.propertyId ? { ...x, status: e.target.value as Activity['status'] } : x))}
                                             >
+                                                <option value="Planlandı">Planlandı</option>
                                                 <option value="Olumlu">Olumlu</option>
                                                 <option value="Düşünüyor">Düşünüyor</option>
                                                 <option value="Olumsuz">Olumsuz</option>
