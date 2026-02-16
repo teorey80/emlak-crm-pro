@@ -1310,11 +1310,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addRequest = async (request: Request) => {
-    // Attach current user ID
+    // Attach current user ID and created_at
+    const now = new Date().toISOString();
     const requestWithUser = {
       ...request,
       user_id: session?.user.id,
-      office_id: userProfile.officeId
+      office_id: userProfile.officeId,
+      created_at: now
     };
 
     setRequests((prev) => [requestWithUser, ...prev]);
@@ -1322,6 +1324,33 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error adding request:', error);
       throw error;
+    }
+
+    // Create activity record for the customer
+    if (request.customerId && request.customerName) {
+      try {
+        const activityId = crypto.randomUUID();
+        const activityData: Activity = {
+          id: activityId,
+          type: 'Diğer',
+          customerId: request.customerId,
+          customerName: request.customerName,
+          date: now.split('T')[0],
+          description: `Yeni talep oluşturuldu: ${request.type || 'Emlak'} - ${request.requestType || 'Satılık'}${request.city ? ` (${request.city}${request.district ? '/' + request.district : ''})` : ''}`,
+          status: 'Tamamlandı',
+          user_id: session?.user.id,
+          office_id: userProfile.officeId
+        };
+
+        // Add to local state
+        setActivities((prev) => [activityData, ...prev]);
+
+        // Insert to database
+        await supabase.from('activities').insert([activityData]);
+      } catch (activityError) {
+        // Log but don't fail the request creation
+        console.warn('Failed to create activity for request:', activityError);
+      }
     }
   };
 
