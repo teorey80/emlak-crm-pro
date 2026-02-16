@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, OfficePerformanceSettings, Sale, Subscription, PlanLimits } from '../types';
+import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, OfficePerformanceSettings, Sale, Subscription, PlanLimits, Expense } from '../types';
+import * as expenseService from '../services/expenseService';
 import { supabase } from '../services/supabaseClient';
 import { getSubscription, getPlanLimits, checkPropertyLimit, checkCustomerLimit } from '../services/subscriptionService';
 import toast from 'react-hot-toast';
@@ -21,6 +22,7 @@ interface DataContextType {
   activities: Activity[];
   requests: Request[];
   sales: Sale[];
+  expenses: Expense[];
   teamMembers: UserProfile[];
   webConfig: WebSiteConfig;
   userProfile: UserProfile;
@@ -51,6 +53,10 @@ interface DataContextType {
   addSale: (sale: Sale) => Promise<void>;
   updateSale: (sale: Sale) => Promise<void>;
   deleteSale: (saleId: string, propertyId: string) => Promise<void>;
+  // Expense operations
+  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense>;
+  updateExpense: (expense: Expense) => Promise<Expense>;
+  deleteExpense: (id: string) => Promise<void>;
   updateWebConfig: (config: Partial<WebSiteConfig>, target?: 'personal' | 'office') => Promise<void>;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   updateOfficeSettings: (settings: OfficePerformanceSettings) => Promise<void>;
@@ -75,6 +81,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activities, setActivities] = useState<Activity[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
 
   // Subscription states
@@ -699,14 +706,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
-      const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
+      const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes, expensesRes] = await Promise.all([
         safeQuery(propertiesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(supabase.from('sites').select('*')),
         safeQuery(supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(requestsQuery.limit(PAGE_SIZE)),
         safeQuery(salesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
-        safeQuery(teamQuery)
+        safeQuery(teamQuery),
+        safeQuery(supabase.from('expenses').select('*').order('date', { ascending: false }))
       ]);
 
       let propertiesData = propsRes.data as unknown as Property[] | null;
@@ -884,6 +892,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           officeId: userProfile.officeId,
           role: userProfile.role || 'consultant'
         }]);
+      }
+
+      // Set expenses (only brokers can see via RLS)
+      if (expensesRes.data) {
+        const normalizedExpenses: Expense[] = (expensesRes.data as any[]).map((row: any) => ({
+          id: row.id,
+          title: row.title,
+          amount: Number(row.amount),
+          category: row.category,
+          date: row.date,
+          description: row.description,
+          createdBy: row.created_by,
+          createdAt: row.created_at,
+        }));
+        setExpenses(normalizedExpenses);
       }
 
     } catch (error) {
@@ -1951,6 +1974,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // --- Expense Operations ---
+  const addExpenseHandler = async (expense: Omit<Expense, 'id' | 'createdAt'>): Promise<Expense> => {
+    const newExpense = await expenseService.addExpense(expense);
+    setExpenses((prev) => [newExpense, ...prev]);
+    return newExpense;
+  };
+
+  const updateExpenseHandler = async (expense: Expense): Promise<Expense> => {
+    const updated = await expenseService.updateExpense(expense);
+    setExpenses((prev) => prev.map((e) => (e.id === expense.id ? updated : e)));
+    return updated;
+  };
+
+  const deleteExpenseHandler = async (id: string): Promise<void> => {
+    await expenseService.deleteExpense(id);
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  };
+
   // --- Pagination Functions ---
   const loadMoreProperties = async () => {
     if (!hasMoreProperties || loadingMore) return;
@@ -2067,12 +2108,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <DataContext.Provider value={{
       session, signOut,
-      properties, customers, sites, activities, requests, sales, teamMembers, webConfig, userProfile, office, loading,
+      properties, customers, sites, activities, requests, sales, expenses, teamMembers, webConfig, userProfile, office, loading,
       subscription, planLimits, canAddProperty, canAddCustomer, getUsageStats,
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
       addSite, deleteSite, addActivity, updateActivity, deleteActivity, addRequest, updateRequest, deleteRequest,
-      addSale, updateSale, deleteSale, updateWebConfig, updateUserProfile, updateOfficeSettings,
+      addSale, updateSale, deleteSale,
+      addExpense: addExpenseHandler, updateExpense: updateExpenseHandler, deleteExpense: deleteExpenseHandler,
+      updateWebConfig, updateUserProfile, updateOfficeSettings,
       loadMoreProperties, loadMoreCustomers, loadMoreActivities
     }}>
       {children}

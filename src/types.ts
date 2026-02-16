@@ -634,3 +634,20 @@ export interface AIInsightRequest {
   topPerformingDay: string;
   goalProgress: number;
 }
+
+// ==================== EXPENSE MANAGEMENT ====================
+
+export type ExpenseCategory = 'kira' | 'fatura' | 'maaş' | 'diğer';
+
+export interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  date: string;
+  description?: string;
+  createdBy?: string;
+  created_by?: string;
+  createdAt?: string;
+  created_at?: string;
+}
