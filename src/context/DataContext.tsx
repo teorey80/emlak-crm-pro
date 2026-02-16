@@ -9,6 +9,8 @@ import { Session } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 20; // Reduced from 50 for better performance
 const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,ownerId,ownerName,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at,images';
+// Minimal select for fallback when full select fails (missing columns)
+const PROPERTY_MINIMAL_SELECT = '*';
 
 interface DataContextType {
   session: Session | null;
@@ -717,6 +719,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (!propertiesData && propsRes.error) {
         console.warn('[DataContext] Slim properties fetch failed, running scoped fallback query:', (propsRes.error as any)?.message || propsRes.error);
+        // First try with same select but scoped
         const fallbackPropsQuery = currentOfficeId
           ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
           : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
@@ -724,6 +727,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
         propertiesData = fallbackPropsRes.data as unknown as Property[] | null;
+
+        // If still failing, try with minimal select (all columns)
+        if (!propertiesData && fallbackPropsRes.error) {
+          console.warn('[DataContext] Scoped fallback also failed, trying minimal select:', fallbackPropsRes.error?.message);
+          const minimalPropsQuery = currentOfficeId
+            ? supabase.from('properties').select(PROPERTY_MINIMAL_SELECT).eq('office_id', currentOfficeId)
+            : supabase.from('properties').select(PROPERTY_MINIMAL_SELECT).eq('user_id', currentUserId);
+          const minimalPropsRes = await minimalPropsQuery
+            .order('created_at', { ascending: false })
+            .limit(PAGE_SIZE);
+          propertiesData = minimalPropsRes.data as unknown as Property[] | null;
+          if (minimalPropsRes.error) {
+            console.error('[DataContext] Even minimal select failed:', minimalPropsRes.error?.message);
+          }
+        }
       }
 
       let normalizedSales: Sale[] = [];
@@ -747,6 +765,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         console.log('[fetchData] No properties from main query, trying fallback');
         // Fallback: if office-level visibility is broken, try own properties first.
+        let fallbackProperties: Property[] = [];
+
+        // Try with full select first
         const ownPropsRes = await supabase
           .from('properties')
           .select(PROPERTY_LIST_SELECT)
@@ -754,12 +775,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
 
-        let fallbackProperties = (ownPropsRes.data as unknown as Property[] | null) || [];
-        if (fallbackProperties.length === 0 && userProfile.officeId) {
+        fallbackProperties = (ownPropsRes.data as unknown as Property[] | null) || [];
+
+        // If full select failed, try minimal select
+        if (fallbackProperties.length === 0 && ownPropsRes.error) {
+          console.warn('[fetchData] Full select failed, trying minimal:', ownPropsRes.error?.message);
+          const minimalOwnPropsRes = await supabase
+            .from('properties')
+            .select(PROPERTY_MINIMAL_SELECT)
+            .eq('user_id', currentUserId)
+            .order('created_at', { ascending: false })
+            .limit(PAGE_SIZE);
+          fallbackProperties = (minimalOwnPropsRes.data as unknown as Property[] | null) || [];
+        }
+
+        // Try office-level if user-level returned nothing
+        if (fallbackProperties.length === 0 && (currentOfficeId || userProfile.officeId)) {
+          const officeId = currentOfficeId || userProfile.officeId;
           const officePropsRes = await supabase
             .from('properties')
-            .select(PROPERTY_LIST_SELECT)
-            .eq('office_id', userProfile.officeId)
+            .select(PROPERTY_MINIMAL_SELECT)
+            .eq('office_id', officeId)
             .order('created_at', { ascending: false })
             .limit(PAGE_SIZE);
 
@@ -774,6 +810,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setProperties(applyPropertyPrivacyMask(nextProperties, currentUserId));
           setHasMoreProperties(nextProperties.length === PAGE_SIZE);
         } else {
+          console.warn('[fetchData] All property fetch attempts returned empty');
           setProperties([]);
           setHasMoreProperties(false);
         }
@@ -1903,9 +1940,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let nextPageData = data as unknown as Property[] | null;
       if (!nextPageData && error) {
+        console.warn('[loadMoreProperties] Full select failed, trying minimal:', error.message);
+        // Fallback to minimal select
         const fallbackQuery = currentOfficeId
-          ? supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('office_id', currentOfficeId)
-          : supabase.from('properties').select(PROPERTY_LIST_SELECT).eq('user_id', currentUserId);
+          ? supabase.from('properties').select(PROPERTY_MINIMAL_SELECT).eq('office_id', currentOfficeId)
+          : supabase.from('properties').select(PROPERTY_MINIMAL_SELECT).eq('user_id', currentUserId);
 
         const fallbackRes = await fallbackQuery
           .order('created_at', { ascending: false })
