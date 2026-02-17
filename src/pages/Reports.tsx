@@ -66,10 +66,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     return { firstDay, lastDay, monthName, year, month };
   }, [selectedMonth]);
 
-  // Broker'ları tespit et (role === 'broker' veya 'admin' veya 'owner')
+  // Broker'ları tespit et (role === 'broker' veya 'ofis_broker' veya 'admin' veya 'owner')
   const brokerIds = useMemo(() => {
     return teamMembers
-      .filter(m => m.role === 'broker' || m.role === 'admin' || m.role === 'owner')
+      .filter(m => m.role === 'broker' || m.role === 'ofis_broker' || m.role === 'admin' || m.role === 'owner')
       .map(m => m.id);
   }, [teamMembers]);
 
@@ -636,7 +636,7 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
                   {commissionTab === 'sales' ? 'Satış İşlemleri' : 'Kiralama İşlemleri'}
                 </h3>
               </div>
-              <SalesTable sales={commissionStats.filteredSales} isBroker={true} />
+              <SalesTable sales={commissionStats.filteredSales} isBroker={true} brokerIds={brokerIds} />
             </div>
           )}
         </div>
@@ -1545,7 +1545,22 @@ const ConsultantReportView: React.FC<ConsultantReportViewProps> = ({ sales, user
 // ==========================================
 // SHARED SALES TABLE COMPONENT
 // ==========================================
-const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean }> = ({ sales, isBroker }) => {
+const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: string[] }> = ({ sales, isBroker, brokerIds = [] }) => {
+  // Broker mantığıyla paylaşım hesapla
+  const calculateShares = (sale: Sale) => {
+    const grossCommission = sale.commissionAmount || sale.commission_amount || 0;
+    const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
+    const isSaleByBroker = brokerIds.includes(saleUserId);
+
+    if (isSaleByBroker) {
+      // Broker işlemi: %100 ofise
+      return { officeShare: grossCommission, agentShare: 0, isBrokerSale: true };
+    } else {
+      // Danışman işlemi: %50/%50
+      return { officeShare: grossCommission * 0.5, agentShare: grossCommission * 0.5, isBrokerSale: false };
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -1554,12 +1569,13 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean }> = ({ sales, isB
             <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tarih</th>
             <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">İşlem</th>
             <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Portföy</th>
+            <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danışman</th>
             <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fiyat/Kira</th>
             <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Brüt Komisyon</th>
             {isBroker ? (
               <>
-                <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis</th>
-                <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danışman</th>
+                <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis Payı</th>
+                <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danışman Payı</th>
               </>
             ) : (
               <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Net Kazancım</th>
@@ -1567,45 +1583,60 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean }> = ({ sales, isB
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-          {sales.map(sale => (
-            <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-              <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
-                {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
-              </td>
-              <td className="p-3 text-sm">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${sale.transactionType === 'rental'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                  }`}>
-                  {sale.transactionType === 'rental' ? 'Kiralama' : 'Satış'}
-                </span>
-              </td>
-              <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">
-                {sale.propertyTitle || '-'}
-              </td>
-              <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
-                {(sale.transactionType === 'rental' ? (sale.monthlyRent || 0) : (sale.salePrice || sale.sale_price || 0)).toLocaleString('tr-TR')} TL
-              </td>
-              <td className="p-3 text-sm text-right font-medium text-slate-600 dark:text-slate-400">
-                {(sale.commissionAmount || sale.commission_amount || 0).toLocaleString('tr-TR')} TL
-              </td>
-
-              {isBroker ? (
-                <>
-                  <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
-                    {(sale.officeShareAmount || sale.office_share_amount || 0).toLocaleString('tr-TR')} TL
-                  </td>
-                  <td className="p-3 text-sm text-right font-medium text-green-600 dark:text-green-400">
-                    {(sale.consultantShareAmount || sale.consultant_share_amount || 0).toLocaleString('tr-TR')} TL
-                  </td>
-                </>
-              ) : (
-                <td className="p-3 text-sm text-right font-bold text-indigo-600 dark:text-indigo-400">
-                  {(sale.consultantShareAmount || sale.consultant_share_amount || 0).toLocaleString('tr-TR')} TL
+          {sales.map(sale => {
+            const shares = calculateShares(sale);
+            return (
+              <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
+                  {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
                 </td>
-              )}
-            </tr>
-          ))}
+                <td className="p-3 text-sm">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${sale.transactionType === 'rental'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    }`}>
+                    {sale.transactionType === 'rental' ? 'Kiralama' : 'Satış'}
+                  </span>
+                </td>
+                <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">
+                  {sale.propertyTitle || '-'}
+                </td>
+                <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center gap-1">
+                    {sale.consultantName || sale.consultant_name || '-'}
+                    {shares.isBrokerSale && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded">
+                        Broker
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
+                  {(sale.transactionType === 'rental' ? (sale.monthlyRent || 0) : (sale.salePrice || sale.sale_price || 0)).toLocaleString('tr-TR')} TL
+                </td>
+                <td className="p-3 text-sm text-right font-medium text-slate-600 dark:text-slate-400">
+                  {(sale.commissionAmount || sale.commission_amount || 0).toLocaleString('tr-TR')} TL
+                </td>
+
+                {isBroker ? (
+                  <>
+                    <td className="p-3 text-sm text-right text-blue-600 dark:text-blue-400 font-medium">
+                      {shares.officeShare.toLocaleString('tr-TR')} TL
+                      {shares.isBrokerSale && <span className="text-xs text-slate-400 ml-1">(%100)</span>}
+                    </td>
+                    <td className="p-3 text-sm text-right font-medium text-green-600 dark:text-green-400">
+                      {shares.agentShare.toLocaleString('tr-TR')} TL
+                      {!shares.isBrokerSale && <span className="text-xs text-slate-400 ml-1">(%50)</span>}
+                    </td>
+                  </>
+                ) : (
+                  <td className="p-3 text-sm text-right font-bold text-indigo-600 dark:text-indigo-400">
+                    {shares.agentShare.toLocaleString('tr-TR')} TL
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1616,7 +1647,7 @@ const Reports: React.FC = () => {
   const { properties, customers, activities, sales, teamMembers, userProfile } = useData();
 
   // Determine Role
-  const isBroker = userProfile?.role === 'broker' || userProfile?.role === 'admin' || userProfile?.role === 'owner';
+  const isBroker = userProfile?.role === 'broker' || userProfile?.role === 'ofis_broker' || userProfile?.role === 'admin' || userProfile?.role === 'owner';
 
   if (isBroker) {
     return <BrokerReportView
