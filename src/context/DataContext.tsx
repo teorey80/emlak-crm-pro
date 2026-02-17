@@ -409,6 +409,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     ...sale,
     propertyId: sale.propertyId ?? sale.property_id,
     property_id: sale.property_id ?? sale.propertyId,
+    // Consultant who made the sale (for reports filtering)
+    consultantId: sale.consultantId ?? sale.consultant_id ?? sale.user_id,
+    consultant_id: sale.consultant_id ?? sale.consultantId ?? sale.user_id,
+    consultantName: sale.consultantName ?? sale.consultant_name ?? '',
+    consultant_name: sale.consultant_name ?? sale.consultantName ?? '',
     transactionType: sale.transactionType ?? sale.transaction_type ?? 'sale',
     transaction_type: sale.transaction_type ?? sale.transactionType,
     salePrice: sale.salePrice ?? sale.sale_price ?? 0,
@@ -717,7 +722,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         safeQuery(supabase.from('sites').select('*')),
         safeQuery(supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(requestsQuery.limit(PAGE_SIZE)),
-        safeQuery(salesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(salesQuery.order('created_at', { ascending: false })), // No limit for sales - need all for reports
         safeQuery(teamQuery),
         safeQuery(supabase.from('expenses').select('*').order('date', { ascending: false }))
       ]);
@@ -1419,6 +1424,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           property_id: saleWithId.propertyId,
           user_id: session?.user.id,
           office_id: resolvedOfficeId,
+          consultant_id: saleWithId.consultantId || session?.user.id, // Who made the sale
+          consultant_name: saleWithId.consultantName || userProfile.name || '', // Consultant name for reports
           transaction_type: saleWithId.transactionType || 'sale',
           sale_price: saleWithId.salePrice,
           sale_date: saleWithId.saleDate,
@@ -1464,6 +1471,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         propertyId: saleWithId.propertyId,
         user_id: session?.user.id,
         office_id: resolvedOfficeId,
+        consultantId: saleWithId.consultantId || session?.user.id,
+        consultant_id: saleWithId.consultantId || session?.user.id,
+        consultantName: saleWithId.consultantName || userProfile.name || '',
+        consultant_name: saleWithId.consultantName || userProfile.name || '',
         transactionType: saleWithId.transactionType || 'sale',
         salePrice: saleWithId.salePrice,
         saleDate: saleWithId.saleDate,
