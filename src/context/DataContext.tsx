@@ -694,8 +694,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? supabase.from('requests').select('*').eq('office_id', currentOfficeId)
         : supabase.from('requests').select('*').eq('user_id', currentUserId);
 
+      // Sales query: fetch by office_id OR user_id (for sales with NULL office_id)
       const salesQuery = currentOfficeId
-        ? supabase.from('sales').select('*').eq('office_id', currentOfficeId)
+        ? supabase.from('sales').select('*').or(`office_id.eq.${currentOfficeId},user_id.eq.${currentUserId}`)
         : supabase.from('sales').select('*').eq('user_id', currentUserId);
 
       const teamQuery = currentOfficeId
@@ -867,6 +868,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSales([]);
       }
 
+      let teamMemberIds: string[] = [currentUserId];
+
       if (teamRes.data && teamRes.data.length > 0) {
         const mappedTeamMembers = teamRes.data.map((p: any) => ({
           id: p.id,
@@ -890,6 +893,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
 
+        teamMemberIds = mappedTeamMembers.map(m => m.id);
         setTeamMembers(mappedTeamMembers);
       } else {
         // Fallback: always keep current user visible in Team-related UIs.
@@ -902,6 +906,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           officeId: userProfile.officeId,
           role: userProfile.role || 'consultant'
         }]);
+      }
+
+      // Fetch additional sales for team members (catches sales with NULL office_id)
+      if (currentOfficeId && teamMemberIds.length > 1) {
+        try {
+          const existingSaleIds = new Set(normalizedSales.map(s => s.id));
+          const { data: teamSalesData } = await supabase
+            .from('sales')
+            .select('*')
+            .in('user_id', teamMemberIds)
+            .is('office_id', null);
+
+          if (teamSalesData && teamSalesData.length > 0) {
+            const additionalSales = teamSalesData
+              .filter((s: any) => !existingSaleIds.has(s.id))
+              .map(normalizeSale);
+            if (additionalSales.length > 0) {
+              console.log('[fetchData] Found additional team sales with NULL office_id:', additionalSales.length);
+              normalizedSales = [...normalizedSales, ...additionalSales];
+              setSales(normalizedSales);
+            }
+          }
+        } catch (teamSalesError) {
+          console.warn('[fetchData] Additional team sales fetch failed:', teamSalesError);
+        }
       }
 
       // Set expenses (only brokers can see via RLS - fail gracefully if table doesn't exist)
