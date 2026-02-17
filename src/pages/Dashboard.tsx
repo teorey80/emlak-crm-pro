@@ -1,13 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign, Filter } from 'lucide-react';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { findMatches } from '../services/matchingService';
 
 const Dashboard: React.FC = () => {
-  const { customers, properties, activities, requests, sales } = useData();
+  const { customers, properties, activities, requests, sales, userProfile, teamMembers } = useData();
   const navigate = useNavigate();
+
+  // Broker role check - brokers can see all team members' schedules
+  const isBroker = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
+
+  // Filter state for daily schedule (only for brokers)
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
 
   // Calculate real statistics
   const stats = useMemo(() => {
@@ -87,6 +93,13 @@ const Dashboard: React.FC = () => {
     return findMatches(properties, requests).slice(0, 3);
   }, [properties, requests]);
 
+  // Get user name from teamMembers
+  const getUserName = (userId: string | undefined) => {
+    if (!userId) return '';
+    const member = teamMembers.find(m => m.id === userId);
+    return member?.name || '';
+  };
+
   // Combined Schedule: Upcoming appointments + Today's requests
   const dailySchedule = React.useMemo(() => {
     // Helper to get local date string YYYY-MM-DD
@@ -99,8 +112,14 @@ const Dashboard: React.FC = () => {
 
     const todayStr = getLocalDateString(new Date());
 
+    // Filter activities by selected user if not 'all'
+    let filteredActivities = activities;
+    if (selectedUserId !== 'all') {
+      filteredActivities = activities.filter(a => a.user_id === selectedUserId);
+    }
+
     // 1. Map Appointments
-    const appointments = activities
+    const appointments = filteredActivities
       .filter(a => a.status === 'Planlandı' && new Date(a.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
       .map(a => ({
         id: a.id,
@@ -110,12 +129,20 @@ const Dashboard: React.FC = () => {
         date: a.date,
         time: a.time,
         customerId: a.customerId,
-        description: a.description
+        description: a.description,
+        userId: a.user_id,
+        userName: getUserName(a.user_id)
       }));
+
+    // Filter requests by selected user if not 'all'
+    let filteredRequests = requests;
+    if (selectedUserId !== 'all') {
+      filteredRequests = requests.filter(r => r.user_id === selectedUserId);
+    }
 
     // 2. Map Today's Requests
     // Compare dates robustly (handle 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm:ss...')
-    const todayRequests = requests
+    const todayRequests = filteredRequests
       .filter(r => (r.date && r.date.startsWith(todayStr)))
       .map(r => ({
         id: r.id,
@@ -125,7 +152,9 @@ const Dashboard: React.FC = () => {
         date: r.date,
         time: 'Yeni',
         customerId: r.customerId,
-        description: `${r.requestType} ${r.type} - Max ${r.maxPrice.toLocaleString()} ₺`
+        description: `${r.requestType} ${r.type} - Max ${r.maxPrice.toLocaleString()} ₺`,
+        userId: r.user_id,
+        userName: getUserName(r.user_id)
       }));
 
     // Combine and sort by date/time
@@ -136,7 +165,7 @@ const Dashboard: React.FC = () => {
         return dateA - dateB;
       })
       .slice(0, 6);
-  }, [activities, requests]);
+  }, [activities, requests, selectedUserId, teamMembers]);
 
   const [aiInput, setAiInput] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -283,7 +312,27 @@ const Dashboard: React.FC = () => {
           {/* Schedule Section - Takes up 2 cols */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 transition-colors">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
+                {/* Broker filter dropdown */}
+                {isBroker && teamMembers.length > 1 && (
+                  <div className="relative">
+                    <select
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                      className="appearance-none bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 pr-8 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 cursor-pointer"
+                    >
+                      <option value="all">Tüm Ekip</option>
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Filter className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                )}
+              </div>
               <button className="text-sky-600 dark:text-sky-400 text-sm font-medium hover:underline">Tümünü Gör</button>
             </div>
 
@@ -314,7 +363,15 @@ const Dashboard: React.FC = () => {
                             <Calendar className="w-5 h-5" />}
                     </div>
                     <div className="ml-4 flex-1">
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4>
+                        {/* Show consultant name when broker views all team */}
+                        {isBroker && selectedUserId === 'all' && item.userName && (
+                          <span className="text-xs bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
+                            {item.userName}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         {item.date} • {item.time === 'Yeni' ? <span className="text-orange-600 dark:text-orange-400 font-bold">YENİ TALEP</span> : item.time || 'Saat Yok'}
                         {item.description ? ` • ${item.description}` : ''}

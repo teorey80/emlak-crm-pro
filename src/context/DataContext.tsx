@@ -703,6 +703,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('office_id', currentOfficeId)
         : supabase.from('profiles').select('id,full_name,title,avatar_url,email,office_id,role').eq('id', currentUserId);
 
+      // Activities query: Brokers see all office activities, others see only their own
+      const isBrokerRole = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
+      const activitiesQuery = (currentOfficeId && isBrokerRole)
+        ? supabase.from('activities').select('*').eq('office_id', currentOfficeId)
+        : supabase.from('activities').select('*').eq('user_id', currentUserId);
+
       const safeQuery = async <T,>(queryPromise: Promise<{ data: T; error: any }>) => {
         try {
           const result = await queryPromise;
@@ -721,7 +727,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         safeQuery(propertiesQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(supabase.from('customers').select('*').eq('user_id', currentUserId).order('created_at', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(supabase.from('sites').select('*')),
-        safeQuery(supabase.from('activities').select('*').eq('user_id', currentUserId).order('date', { ascending: false }).limit(PAGE_SIZE)),
+        safeQuery(activitiesQuery.order('date', { ascending: false }).limit(PAGE_SIZE)),
         safeQuery(requestsQuery.limit(PAGE_SIZE)),
         safeQuery(salesQuery.order('created_at', { ascending: false })), // No limit for sales - need all for reports
         safeQuery(teamQuery),
@@ -2122,34 +2128,47 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!currentUserId) return;
     setLoadingMore(true);
     try {
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('user_id', currentUserId)
+      // Brokers see all office activities, others see only their own
+      const isBrokerRole = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
+      const currentOfficeId = userProfile?.officeId;
+
+      let query = supabase.from('activities').select('*');
+      if (currentOfficeId && isBrokerRole) {
+        query = query.eq('office_id', currentOfficeId);
+      } else {
+        query = query.eq('user_id', currentUserId);
+      }
+
+      const { data, error } = await query
         .order('date', { ascending: false })
         .range(activities.length, activities.length + PAGE_SIZE - 1);
 
       let activityRows = data as any[] | null;
       if (!activityRows && error) {
-        const activityFallbackRes = await supabase
-          .from('activities')
-          .select('*')
-          .eq('user_id', currentUserId)
+        let fallbackQuery = supabase.from('activities').select('*');
+        if (currentOfficeId && isBrokerRole) {
+          fallbackQuery = fallbackQuery.eq('office_id', currentOfficeId);
+        } else {
+          fallbackQuery = fallbackQuery.eq('user_id', currentUserId);
+        }
+        const activityFallbackRes = await fallbackQuery
           .order('date', { ascending: false })
           .range(activities.length, activities.length + PAGE_SIZE - 1);
         activityRows = activityFallbackRes.data as any[] | null;
       }
 
       if (activityRows) {
-        const normalizedActivities = activityRows
-          .map(normalizeActivity)
-          .filter((activity) => (activity.user_id ?? (activity as any).userId) === currentUserId);
+        const normalizedActivities = activityRows.map(normalizeActivity);
+        // Only filter by user if not broker
+        const filteredActivities = isBrokerRole
+          ? normalizedActivities
+          : normalizedActivities.filter((activity) => (activity.user_id ?? (activity as any).userId) === currentUserId);
         setActivities(prev => {
           const existingIds = new Set(prev.map((activity) => activity.id));
-          const uniqueNewRows = normalizedActivities.filter((activity) => !existingIds.has(activity.id));
+          const uniqueNewRows = filteredActivities.filter((activity) => !existingIds.has(activity.id));
           return [...prev, ...uniqueNewRows];
         });
-        setHasMoreActivities((data?.length || normalizedActivities.length) === PAGE_SIZE);
+        setHasMoreActivities((data?.length || filteredActivities.length) === PAGE_SIZE);
       }
     } catch (error) {
       console.error('Error loading more activities:', error);
