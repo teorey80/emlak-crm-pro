@@ -19,7 +19,15 @@ const ALL_CITIES_DISTRICTS: Record<string, string[]> = {
 const RequestForm: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const { customers, addRequest, updateRequest, requests, sites, addCustomer } = useData();
+    const { customers, addRequest, updateRequest, requests, sites, addCustomer, userProfile } = useData();
+
+    // Check if user can edit this request
+    const canEdit = (request: Request | undefined): boolean => {
+        if (!request) return true; // New request, anyone can create
+        const isOwner = request.user_id === userProfile?.id;
+        const isBroker = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
+        return isOwner || isBroker;
+    };
 
     // New customer modal state
     const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -52,15 +60,21 @@ const RequestForm: React.FC = () => {
         siteId: ''
     });
 
-    // Load for Edit
+    // Load for Edit with permission check
     useEffect(() => {
         if (id && requests.length > 0) {
             const existing = requests.find(r => r.id === id);
             if (existing) {
+                // Check if user has permission to edit
+                if (!canEdit(existing)) {
+                    toast.error('Bu talebi düzenleme yetkiniz yok.');
+                    navigate('/requests');
+                    return;
+                }
                 setFormData(existing);
             }
         }
-    }, [id, requests]);
+    }, [id, requests, userProfile]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

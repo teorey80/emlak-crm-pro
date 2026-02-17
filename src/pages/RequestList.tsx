@@ -1,11 +1,27 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Search, MapPin } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Search, MapPin, Pencil, Trash2, Sparkles, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
+import { Request } from '../types';
 
 const RequestList: React.FC = () => {
-    const { requests, deleteRequest } = useData();
+    const { requests, deleteRequest, userProfile, teamMembers } = useData();
+    const navigate = useNavigate();
+
+    // Check if current user can edit a request (owner or broker)
+    const canEditRequest = (request: Request): boolean => {
+        const isOwner = request.user_id === userProfile?.id;
+        const isBroker = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
+        return isOwner || isBroker;
+    };
+
+    // Get request owner name from teamMembers
+    const getRequestOwnerName = (request: Request): string => {
+        if (!request.user_id) return '';
+        const owner = teamMembers.find(m => m.id === request.user_id);
+        return owner?.name || '';
+    };
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleDelete = async (id: string) => {
@@ -58,23 +74,54 @@ const RequestList: React.FC = () => {
                                 {req.customerName}
                                 {req.siteName && <span className="block text-xs font-normal text-gray-500 mt-0.5">({req.siteName})</span>}
                             </Link>
-                            <div className="flex items-center gap-2">
-                                <Link to={`/requests/edit/${req.id}`} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors">Düzenle</Link>
-                                <button
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        handleDelete(req.id);
-                                    }}
-                                    className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors"
-                                >
-                                    Sil
-                                </button>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                                {/* Show Edit/Delete only for own requests or if broker */}
+                                {canEditRequest(req) ? (
+                                    <>
+                                        <Link
+                                            to={`/requests/edit/${req.id}`}
+                                            className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1"
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                            Düzenle
+                                        </Link>
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                handleDelete(req.id);
+                                            }}
+                                            className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors flex items-center gap-1"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                            Sil
+                                        </button>
+                                    </>
+                                ) : (
+                                    /* Show "Suggest Match" button for others' requests */
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            navigate(`/matches?requestId=${req.id}`);
+                                        }}
+                                        className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/40 transition-colors flex items-center gap-1"
+                                    >
+                                        <Sparkles className="w-3 h-3" />
+                                        Eşleşme Öner
+                                    </button>
+                                )}
                                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${req.status === 'Aktif' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400'
                                     }`}>
                                     {req.status}
                                 </span>
                             </div>
                         </div>
+                        {/* Show request owner if not own request */}
+                        {!canEditRequest(req) && getRequestOwnerName(req) && (
+                            <div className="mb-2 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                <span>Danışman: {getRequestOwnerName(req)}</span>
+                            </div>
+                        )}
                         <Link to={`/requests/${req.id}`} className="block">
                             <div className="space-y-2 text-sm text-gray-600 dark:text-slate-400 mb-4">
                                 <div className="flex items-center gap-2">
