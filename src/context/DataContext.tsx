@@ -699,8 +699,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const safeQuery = async <T,>(queryPromise: Promise<{ data: T; error: any }>) => {
         try {
-          return await queryPromise;
-        } catch (queryError) {
+          const result = await queryPromise;
+          return result;
+        } catch (queryError: any) {
+          // Handle abort errors gracefully
+          if (queryError?.name === 'AbortError' || queryError?.message?.includes('abort')) {
+            console.warn('[safeQuery] Request aborted:', queryError?.message);
+          }
           return { data: null as unknown as T, error: queryError };
         }
       };
@@ -894,19 +899,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }]);
       }
 
-      // Set expenses (only brokers can see via RLS)
-      if (expensesRes.data) {
-        const normalizedExpenses: Expense[] = (expensesRes.data as any[]).map((row: any) => ({
-          id: row.id,
-          title: row.title,
-          amount: Number(row.amount),
-          category: row.category,
-          date: row.date,
-          description: row.description,
-          createdBy: row.created_by,
-          createdAt: row.created_at,
-        }));
-        setExpenses(normalizedExpenses);
+      // Set expenses (only brokers can see via RLS - fail gracefully if table doesn't exist)
+      try {
+        if (expensesRes.data && Array.isArray(expensesRes.data)) {
+          const normalizedExpenses: Expense[] = expensesRes.data.map((row: any) => ({
+            id: row.id,
+            title: row.title,
+            amount: Number(row.amount || 0),
+            category: row.category,
+            date: row.date,
+            description: row.description,
+            createdBy: row.created_by,
+            createdAt: row.created_at,
+          }));
+          setExpenses(normalizedExpenses);
+        } else {
+          // Table might not exist or RLS blocking - that's OK
+          setExpenses([]);
+        }
+      } catch (expenseError) {
+        console.warn('[DataContext] Expenses fetch failed (table may not exist):', expenseError);
+        setExpenses([]);
       }
 
     } catch (error) {
