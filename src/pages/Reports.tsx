@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon, Target, Activity, ArrowUpRight, ArrowDownRight, Minus, Loader2, Sparkles, Lightbulb, ThumbsUp, AlertCircle, MessageCircle } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight, User, Home as HomeIcon, Target, Activity, ArrowUpRight, ArrowDownRight, Minus, Loader2, Sparkles, Lightbulb, ThumbsUp, AlertCircle, MessageCircle, ExternalLink, Receipt } from 'lucide-react';
 import { Sale, UserProfile, ActivityTrendData, ConversionFunnelData, PerformanceInsight, GoalProgress, AIPerformanceAnalysis } from '../types';
 import { generatePerformanceAnalysis, prepareAnalyticsData } from '../services/aiInsightService';
 import {
@@ -101,30 +102,38 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     return Object.values(months).slice(-6); // Son 6 ay
   };
 
-  // Komisyon hesaplama fonksiyonu - Broker vs Danışman mantığı
+  // Komisyon hesaplama fonksiyonu - Broker vs Danışman mantığı (giderler düşülmüş)
   const calculateCommissionShares = (sale: Sale, brokerIdList: string[]) => {
     const totalCommission = (sale.buyerCommissionAmount || sale.buyer_commission_amount || 0) +
                            (sale.sellerCommissionAmount || sale.seller_commission_amount || 0);
     const grossCommission = sale.commissionAmount || sale.commission_amount || totalCommission;
+    const expenses = sale.totalExpenses || sale.total_expenses || 0;
+    const netCommission = grossCommission - expenses;
 
     const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
     const isBroker = brokerIdList.includes(saleUserId);
 
     if (isBroker) {
-      // Broker işlemi: %100 ofise
+      // Broker işlemi: %100 ofise (giderler düşülmüş)
       return {
-        officeShare: grossCommission,
+        officeShare: netCommission,
         agentShare: 0,
         agentName: 'Ofis (Broker)',
-        isBrokerSale: true
+        isBrokerSale: true,
+        expenses,
+        grossCommission,
+        netCommission
       };
     } else {
-      // Danışman işlemi: %50/%50
+      // Danışman işlemi: %50/%50 (giderler düşülmüş net üzerinden)
       return {
-        officeShare: grossCommission * 0.5,
-        agentShare: grossCommission * 0.5,
+        officeShare: netCommission * 0.5,
+        agentShare: netCommission * 0.5,
         agentName: sale.consultantName || sale.consultant_name || 'Danışman',
-        isBrokerSale: false
+        isBrokerSale: false,
+        expenses,
+        grossCommission,
+        netCommission
       };
     }
   };
@@ -165,8 +174,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       );
     }
 
-    // Toplam hesaplamalar
-    let totalCommission = 0;
+    // Toplam hesaplamalar (giderler dahil)
+    let totalGrossCommission = 0;
+    let totalExpenses = 0;
+    let totalNetCommission = 0;
     let totalOfficeShare = 0;
     let totalAgentShare = 0;
     let totalSaleValue = 0;
@@ -174,7 +185,9 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
 
     typedSales.forEach(sale => {
       const shares = calculateCommissionShares(sale, brokerIds);
-      totalCommission += (sale.commissionAmount || sale.commission_amount || 0);
+      totalGrossCommission += shares.grossCommission;
+      totalExpenses += shares.expenses;
+      totalNetCommission += shares.netCommission;
       totalOfficeShare += shares.officeShare;
       totalAgentShare += shares.agentShare;
 
@@ -220,7 +233,9 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
 
     return {
       filteredSales: typedSales,
-      totalCommission,
+      totalGrossCommission,
+      totalExpenses,
+      totalNetCommission,
       totalOfficeShare,
       totalAgentShare,
       totalSaleValue,
@@ -439,46 +454,70 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
           </div>
 
           {/* ÖNCELİKLİ KARTLAR - Büyük */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Toplam Komisyon */}
-            <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl text-white shadow-lg shadow-emerald-200 dark:shadow-none">
-              <div className="flex items-center gap-3 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Brüt Komisyon */}
+            <div className="bg-gradient-to-br from-slate-600 to-slate-700 p-5 rounded-2xl text-white shadow-lg shadow-slate-200 dark:shadow-none">
+              <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-white/20 rounded-xl">
-                  <DollarSign className="w-6 h-6" />
+                  <DollarSign className="w-5 h-5" />
                 </div>
-                <span className="text-sm font-medium opacity-90">Toplam Komisyon</span>
+                <span className="text-sm font-medium opacity-90">Brüt Komisyon</span>
               </div>
-              <p className="text-3xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} ₺</p>
-              <p className="text-sm opacity-80 mt-2">{commissionStats.totalTx} işlem</p>
+              <p className="text-2xl font-bold">{commissionStats.totalGrossCommission.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-xs opacity-70 mt-1">{commissionStats.totalTx} işlem</p>
             </div>
 
-            {/* Ofis Payı (Alınan) */}
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-2xl text-white shadow-lg shadow-blue-200 dark:shadow-none">
-              <div className="flex items-center gap-3 mb-3">
+            {/* Toplam Gider */}
+            <div className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-2xl text-white shadow-lg shadow-red-200 dark:shadow-none">
+              <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-white/20 rounded-xl">
-                  <Wallet className="w-6 h-6" />
+                  <Receipt className="w-5 h-5" />
                 </div>
-                <span className="text-sm font-medium opacity-90">Ofis Payı</span>
+                <span className="text-sm font-medium opacity-90">Toplam Gider</span>
               </div>
-              <p className="text-3xl font-bold">{commissionStats.totalOfficeShare.toLocaleString('tr-TR')} ₺</p>
-              <p className="text-sm opacity-80 mt-2">Broker: %100 | Danışman: %50</p>
+              <p className="text-2xl font-bold">-{commissionStats.totalExpenses.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-xs opacity-70 mt-1">İşlem giderleri</p>
             </div>
 
-            {/* Danışman Payları */}
-            <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 rounded-2xl text-white shadow-lg shadow-violet-200 dark:shadow-none">
-              <div className="flex items-center gap-3 mb-3">
+            {/* Net Komisyon - ÖNCELİKLİ */}
+            <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-200 dark:shadow-none md:col-span-2">
+              <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-white/20 rounded-xl">
-                  <Users className="w-6 h-6" />
+                  <Wallet className="w-5 h-5" />
                 </div>
-                <span className="text-sm font-medium opacity-90">Danışman Payları</span>
+                <span className="text-sm font-medium opacity-90">Net Komisyon (Kalan)</span>
               </div>
-              <p className="text-3xl font-bold">{commissionStats.totalAgentShare.toLocaleString('tr-TR')} ₺</p>
-              <p className="text-sm opacity-80 mt-2">Danışmanlara ödenen</p>
+              <p className="text-3xl font-bold">{commissionStats.totalNetCommission.toLocaleString('tr-TR')} ₺</p>
+              <p className="text-xs opacity-70 mt-1">Brüt - Giderler = Net</p>
             </div>
           </div>
 
-          {/* İKİNCİL KARTLAR - Küçük */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* İKİNCİL KARTLAR - Ofis/Danışman Payları + Diğer */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            {/* Ofis Payı */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Ofis Payı</span>
+              </div>
+              <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                {commissionStats.totalOfficeShare.toLocaleString('tr-TR')} ₺
+              </p>
+              <p className="text-[10px] text-slate-400">Net'ten hesaplanan</p>
+            </div>
+
+            {/* Danışman Payları */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-4 h-4 text-violet-500" />
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Danışman Payı</span>
+              </div>
+              <p className="text-lg font-bold text-violet-600 dark:text-violet-400">
+                {commissionStats.totalAgentShare.toLocaleString('tr-TR')} ₺
+              </p>
+              <p className="text-[10px] text-slate-400">Net'ten hesaplanan</p>
+            </div>
+
             {/* Toplam Satış Değeri */}
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
               <div className="flex items-center gap-2 mb-2">
@@ -633,7 +672,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
               <div className="p-4 border-b border-gray-100 dark:border-slate-700">
                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-emerald-500" />
-                  {commissionTab === 'sales' ? 'Satış İşlemleri' : 'Kiralama İşlemleri'}
+                  İşlem Listesi
+                  <span className="text-xs font-normal text-slate-400">
+                    ({commissionTab === 'all' ? 'Tümü' : commissionTab === 'sales' ? 'Satış' : 'Kiralama'})
+                  </span>
                 </h3>
               </div>
               <SalesTable sales={commissionStats.filteredSales} isBroker={true} brokerIds={brokerIds} />
@@ -1549,15 +1591,29 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
   // Broker mantığıyla paylaşım hesapla
   const calculateShares = (sale: Sale) => {
     const grossCommission = sale.commissionAmount || sale.commission_amount || 0;
+    const totalExpenses = sale.totalExpenses || sale.total_expenses || 0;
+    const netCommission = grossCommission - totalExpenses;
     const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
     const isSaleByBroker = brokerIds.includes(saleUserId);
 
     if (isSaleByBroker) {
       // Broker işlemi: %100 ofise
-      return { officeShare: grossCommission, agentShare: 0, isBrokerSale: true };
+      return {
+        officeShare: netCommission,
+        agentShare: 0,
+        isBrokerSale: true,
+        expenses: totalExpenses,
+        netCommission
+      };
     } else {
       // Danışman işlemi: %50/%50
-      return { officeShare: grossCommission * 0.5, agentShare: grossCommission * 0.5, isBrokerSale: false };
+      return {
+        officeShare: netCommission * 0.5,
+        agentShare: netCommission * 0.5,
+        isBrokerSale: false,
+        expenses: totalExpenses,
+        netCommission
+      };
     }
   };
 
@@ -1572,6 +1628,8 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
             <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danışman</th>
             <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fiyat/Kira</th>
             <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Brüt Komisyon</th>
+            <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Gider</th>
+            <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Net Komisyon</th>
             {isBroker ? (
               <>
                 <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis Payı</th>
@@ -1585,6 +1643,7 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
           {sales.map(sale => {
             const shares = calculateShares(sale);
+            const propertyId = sale.propertyId || sale.property_id;
             return (
               <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                 <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
@@ -1598,8 +1657,18 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
                     {sale.transactionType === 'rental' ? 'Kiralama' : 'Satış'}
                   </span>
                 </td>
-                <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">
-                  {sale.propertyTitle || '-'}
+                <td className="p-3 text-sm">
+                  {propertyId ? (
+                    <Link
+                      to={`/properties/${propertyId}`}
+                      className="font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      {sale.propertyTitle || 'Portföy'}
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  ) : (
+                    <span className="text-slate-800 dark:text-white">{sale.propertyTitle || '-'}</span>
+                  )}
                 </td>
                 <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                   <div className="flex items-center gap-1">
@@ -1616,6 +1685,18 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
                 </td>
                 <td className="p-3 text-sm text-right font-medium text-slate-600 dark:text-slate-400">
                   {(sale.commissionAmount || sale.commission_amount || 0).toLocaleString('tr-TR')} TL
+                </td>
+                <td className="p-3 text-sm text-right">
+                  {shares.expenses > 0 ? (
+                    <span className="text-red-500 dark:text-red-400 font-medium">
+                      -{shares.expenses.toLocaleString('tr-TR')} TL
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">-</span>
+                  )}
+                </td>
+                <td className="p-3 text-sm text-right font-bold text-emerald-600 dark:text-emerald-400">
+                  {shares.netCommission.toLocaleString('tr-TR')} TL
                 </td>
 
                 {isBroker ? (
