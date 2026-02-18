@@ -17,7 +17,7 @@ export const generateRealEstateAdvice = async (prompt: string): Promise<string> 
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: `Sen bir uzman Emlak Asistanısın. Kullanıcıya Türkçe cevap ver.
       Kullanıcının sorduğu soruya profesyonel, yardımsever ve kısa bir şekilde cevap ver.
       Eğer ilan açıklaması isteniyorsa, emlak terminolojisine uygun, cazip bir dil kullan.
