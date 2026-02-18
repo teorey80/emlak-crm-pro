@@ -1,6 +1,22 @@
 import { supabase } from './supabaseClient';
 import { Property, Activity } from '../types';
 
+/**
+ * Convert Turkish characters to ASCII equivalents for PDF compatibility
+ * (Helvetica font doesn't support Turkish characters)
+ */
+export function turkishToAscii(text: string): string {
+  const map: Record<string, string> = {
+    'ğ': 'g', 'Ğ': 'G',
+    'ü': 'u', 'Ü': 'U',
+    'ş': 's', 'Ş': 'S',
+    'ı': 'i', 'İ': 'I',
+    'ö': 'o', 'Ö': 'O',
+    'ç': 'c', 'Ç': 'C'
+  };
+  return text.replace(/[ğĞüÜşŞıİöÖçÇ]/g, char => map[char] || char);
+}
+
 export interface ActivityGroup {
   type: string;
   count: number;
@@ -97,13 +113,29 @@ export async function getPortfolioWeeklyReport(
     }
 
     // 4. Get activities for this property within date range
-    const { data: activities, error: activitiesError } = await supabase
+    // Try with snake_case first, then camelCase (database schema varies)
+    let { data: activities, error: activitiesError } = await supabase
       .from('activities')
       .select('*')
       .eq('property_id', propertyId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false });
+
+    // If no activities found with property_id, try propertyId (camelCase)
+    if ((!activities || activities.length === 0) && !activitiesError) {
+      const { data: activitiesCamel, error: errorCamel } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('propertyId', propertyId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (!errorCamel && activitiesCamel && activitiesCamel.length > 0) {
+        activities = activitiesCamel;
+      }
+    }
 
     if (activitiesError) {
       console.error('Error fetching activities:', activitiesError);
@@ -207,30 +239,30 @@ export async function getPortfolioWeeklyReport(
 }
 
 /**
- * Format date for display (Turkish format)
+ * Format date for display (Turkish format - ASCII compatible for PDF)
  */
 export function formatDateTurkish(dateStr: string): string {
   const date = new Date(dateStr);
   const months = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+    'Ocak', 'Subat', 'Mart', 'Nisan', 'Mayis', 'Haziran',
+    'Temmuz', 'Agustos', 'Eylul', 'Ekim', 'Kasim', 'Aralik'
   ];
   return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /**
- * Get activity type label in Turkish
+ * Get activity type label in Turkish (ASCII compatible for PDF)
  */
 export function getActivityTypeLabel(type: string): string {
   const labels: Record<string, string> = {
-    'Yer Gösterimi': 'Yer Gösterimi',
-    'Gelen Arama': 'Telefon Görüşmesi (Gelen)',
-    'Giden Arama': 'Telefon Görüşmesi (Giden)',
-    'Ofis Toplantısı': 'Ofis Toplantısı',
-    'Tapu İşlemi': 'Tapu İşlemi',
-    'Kira Kontratı': 'Kira Kontratı',
-    'Kapora Alındı': 'Kapora Alındı',
-    'Diğer': 'Diğer Aktivite'
+    'Yer Gösterimi': 'Yer Gosterimi',
+    'Gelen Arama': 'Telefon Gorusmesi (Gelen)',
+    'Giden Arama': 'Telefon Gorusmesi (Giden)',
+    'Ofis Toplantısı': 'Ofis Toplantisi',
+    'Tapu İşlemi': 'Tapu Islemi',
+    'Kira Kontratı': 'Kira Kontrati',
+    'Kapora Alındı': 'Kapora Alindi',
+    'Diğer': 'Diger Aktivite'
   };
-  return labels[type] || type;
+  return labels[type] || turkishToAscii(type);
 }

@@ -6,7 +6,13 @@ import {
   View,
   StyleSheet
 } from '@react-pdf/renderer';
-import { WeeklyReportData, formatDateTurkish, getActivityTypeLabel } from '../../services/reportService';
+import { WeeklyReportData, formatDateTurkish, getActivityTypeLabel, turkishToAscii } from '../../services/reportService';
+
+// Helper to convert text safely
+const t = (text: string | undefined | null): string => {
+  if (!text) return '';
+  return turkishToAscii(text);
+};
 
 const styles = StyleSheet.create({
   page: {
@@ -234,11 +240,11 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
     const statusMap: Record<string, string> = {
       'Olumlu': 'Olumlu geri donus',
       'Olumsuz': 'Olumsuz geri donus',
-      'Dusunuyor': 'Degerlendirilecek',
-      'Tamamlandi': 'Tamamlandi',
-      'Planlandi': 'Planlandi'
+      'Düşünüyor': 'Degerlendirilecek',
+      'Tamamlandı': 'Tamamlandi',
+      'Planlandı': 'Planlandi'
     };
-    return statusMap[status] || status;
+    return statusMap[status] || t(status);
   };
 
   return (
@@ -248,11 +254,11 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.logoPlaceholder}>
-              <Text style={styles.logoText}>{data.office.name?.substring(0, 2).toUpperCase() || 'OF'}</Text>
+              <Text style={styles.logoText}>{t(data.office.name)?.substring(0, 2).toUpperCase() || 'OF'}</Text>
             </View>
             <View style={styles.headerTitle}>
               <Text style={styles.title}>HAFTALIK PORTFOY RAPORU</Text>
-              <Text style={styles.subtitle}>{data.office.name || 'Emlak Ofisi'}</Text>
+              <Text style={styles.subtitle}>{t(data.office.name) || 'Emlak Ofisi'}</Text>
             </View>
             <View style={styles.dateInfo}>
               <Text>Rapor Donemi:</Text>
@@ -270,7 +276,7 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
         <View style={styles.consultantInfo}>
           <Text style={styles.consultantTitle}>Danisman Bilgileri</Text>
           <Text style={styles.consultantDetail}>
-            {data.consultant.name}
+            {t(data.consultant.name)}
             {data.consultant.phone && ` | Tel: ${data.consultant.phone}`}
             {data.consultant.email && ` | ${data.consultant.email}`}
           </Text>
@@ -286,16 +292,16 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
             </View>
             <View style={styles.propertyRow}>
               <Text style={styles.propertyLabel}>Ilan Basligi:</Text>
-              <Text style={styles.propertyValue}>{data.property.title}</Text>
+              <Text style={styles.propertyValue}>{t(data.property.title)}</Text>
             </View>
             <View style={styles.propertyRow}>
               <Text style={styles.propertyLabel}>Adres:</Text>
-              <Text style={styles.propertyValue}>{data.property.address || '-'}</Text>
+              <Text style={styles.propertyValue}>{t(data.property.address) || '-'}</Text>
             </View>
             <View style={styles.propertyRow}>
               <Text style={styles.propertyLabel}>Tip / Oda:</Text>
               <Text style={styles.propertyValue}>
-                {data.property.type} {data.property.rooms && `/ ${data.property.rooms}`}
+                {t(data.property.type)} {data.property.rooms && `/ ${data.property.rooms}`}
               </Text>
             </View>
             <View style={styles.propertyRow}>
@@ -310,7 +316,7 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
             </View>
             <View style={styles.propertyRow}>
               <Text style={styles.propertyLabel}>Durum:</Text>
-              <Text style={styles.propertyValue}>{data.property.status}</Text>
+              <Text style={styles.propertyValue}>{t(data.property.status)}</Text>
             </View>
           </View>
         </View>
@@ -360,7 +366,7 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
                     </Text>
                     {activity.description && (
                       <Text style={styles.activityDescription}>
-                        {activity.description}
+                        {t(activity.description)}
                       </Text>
                     )}
                     {activity.status && (
@@ -380,7 +386,7 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Genel Degerlendirme</Text>
             <View style={styles.evaluationSection}>
-              <Text style={styles.evaluationText}>{evaluation}</Text>
+              <Text style={styles.evaluationText}>{t(evaluation)}</Text>
             </View>
           </View>
         )}
@@ -390,7 +396,7 @@ const OwnerReportPDF: React.FC<OwnerReportPDFProps> = ({ data, evaluation }) => 
           <View style={styles.footerContent}>
             <View>
               <Text style={styles.footerLeft}>
-                Bu rapor {data.office.name || 'Emlak Ofisi'} tarafindan hazirlanmistir.
+                Bu rapor {t(data.office.name) || 'Emlak Ofisi'} tarafindan hazirlanmistir.
               </Text>
               {data.office.phone && (
                 <Text style={styles.footerLeft}>Tel: {data.office.phone}</Text>
