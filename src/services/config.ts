@@ -3,7 +3,7 @@
 // Fallback values for development/build issues
 const FALLBACK_SUPABASE_URL = "https://ofttxfmbhulnpbegliwp.supabase.co";
 const FALLBACK_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mdHR4Zm1iaHVsbnBiZWdsaXdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwOTk5MjAsImV4cCI6MjA4MDY3NTkyMH0._ntPFIsWPmWIiOFh0h6-BymsS4Izwftom9NbfmgQe88";
-const FALLBACK_GEMINI_KEY = "AIzaSyCBmKMylhAdzl3X5otJrAb1XZn3f8EweDs";
+const FALLBACK_GEMINI_KEY = "AIzaSyBeDq6GXIuZ7XnczDpN0Sj29mBiZ8JautQ";
 
 export const config = {
     supabaseUrl: import.meta.env.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL,
