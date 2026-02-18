@@ -1231,6 +1231,7 @@ const PropertyDetail: React.FC = () => {
                     propertyId={property.id}
                     propertyTitle={property.title}
                     userId={session.user.id}
+                    activities={propertyActivities}
                 />
             )}
         </div>

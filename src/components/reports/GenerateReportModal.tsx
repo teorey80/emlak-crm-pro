@@ -3,6 +3,7 @@ import { X, FileText, Download, Eye, Loader2, Calendar, AlertCircle } from 'luci
 import { PDFViewer, pdf } from '@react-pdf/renderer';
 import OwnerReportPDF from './OwnerReportPDF';
 import { getPortfolioWeeklyReport, WeeklyReportData } from '../../services/reportService';
+import { Activity } from '../../types';
 
 interface GenerateReportModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface GenerateReportModalProps {
   propertyId: string;
   propertyTitle: string;
   userId: string;
+  activities: Activity[];
 }
 
 const GenerateReportModal: React.FC<GenerateReportModalProps> = ({
@@ -17,7 +19,8 @@ const GenerateReportModal: React.FC<GenerateReportModalProps> = ({
   onClose,
   propertyId,
   propertyTitle,
-  userId
+  userId,
+  activities
 }) => {
   // Default to last 7 days
   const today = new Date();
@@ -47,7 +50,13 @@ const GenerateReportModal: React.FC<GenerateReportModalProps> = ({
     setError(null);
 
     try {
-      const data = await getPortfolioWeeklyReport(propertyId, startDate, endDate, userId);
+      // Filter activities by date range
+      const filteredActivities = activities.filter(a => {
+        const actDate = a.date;
+        return actDate >= startDate && actDate <= endDate;
+      });
+
+      const data = await getPortfolioWeeklyReport(propertyId, startDate, endDate, userId, filteredActivities);
 
       if (data) {
         setReportData(data);

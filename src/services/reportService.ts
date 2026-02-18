@@ -70,12 +70,14 @@ export interface WeeklyReportData {
 /**
  * Get weekly report data for a property
  * Note: Customer names and phone numbers are NOT included for privacy
+ * @param passedActivities - Activities passed from the parent component (already filtered by propertyId)
  */
 export async function getPortfolioWeeklyReport(
   propertyId: string,
   startDate: string,
   endDate: string,
-  userId: string
+  userId: string,
+  passedActivities?: Activity[]
 ): Promise<WeeklyReportData | null> {
   try {
     // 1. Get property details
@@ -112,36 +114,8 @@ export async function getPortfolioWeeklyReport(
       officeData = office;
     }
 
-    // 4. Get activities for this property within date range
-    // Try with snake_case first, then camelCase (database schema varies)
-    let { data: activities, error: activitiesError } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('property_id', propertyId)
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: false });
-
-    // If no activities found with property_id, try propertyId (camelCase)
-    if ((!activities || activities.length === 0) && !activitiesError) {
-      const { data: activitiesCamel, error: errorCamel } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('propertyId', propertyId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: false });
-
-      if (!errorCamel && activitiesCamel && activitiesCamel.length > 0) {
-        activities = activitiesCamel;
-      }
-    }
-
-    if (activitiesError) {
-      console.error('Error fetching activities:', activitiesError);
-    }
-
-    const activityList = activities || [];
+    // 4. Use passed activities (already filtered by date range from modal)
+    const activityList = passedActivities || [];
 
     // 5. Group activities by type
     const groupedActivities: Record<string, ActivityGroup> = {};
