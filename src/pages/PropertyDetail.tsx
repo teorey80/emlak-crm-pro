@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
@@ -9,6 +9,7 @@ import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
 import { notifyDeposit } from '../services/notificationService';
 import { supabase } from '../services/supabaseClient';
+import GenerateReportModal from '../components/reports/GenerateReportModal';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -31,6 +32,7 @@ const PropertyDetail: React.FC = () => {
     const [kaporaNotes, setKaporaNotes] = useState('');
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [showReportModal, setShowReportModal] = useState(false);
 
     useEffect(() => {
         const fetchFullProperty = async () => {
@@ -615,6 +617,16 @@ const PropertyDetail: React.FC = () => {
                                 <Map className="w-4 h-4" />
                                 Yer Gösterimi Ekle
                             </Link>
+                            {/* Weekly Report Button - Only for brokers */}
+                            {(userProfile?.role === 'broker' || userProfile?.role === 'ofis_broker' || userProfile?.role === 'admin' || userProfile?.role === 'owner') && (
+                                <button
+                                    onClick={() => setShowReportModal(true)}
+                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    Haftalık Rapor Oluştur
+                                </button>
+                            )}
                             {canManageProperty ? (
                                 <>
                                     <Link to={`/properties/edit/${id}`} className="w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
@@ -1209,6 +1221,17 @@ const PropertyDetail: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Weekly Report Modal */}
+            {session?.user?.id && (
+                <GenerateReportModal
+                    isOpen={showReportModal}
+                    onClose={() => setShowReportModal(false)}
+                    propertyId={property.id}
+                    propertyTitle={property.title}
+                    userId={session.user.id}
+                />
             )}
         </div>
     );
