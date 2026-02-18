@@ -4,30 +4,14 @@ import {
   Page,
   Text,
   View,
-  StyleSheet,
-  Font
+  StyleSheet
 } from '@react-pdf/renderer';
 import { WeeklyReportData, formatDateTurkish, getActivityTypeLabel } from '../../services/reportService';
-
-// Register a font that supports Turkish characters
-Font.register({
-  family: 'Roboto',
-  fonts: [
-    {
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf',
-      fontWeight: 'normal'
-    },
-    {
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-bold-webfont.ttf',
-      fontWeight: 'bold'
-    }
-  ]
-});
 
 const styles = StyleSheet.create({
   page: {
     padding: 40,
-    fontFamily: 'Roboto',
+    fontFamily: 'Helvetica',
     fontSize: 10,
     color: '#1f2937'
   },
