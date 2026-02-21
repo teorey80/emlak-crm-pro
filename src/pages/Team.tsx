@@ -179,8 +179,8 @@ const Team: React.FC = () => {
     }, [teamMembers, properties, activities, sales, currentMonthRange]);
 
     const filteredTeam = teamWithStats.filter(member =>
-        member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        member.title.toLowerCase().includes(searchQuery.toLowerCase())
+        (member.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+        (member.title?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
 
     // Sort by performance for ranking

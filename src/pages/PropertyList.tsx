@@ -81,8 +81,8 @@ const PropertyList: React.FC = () => {
                 // Text Search (Title or Location)
                 const searchLower = searchTerm.toLowerCase();
                 const matchesSearch =
-                    property.title.toLowerCase().includes(searchLower) ||
-                    property.location.toLowerCase().includes(searchLower);
+                    (property.title?.toLowerCase() || '').includes(searchLower) ||
+                    (property.location?.toLowerCase() || '').includes(searchLower);
 
                 // Status Filter
                 const matchesStatus = statusFilter === 'Tümü' || property.status === statusFilter;

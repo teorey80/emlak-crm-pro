@@ -43,8 +43,8 @@ const ActivityList: React.FC = () => {
 
     const filteredActivities = activities.filter(a => {
         const matchesSearch =
-            a.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (a.propertyTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+            (a.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (a.propertyTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const matchesType = currentFilterType === 'Tümü' || a.type === currentFilterType;
 
         return matchesSearch && matchesType;

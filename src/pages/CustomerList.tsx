@@ -46,8 +46,8 @@ const CustomerList: React.FC = () => {
         return customers
             .filter(c =>
                 (selectedType === '' || c.customerType === selectedType) &&
-                (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    c.email.toLowerCase().includes(searchTerm.toLowerCase()))
+                ((c.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                    (c.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()))
             )
             .sort((a, b) => {
                 if (!sortColumn) return 0;
