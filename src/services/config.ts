@@ -9,3 +9,10 @@ export const config = {
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON_KEY,
     geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || ''
 };
+
+// Debug: Log config status (remove in production later)
+console.log('Config loaded:', {
+    hasGeminiKey: !!config.geminiApiKey,
+    geminiKeyLength: config.geminiApiKey?.length || 0,
+    geminiKeyPrefix: config.geminiApiKey?.substring(0, 10) || 'EMPTY'
+});
