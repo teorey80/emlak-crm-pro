@@ -11,15 +11,16 @@ const PropertyList: React.FC = () => {
     const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore } = useData();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Filter States - Initialize from URL params
+    // Filter States - Initialize from URL params with sensible defaults
+    // Default: Aktif listings only, user's own properties
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'Tümü'); // Satılık/Kiralık
-    const [listingStatusFilter, setListingStatusFilter] = useState(searchParams.get('listing_status') || 'Tümü'); // Aktif/Pasif/Satıldı/Kiralandı
+    const [listingStatusFilter, setListingStatusFilter] = useState(searchParams.get('listing_status') || 'Aktif'); // Default to Aktif
     const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || 'Tümü');
     const [minPrice, setMinPrice] = useState(searchParams.get('min_price') || '');
     const [maxPrice, setMaxPrice] = useState(searchParams.get('max_price') || '');
     const [sortOrder, setSortOrder] = useState('dateDesc');
-    const [viewScope, setViewScope] = useState<'all' | 'mine'>((searchParams.get('scope') as 'all' | 'mine') || 'all');
+    const [viewScope, setViewScope] = useState<'all' | 'mine'>((searchParams.get('scope') as 'all' | 'mine') || 'mine'); // Default to mine
     const [cityFilter, setCityFilter] = useState(searchParams.get('city') || '');
 
     // Update URL when filters change
@@ -145,7 +146,7 @@ const PropertyList: React.FC = () => {
     const clearFilters = () => {
         setSearchTerm('');
         setStatusFilter('Tümü');
-        setListingStatusFilter('Tümü'); // Reset to Tümü
+        setListingStatusFilter('Aktif'); // Reset to default (Aktif)
         setTypeFilter('Tümü');
         setMinPrice('');
         setMaxPrice('');
@@ -153,6 +154,7 @@ const PropertyList: React.FC = () => {
         setSortOrder('dateDesc');
         setSortColumn(null);
         setSortDirection('asc');
+        setViewScope('mine'); // Reset to default (mine)
     };
 
     return (
@@ -178,7 +180,7 @@ const PropertyList: React.FC = () => {
                         <Filter className="w-4 h-4" />
                         <span>Filtreleme Seçenekleri</span>
                     </div>
-                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Tümü' || typeFilter !== 'Tümü' || minPrice || maxPrice || cityFilter) && (
+                    {(searchTerm || statusFilter !== 'Tümü' || listingStatusFilter !== 'Aktif' || typeFilter !== 'Tümü' || minPrice || maxPrice || cityFilter || viewScope !== 'mine') && (
                         <button
                             onClick={clearFilters}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"

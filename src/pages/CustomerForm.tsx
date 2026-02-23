@@ -28,13 +28,22 @@ const CustomerForm: React.FC = () => {
         maritalStatus: undefined,
     });
 
+    // State for custom source when "Diğer" is selected
+    const [customSource, setCustomSource] = useState('');
+
     const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
 
     useEffect(() => {
         if (id) {
             const customer = customers.find(c => c.id === id);
             if (customer) {
-                setFormData(customer);
+                // Check if source starts with "Diğer: " and extract custom source
+                if (customer.source?.startsWith('Diğer: ')) {
+                    setCustomSource(customer.source.substring(7)); // Remove "Diğer: " prefix
+                    setFormData({ ...customer, source: 'Diğer' });
+                } else {
+                    setFormData(customer);
+                }
             }
         }
     }, [id, customers]);
@@ -82,7 +91,9 @@ const CustomerForm: React.FC = () => {
             phone: formData.phone || '',
             status: formData.status || 'Aktif',
             customerType: formData.customerType,
-            source: formData.source || 'Web Sitesi',
+            source: formData.source === 'Diğer' && customSource.trim()
+                ? `Diğer: ${customSource.trim()}`
+                : (formData.source || 'Web Sitesi'),
             notes: formData.notes,
             hasPets: formData.hasPets,
             petDetails: formData.petDetails,
@@ -174,17 +185,32 @@ const CustomerForm: React.FC = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Kaynak</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Kaynak (Gelme Sebebi)</label>
                                 <select
                                     className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
                                     value={formData.source}
-                                    onChange={e => setFormData({ ...formData, source: e.target.value })}
+                                    onChange={e => {
+                                        setFormData({ ...formData, source: e.target.value });
+                                        if (e.target.value !== 'Diğer') setCustomSource('');
+                                    }}
                                 >
                                     <option value="Web Sitesi">Web Sitesi</option>
+                                    <option value="Sahibinden.com">Sahibinden.com</option>
                                     <option value="Tavsiye">Tavsiye</option>
                                     <option value="Sosyal Medya">Sosyal Medya</option>
+                                    <option value="Tabela">Tabela</option>
+                                    <option value="Telefon">Telefon</option>
                                     <option value="Diğer">Diğer</option>
                                 </select>
+                                {formData.source === 'Diğer' && (
+                                    <input
+                                        type="text"
+                                        placeholder="Lütfen belirtin..."
+                                        className="w-full mt-2 rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                        value={customSource}
+                                        onChange={e => setCustomSource(e.target.value)}
+                                    />
+                                )}
                             </div>
 
                             <fieldset className="border-t border-gray-200 dark:border-slate-700 pt-6">
@@ -242,10 +268,12 @@ const CustomerForm: React.FC = () => {
                                 >
                                     <option value="">Seçiniz</option>
                                     <option value="Alıcı">Alıcı</option>
+                                    <option value="Alıcı Adayı">Alıcı Adayı</option>
                                     <option value="Satıcı">Satıcı</option>
                                     <option value="Kiracı">Kiracı</option>
                                     <option value="Kiracı Adayı">Kiracı Adayı</option>
                                     <option value="Mal Sahibi">Mal Sahibi</option>
+                                    <option value="Diğer">Diğer</option>
                                 </select>
                             </div>
                         </div>

@@ -1659,6 +1659,53 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setActivities(prev => [...activitiesToAdd, ...prev]);
 
     // --------------------------------------------------------
+    // 2.5 Auto-update Customer Type (Kiracı Adayı → Kiracı, Alıcı Adayı → Alıcı)
+    // --------------------------------------------------------
+    const autoUpdateCustomerType = async () => {
+      if (!saleWithId.buyerId) return;
+
+      const buyer = customers.find(c => c.id === saleWithId.buyerId);
+      if (!buyer) return;
+
+      let newType: string | null = null;
+
+      if (saleWithId.transactionType === 'rental' && buyer.customerType === 'Kiracı Adayı') {
+        newType = 'Kiracı';
+      } else if (saleWithId.transactionType === 'sale' && buyer.customerType === 'Alıcı Adayı') {
+        newType = 'Alıcı';
+      }
+
+      if (newType) {
+        // Update local state
+        const updatedCustomer = { ...buyer, customerType: newType };
+        setCustomers(prev => prev.map(c => c.id === buyer.id ? updatedCustomer : c));
+
+        // Update database
+        try {
+          const { error } = await supabase
+            .from('customers')
+            .update({ customerType: newType, customer_type: newType })
+            .eq('id', buyer.id);
+
+          if (error) {
+            // Try snake_case only
+            await supabase
+              .from('customers')
+              .update({ customer_type: newType })
+              .eq('id', buyer.id);
+          }
+
+          console.log(`[addSale] Auto-updated customer type: ${buyer.customerType} → ${newType}`);
+        } catch (error) {
+          console.warn('Failed to auto-update customer type:', error);
+        }
+      }
+    };
+
+    // Execute customer type update
+    autoUpdateCustomerType();
+
+    // --------------------------------------------------------
     // 3. Database Operations
     // --------------------------------------------------------
     const isUnknownColumnError = (error: any) => {

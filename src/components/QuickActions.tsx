@@ -84,6 +84,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer'>('Alıcı');
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -109,6 +110,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('Alıcı');
       setCallDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
@@ -182,7 +184,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: 'Telefon',
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -373,8 +375,20 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="Müşteri adını giriniz..."
-                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm mb-2"
                 />
+                <select
+                  value={newCustomerType}
+                  onChange={(e) => setNewCustomerType(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                >
+                  <option value="Alıcı">Alıcı</option>
+                  <option value="Alıcı Adayı">Alıcı Adayı</option>
+                  <option value="Satıcı">Satıcı</option>
+                  <option value="Kiracı Adayı">Kiracı Adayı</option>
+                  <option value="Mal Sahibi">Mal Sahibi</option>
+                  <option value="Diğer">Diğer</option>
+                </select>
               </div>
             )}
           </div>
@@ -584,6 +598,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer'>('Alıcı');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when modal opens
@@ -608,6 +623,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('Alıcı');
     }
   }, [isOpen]);
 
@@ -678,7 +694,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: channel,
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -818,8 +834,20 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="Müşteri adını giriniz..."
-                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm mb-2"
                 />
+                <select
+                  value={newCustomerType}
+                  onChange={(e) => setNewCustomerType(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+                >
+                  <option value="Alıcı">Alıcı</option>
+                  <option value="Alıcı Adayı">Alıcı Adayı</option>
+                  <option value="Satıcı">Satıcı</option>
+                  <option value="Kiracı Adayı">Kiracı Adayı</option>
+                  <option value="Mal Sahibi">Mal Sahibi</option>
+                  <option value="Diğer">Diğer</option>
+                </select>
               </div>
             )}
           </div>

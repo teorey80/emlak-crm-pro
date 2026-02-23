@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign, Filter } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign, Filter, AlertTriangle } from 'lucide-react';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
@@ -92,6 +92,49 @@ const Dashboard: React.FC = () => {
   const smartMatches = React.useMemo(() => {
     return findMatches(properties, requests).slice(0, 3);
   }, [properties, requests]);
+
+  // Calculate customers about to become passive (45-60 days without activity)
+  const customersAtRisk = useMemo(() => {
+    const today = new Date();
+    const fortyFiveDaysAgo = new Date(today.getTime() - 45 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    return customers
+      .filter(customer => {
+        if (customer.status === 'Pasif') return false;
+
+        // Find the most recent activity date for this customer
+        const customerActivities = activities.filter(a => a.customerId === customer.id);
+        const lastActivityDate = customerActivities.length > 0
+          ? new Date(Math.max(...customerActivities.map(a => new Date(a.date).getTime())))
+          : null;
+
+        // Use last activity date or customer creation date
+        const referenceDate = lastActivityDate || (customer.createdAt ? new Date(customer.createdAt) : null);
+        if (!referenceDate) return false;
+
+        // Check if between 45-60 days
+        return referenceDate <= fortyFiveDaysAgo && referenceDate > sixtyDaysAgo;
+      })
+      .map(customer => {
+        const customerActivities = activities.filter(a => a.customerId === customer.id);
+        const lastActivityDate = customerActivities.length > 0
+          ? new Date(Math.max(...customerActivities.map(a => new Date(a.date).getTime())))
+          : (customer.createdAt ? new Date(customer.createdAt) : new Date());
+
+        const daysSinceActivity = Math.floor((today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysUntilPassive = 60 - daysSinceActivity;
+
+        return {
+          ...customer,
+          lastActivityDate: lastActivityDate.toISOString().split('T')[0],
+          daysSinceActivity,
+          daysUntilPassive
+        };
+      })
+      .sort((a, b) => a.daysUntilPassive - b.daysUntilPassive) // Sort by urgency
+      .slice(0, 5);
+  }, [customers, activities]);
 
   // Get user name from teamMembers
   const getUserName = (userId: string | undefined) => {
@@ -268,6 +311,61 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Warning Card: Customers About to Become Passive */}
+      {customersAtRisk.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-amber-100 dark:bg-amber-800/50 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-amber-800 dark:text-amber-200">Pasife Düşmek Üzere Müşteriler</h3>
+                <p className="text-xs text-amber-600 dark:text-amber-400">{customersAtRisk.length} müşteri 60 gün içinde pasif olacak</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/customers')}
+              className="text-sm text-amber-700 dark:text-amber-300 hover:underline font-medium"
+            >
+              Tümünü Gör
+            </button>
+          </div>
+          <div className="space-y-2">
+            {customersAtRisk.map((customer) => (
+              <div
+                key={customer.id}
+                onClick={() => navigate(`/customers/${customer.id}`)}
+                className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-amber-100 dark:border-amber-900 cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src={customer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}`}
+                    className="w-10 h-10 rounded-full border-2 border-amber-200 dark:border-amber-700"
+                    alt={customer.name}
+                  />
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-white text-sm">{customer.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      Son aktivite: {customer.lastActivityDate}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${
+                    customer.daysUntilPassive <= 5
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {customer.daysUntilPassive} gün kaldı
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 animate-fade-in">
 

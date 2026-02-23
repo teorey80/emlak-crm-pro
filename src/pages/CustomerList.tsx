@@ -1,14 +1,43 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Plus, Trash2, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
+
+// Helper function to calculate activity status
+const getActivityStatus = (
+  customerId: string,
+  customerCreatedAt: string | undefined,
+  activities: { customerId?: string; date: string }[]
+): { status: 'active' | 'warning' | 'passive'; daysSince: number; label: string } => {
+  const today = new Date();
+  const customerActivities = activities.filter(a => a.customerId === customerId);
+
+  let referenceDate: Date;
+  if (customerActivities.length > 0) {
+    referenceDate = new Date(Math.max(...customerActivities.map(a => new Date(a.date).getTime())));
+  } else if (customerCreatedAt) {
+    referenceDate = new Date(customerCreatedAt);
+  } else {
+    referenceDate = today;
+  }
+
+  const daysSince = Math.floor((today.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysSince <= 45) {
+    return { status: 'active', daysSince, label: 'Aktif' };
+  } else if (daysSince <= 60) {
+    return { status: 'warning', daysSince, label: 'Uyarı' };
+  } else {
+    return { status: 'passive', daysSince, label: 'Pasif' };
+  }
+};
 
 // Sortable column type
 type SortColumn = 'name' | 'phone' | 'email' | 'status' | 'customerType' | 'createdAt' | null;
 type SortDirection = 'asc' | 'desc';
 
 const CustomerList: React.FC = () => {
-    const { customers, deleteCustomer, hasMoreCustomers, loadMoreCustomers, loadingMore } = useData();
+    const { customers, deleteCustomer, hasMoreCustomers, loadMoreCustomers, loadingMore, activities } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
 
@@ -49,7 +78,17 @@ const CustomerList: React.FC = () => {
                 ((c.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                     (c.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()))
             )
+            .map(c => ({
+                ...c,
+                activityStatus: getActivityStatus(c.id, c.createdAt, activities)
+            }))
             .sort((a, b) => {
+                // First, sort passive customers to the end
+                const statusOrder = { active: 0, warning: 1, passive: 2 };
+                const statusDiff = statusOrder[a.activityStatus.status] - statusOrder[b.activityStatus.status];
+                if (statusDiff !== 0) return statusDiff;
+
+                // Then apply column sorting
                 if (!sortColumn) return 0;
 
                 const multiplier = sortDirection === 'asc' ? 1 : -1;
@@ -70,7 +109,7 @@ const CustomerList: React.FC = () => {
                         return 0;
                 }
             });
-    }, [customers, searchTerm, selectedType, sortColumn, sortDirection]);
+    }, [customers, searchTerm, selectedType, sortColumn, sortDirection, activities]);
 
     const handleDelete = async (id: string) => {
         if (window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
@@ -118,10 +157,12 @@ const CustomerList: React.FC = () => {
                     >
                         <option value="">Tümü (Müşteri Tipi)</option>
                         <option value="Alıcı">Alıcı</option>
+                        <option value="Alıcı Adayı">Alıcı Adayı</option>
                         <option value="Satıcı">Satıcı</option>
                         <option value="Kiracı">Kiracı</option>
                         <option value="Kiracı Adayı">Kiracı Adayı</option>
                         <option value="Mal Sahibi">Mal Sahibi</option>
+                        <option value="Diğer">Diğer</option>
                     </select>
                 </div>
             </div>
@@ -135,6 +176,12 @@ const CustomerList: React.FC = () => {
                             <SortableHeader column="phone" label="Telefon" />
                             <SortableHeader column="email" label="E-posta" />
                             <SortableHeader column="status" label="Durum" />
+                            <th className="p-4">
+                                <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    <span>Aktivite</span>
+                                </div>
+                            </th>
                             <SortableHeader column="customerType" label="Müşteri Tipi" />
                             <SortableHeader column="createdAt" label="Oluşturulma" />
                             <th className="p-4 text-right">İşlemler</th>
@@ -158,6 +205,24 @@ const CustomerList: React.FC = () => {
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                                         }`}>
                                         {customer.status}
+                                    </span>
+                                </td>
+                                <td className="p-4">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                        customer.activityStatus.status === 'active'
+                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                            : customer.activityStatus.status === 'warning'
+                                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                                                : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                    }`}>
+                                        <span className={`w-2 h-2 rounded-full ${
+                                            customer.activityStatus.status === 'active'
+                                                ? 'bg-green-500'
+                                                : customer.activityStatus.status === 'warning'
+                                                    ? 'bg-amber-500'
+                                                    : 'bg-red-500'
+                                        }`}></span>
+                                        {customer.activityStatus.daysSince}g
                                     </span>
                                 </td>
                                 <td className="p-4 text-gray-600 dark:text-slate-400">

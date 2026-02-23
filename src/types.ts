@@ -150,7 +150,7 @@ export interface Customer {
   email: string;
   phone: string;
   status: 'Aktif' | 'Potansiyel' | 'Pasif';
-  customerType?: 'Alıcı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi';
+  customerType?: 'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer';
   source: string;
   createdAt: string;
   interactions: Interaction[]; // Kept for backward compatibility but will use global Activities
