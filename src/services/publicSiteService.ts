@@ -145,8 +145,8 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
     console.log('[PublicSite] Fetching from DB:', cleanDomain);
 
     try {
-        // PARALLEL QUERIES: Fetch profiles and offices at the same time
-        const [profilesResult, officesResult] = await Promise.all([
+        // PARALLEL QUERIES: Fetch profiles and offices at the same time with timeout
+        const siteConfigQuery = Promise.all([
             supabase
                 .from('profiles')
                 .select('id, full_name, site_config')
@@ -158,6 +158,16 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                 .not('site_config', 'is', null)
                 .limit(50)
         ]);
+
+        // 10 second timeout for site config queries
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Site config query timeout')), 10000)
+        );
+
+        const [profilesResult, officesResult] = await Promise.race([siteConfigQuery, timeoutPromise]) as [
+            { data: any[] | null; error: any },
+            { data: any[] | null; error: any }
+        ];
 
         const profiles = profilesResult.data;
         const offices = officesResult.data;
@@ -194,20 +204,32 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
 
-                        // Fetch properties - optimized with specific columns and DB-level filtering
-                        const { data: props, error: propsError } = await supabase
-                            .from('properties')
-                            .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                            .eq('user_id', profile.id)
-                            .or('listing_status.eq.Aktif,listing_status.is.null')
-                            .limit(24);
+                        // Fetch properties with timeout protection - don't let it block site detection
+                        let activeProps: Property[] = [];
+                        try {
+                            const propsPromise = supabase
+                                .from('properties')
+                                .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                                .eq('user_id', profile.id)
+                                .or('listing_status.eq.Aktif,listing_status.is.null')
+                                .limit(24);
 
-                        console.log('[PublicSite] Properties query for user:', profile.id);
-                        console.log('[PublicSite] Properties found:', props?.length || 0);
-                        if (propsError) console.error('[PublicSite] Properties error:', propsError);
+                            // 8 second timeout for properties query
+                            const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+                                setTimeout(() => resolve({ data: null, error: new Error('Properties query timeout') }), 8000)
+                            );
 
-                        // Already filtered at DB level
-                        const activeProps = props || [];
+                            const { data: props, error: propsError } = await Promise.race([propsPromise, timeoutPromise]);
+
+                            console.log('[PublicSite] Properties query for user:', profile.id);
+                            console.log('[PublicSite] Properties found:', props?.length || 0);
+                            if (propsError) console.warn('[PublicSite] Properties error (non-blocking):', propsError);
+
+                            activeProps = props || [];
+                        } catch (propsErr) {
+                            console.warn('[PublicSite] Properties fetch failed (non-blocking):', propsErr);
+                            // Continue with empty properties - site will still load
+                        }
 
                         const result: PublicSiteData = {
                             type: 'personal',
@@ -235,52 +257,67 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Office site:', office.name);
 
-                        // Get office members
-                        const { data: members } = await supabase
-                            .from('profiles')
-                            .select('id')
-                            .eq('office_id', office.id)
-                            .limit(20);
+                        // Fetch properties with timeout protection - don't let it block site detection
+                        let allProps: Property[] = [];
+                        try {
+                            // Get office members
+                            const { data: members } = await supabase
+                                .from('profiles')
+                                .select('id')
+                                .eq('office_id', office.id)
+                                .limit(20);
 
-                        const memberIds = members?.map(m => m.id) || [];
+                            const memberIds = members?.map(m => m.id) || [];
 
-                        // Get properties (office_id based) - optimized query
-                        const { data: officeProps } = await supabase
-                            .from('properties')
-                            .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                            .eq('office_id', office.id)
-                            .or('listing_status.eq.Aktif,listing_status.is.null')
-                            .limit(24);
-
-                        let allProps = officeProps || [];
-
-                        // Also get member properties if any - optimized query
-                        if (memberIds.length > 0) {
-                            const { data: memberProps } = await supabase
+                            // Get properties (office_id based) - optimized query with timeout
+                            const officePropsPromise = supabase
                                 .from('properties')
                                 .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                .in('user_id', memberIds)
+                                .eq('office_id', office.id)
                                 .or('listing_status.eq.Aktif,listing_status.is.null')
                                 .limit(24);
 
-                            if (memberProps) {
-                                const existingIds = new Set(allProps.map(p => p.id));
-                                for (const p of memberProps) {
-                                    if (!existingIds.has(p.id)) {
-                                        allProps.push(p);
+                            const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+                                setTimeout(() => resolve({ data: null, error: new Error('Properties query timeout') }), 8000)
+                            );
+
+                            const { data: officeProps, error: officePropsError } = await Promise.race([officePropsPromise, timeoutPromise]);
+                            if (officePropsError) console.warn('[PublicSite] Office properties error (non-blocking):', officePropsError);
+
+                            allProps = officeProps || [];
+
+                            // Also get member properties if any - optimized query
+                            if (memberIds.length > 0 && allProps.length < 24) {
+                                try {
+                                    const { data: memberProps } = await supabase
+                                        .from('properties')
+                                        .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                                        .in('user_id', memberIds)
+                                        .or('listing_status.eq.Aktif,listing_status.is.null')
+                                        .limit(24);
+
+                                    if (memberProps) {
+                                        const existingIds = new Set(allProps.map(p => p.id));
+                                        for (const p of memberProps) {
+                                            if (!existingIds.has(p.id)) {
+                                                allProps.push(p);
+                                            }
+                                        }
                                     }
+                                } catch (memberPropsErr) {
+                                    console.warn('[PublicSite] Member properties fetch failed (non-blocking):', memberPropsErr);
                                 }
                             }
+                        } catch (propsErr) {
+                            console.warn('[PublicSite] Office properties fetch failed (non-blocking):', propsErr);
+                            // Continue with empty properties - site will still load
                         }
-
-                        // Already filtered at DB level
-                        const activeProps = allProps;
 
                         const result: PublicSiteData = {
                             type: 'office',
                             officeId: office.id,
                             siteConfig: config,
-                            properties: activeProps,
+                            properties: allProps,
                             officeName: office.name
                         };
 
