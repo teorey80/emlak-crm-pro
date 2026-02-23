@@ -204,31 +204,35 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
 
-                        // Fetch properties with timeout protection - don't let it block site detection
+                        // Fetch properties with retry logic for slow connections
                         let activeProps: Property[] = [];
+                        const fetchProps = async (attempt: number = 1): Promise<Property[]> => {
+                            try {
+                                const { data, error } = await supabase
+                                    .from('properties')
+                                    .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                                    .eq('user_id', profile.id)
+                                    .or('listing_status.eq.Aktif,listing_status.is.null')
+                                    .limit(24);
+
+                                if (error) throw error;
+                                return data || [];
+                            } catch (err) {
+                                console.warn(`[PublicSite] Properties fetch attempt ${attempt} failed:`, err);
+                                if (attempt < 3) {
+                                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s between retries
+                                    return fetchProps(attempt + 1);
+                                }
+                                return [];
+                            }
+                        };
+
                         try {
-                            const propsPromise = supabase
-                                .from('properties')
-                                .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                .eq('user_id', profile.id)
-                                .or('listing_status.eq.Aktif,listing_status.is.null')
-                                .limit(24);
-
-                            // 8 second timeout for properties query
-                            const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-                                setTimeout(() => resolve({ data: null, error: new Error('Properties query timeout') }), 8000)
-                            );
-
-                            const { data: props, error: propsError } = await Promise.race([propsPromise, timeoutPromise]);
-
+                            activeProps = await fetchProps();
                             console.log('[PublicSite] Properties query for user:', profile.id);
-                            console.log('[PublicSite] Properties found:', props?.length || 0);
-                            if (propsError) console.warn('[PublicSite] Properties error (non-blocking):', propsError);
-
-                            activeProps = props || [];
+                            console.log('[PublicSite] Properties found:', activeProps.length);
                         } catch (propsErr) {
                             console.warn('[PublicSite] Properties fetch failed (non-blocking):', propsErr);
-                            // Continue with empty properties - site will still load
                         }
 
                         const result: PublicSiteData = {
@@ -257,8 +261,29 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Office site:', office.name);
 
-                        // Fetch properties with timeout protection - don't let it block site detection
+                        // Fetch properties with retry logic for slow connections
                         let allProps: Property[] = [];
+                        const fetchOfficeProps = async (attempt: number = 1): Promise<Property[]> => {
+                            try {
+                                const { data, error } = await supabase
+                                    .from('properties')
+                                    .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                                    .eq('office_id', office.id)
+                                    .or('listing_status.eq.Aktif,listing_status.is.null')
+                                    .limit(24);
+
+                                if (error) throw error;
+                                return data || [];
+                            } catch (err) {
+                                console.warn(`[PublicSite] Office properties fetch attempt ${attempt} failed:`, err);
+                                if (attempt < 3) {
+                                    await new Promise(r => setTimeout(r, 1000 * attempt));
+                                    return fetchOfficeProps(attempt + 1);
+                                }
+                                return [];
+                            }
+                        };
+
                         try {
                             // Get office members
                             const { data: members } = await supabase
@@ -269,24 +294,11 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
 
                             const memberIds = members?.map(m => m.id) || [];
 
-                            // Get properties (office_id based) - optimized query with timeout
-                            const officePropsPromise = supabase
-                                .from('properties')
-                                .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                .eq('office_id', office.id)
-                                .or('listing_status.eq.Aktif,listing_status.is.null')
-                                .limit(24);
+                            // Get properties (office_id based) with retry
+                            allProps = await fetchOfficeProps();
+                            console.log('[PublicSite] Office properties found:', allProps.length);
 
-                            const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-                                setTimeout(() => resolve({ data: null, error: new Error('Properties query timeout') }), 8000)
-                            );
-
-                            const { data: officeProps, error: officePropsError } = await Promise.race([officePropsPromise, timeoutPromise]);
-                            if (officePropsError) console.warn('[PublicSite] Office properties error (non-blocking):', officePropsError);
-
-                            allProps = officeProps || [];
-
-                            // Also get member properties if any - optimized query
+                            // Also get member properties if any
                             if (memberIds.length > 0 && allProps.length < 24) {
                                 try {
                                     const { data: memberProps } = await supabase
@@ -310,7 +322,6 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                             }
                         } catch (propsErr) {
                             console.warn('[PublicSite] Office properties fetch failed (non-blocking):', propsErr);
-                            // Continue with empty properties - site will still load
                         }
 
                         const result: PublicSiteData = {
