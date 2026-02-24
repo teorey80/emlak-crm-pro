@@ -243,10 +243,35 @@ const App: React.FC = () => {
   const hostname = window.location.hostname;
   const skipCheck = shouldSkipPublicSiteCheck(hostname);
 
-  const [isPublicSite, setIsPublicSite] = useState<boolean | null>(skipCheck ? false : null);
+  // Check for preview mode via URL parameter: ?preview=public
+  const urlParams = new URLSearchParams(window.location.search);
+  const previewMode = urlParams.get('preview') === 'public';
+
+  const [isPublicSite, setIsPublicSite] = useState<boolean | null>(skipCheck && !previewMode ? false : null);
   const [publicSiteData, setPublicSiteData] = useState<PublicSiteData | null>(null);
 
   useEffect(() => {
+    // If preview mode is enabled, fetch ademaslan.com site data for preview
+    if (previewMode) {
+      const fetchPreviewData = async () => {
+        try {
+          const siteData = await getSiteByDomain('ademaslan.com');
+          if (siteData) {
+            setIsPublicSite(true);
+            setPublicSiteData(siteData);
+          } else {
+            // Fallback: create demo data for preview
+            setIsPublicSite(false);
+          }
+        } catch (error) {
+          console.error('Preview fetch failed:', error);
+          setIsPublicSite(false);
+        }
+      };
+      fetchPreviewData();
+      return;
+    }
+
     // If we already know this is not a public site domain, don't do anything
     if (skipCheck) {
       return;
@@ -271,7 +296,7 @@ const App: React.FC = () => {
     };
 
     checkDomain();
-  }, [hostname, skipCheck]);
+  }, [hostname, skipCheck, previewMode]);
 
   // Still checking domain (only for custom domains)
   if (isPublicSite === null) {
