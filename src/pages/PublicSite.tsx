@@ -273,6 +273,10 @@ interface LayoutProps {
     ownerName?: string;
 }
 
+// Profile image and logo paths - update these with actual images
+const PROFILE_PHOTO = '/assets/adem-aslan-photo.jpg';
+const SITE_LOGO = '/assets/logo-adem-aslan.png';
+
 // Profile Hero Section Component
 const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ config, ownerName }) => {
     const stats = [
@@ -281,6 +285,10 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
         { icon: Award, value: '10+', label: 'Yıllık Deneyim' },
         { icon: Star, value: '4.9', label: 'Müşteri Puanı' }
     ];
+
+    // Use dedicated profile photo, fallback to config.logoUrl, then placeholder
+    const profileImage = PROFILE_PHOTO;
+    const [imageError, setImageError] = useState(false);
 
     return (
         <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-20 overflow-hidden">
@@ -293,14 +301,31 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
 
             <div className="container mx-auto px-4 relative z-10">
                 <div className="flex flex-col lg:flex-row items-center gap-12">
+                    {/* Logo Badge - Top Left on Desktop */}
+                    <div className="absolute top-6 left-6 hidden lg:block">
+                        <img
+                            src={SITE_LOGO}
+                            alt="Logo"
+                            className="h-16 w-auto"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                    </div>
+
                     {/* Profile Image */}
                     <div className="relative">
-                        <div className="w-64 h-64 lg:w-80 lg:h-80 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl">
-                            <img
-                                src={config.logoUrl || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop'}
-                                alt={ownerName || 'Emlak Danışmanı'}
-                                className="w-full h-full object-cover"
-                            />
+                        <div className="w-64 h-64 lg:w-80 lg:h-80 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl bg-gradient-to-br from-blue-500 to-blue-600">
+                            {!imageError ? (
+                                <img
+                                    src={profileImage}
+                                    alt={ownerName || 'Emlak Danışmanı'}
+                                    className="w-full h-full object-cover"
+                                    onError={() => setImageError(true)}
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white text-6xl font-bold">
+                                    {(ownerName || 'EA').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </div>
+                            )}
                         </div>
                         {/* Verified Badge */}
                         <div className="absolute bottom-4 right-4 bg-green-500 text-white p-3 rounded-full shadow-lg">
@@ -540,23 +565,32 @@ const Header: React.FC<{
 }> = ({ config, compact, filter = 'all', onFilterChange, navigateTo, currentView = 'home' }) => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+    const [logoError, setLogoError] = useState(false);
+
     return (
         <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
             <div className={`container mx-auto px-4 ${compact ? 'py-3' : 'py-5'} flex justify-between items-center`}>
                 <button
                     onClick={() => navigateTo?.('home')}
-                    className="flex items-center gap-2 cursor-pointer"
+                    className="flex items-center gap-3 cursor-pointer"
                 >
-                    {config.logoUrl ? (
-                        <img src={config.logoUrl} alt="Logo" className="h-10 w-auto" />
+                    {!logoError ? (
+                        <img
+                            src={SITE_LOGO}
+                            alt="Logo"
+                            className="h-14 w-auto"
+                            onError={() => setLogoError(true)}
+                        />
+                    ) : config.logoUrl ? (
+                        <img src={config.logoUrl} alt="Logo" className="h-14 w-auto" />
                     ) : (
-                        <div className="p-2 rounded-lg text-white" style={{ backgroundColor: config.primaryColor }}>
-                            <Grid className="w-5 h-5" />
+                        <div className="p-3 rounded-xl text-white" style={{ backgroundColor: config.primaryColor }}>
+                            <Home className="w-6 h-6" />
                         </div>
                     )}
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800 leading-none">{config.siteTitle || config.domain}</h1>
-                        {!compact && <span className="text-xs text-gray-500">Gayrimenkul Çözümleri</span>}
+                        <h1 className="text-2xl font-bold text-slate-800 leading-none">{config.siteTitle || config.domain}</h1>
+                        {!compact && <span className="text-sm text-gray-500">Gayrimenkul Danışmanı</span>}
                     </div>
                 </button>
 
