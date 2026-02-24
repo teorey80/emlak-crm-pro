@@ -261,11 +261,47 @@ const App: React.FC = () => {
             setPublicSiteData(siteData);
           } else {
             // Fallback: create demo data for preview
-            setIsPublicSite(false);
+            console.log('Creating demo data for preview mode');
+            const demoData: PublicSiteData = {
+              type: 'personal',
+              ownerName: 'Adem Aslan',
+              officeName: 'Adem Aslan Emlak',
+              siteConfig: {
+                domain: 'ademaslan.com',
+                siteTitle: 'Adem Aslan',
+                primaryColor: '#1e40af',
+                layout: 'standard',
+                phone: '+90 555 123 4567',
+                email: 'info@ademaslan.com',
+                aboutText: 'Profesyonel gayrimenkul danışmanlığı hizmeti. 10 yılı aşkın deneyimimle hayalinizdeki evi bulmanıza yardımcı oluyorum.',
+                logoUrl: ''
+              },
+              properties: []
+            };
+            setIsPublicSite(true);
+            setPublicSiteData(demoData);
           }
         } catch (error) {
           console.error('Preview fetch failed:', error);
-          setIsPublicSite(false);
+          // Even on error, show demo data
+          const demoData: PublicSiteData = {
+            type: 'personal',
+            ownerName: 'Adem Aslan',
+            officeName: 'Adem Aslan Emlak',
+            siteConfig: {
+              domain: 'ademaslan.com',
+              siteTitle: 'Adem Aslan',
+              primaryColor: '#1e40af',
+              layout: 'standard',
+              phone: '+90 555 123 4567',
+              email: 'info@ademaslan.com',
+              aboutText: 'Profesyonel gayrimenkul danışmanlığı hizmeti.',
+              logoUrl: ''
+            },
+            properties: []
+          };
+          setIsPublicSite(true);
+          setPublicSiteData(demoData);
         }
       };
       fetchPreviewData();
