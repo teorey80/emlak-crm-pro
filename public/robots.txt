@@ -1,0 +1,28 @@
+# Robots.txt for Adem Aslan Emlak Website
+# https://www.ademaslan.com
+
+User-agent: *
+Allow: /
+
+# Allow all major search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Yandex
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.ademaslan.com/sitemap.xml
+
+# Crawl-delay for politeness
+Crawl-delay: 1
+
+# Disallow admin and internal pages (CRM panel)
+Disallow: /login
+Disallow: /register
+Disallow: /admin
+Disallow: /settings
+Disallow: /reset-password
