@@ -274,8 +274,8 @@ interface LayoutProps {
 }
 
 // Profile image and logo paths
-const PROFILE_PHOTO = '/assets/ademaslan_ben_business.png';
-const SITE_LOGO = '/assets/Siyah Minimalist Adem Aslan Logo.png';
+const PROFILE_PHOTO = '/assets/profil.png';
+const SITE_LOGO = '/assets/logo.png';
 
 // Profile Hero Section Component
 const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ config, ownerName }) => {
