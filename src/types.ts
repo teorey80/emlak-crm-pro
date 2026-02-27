@@ -253,6 +253,8 @@ export interface WebSiteConfig {
   phone: string;
   email: string;
   logoUrl?: string;
+  profilePhotoUrl?: string;
+  brokerTitle?: string;
   isActive: boolean;
   layout: 'standard' | 'map' | 'grid';
 }

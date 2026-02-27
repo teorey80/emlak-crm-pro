@@ -411,6 +411,49 @@ const WebBuilder: React.FC = () => {
                                         )}
                                     </label>
                                 </div>
+
+                                {/* Profile Photo Upload */}
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                                        <ImageIcon className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+                                        Profil Fotoğrafı
+                                    </h3>
+                                    <input
+                                        type="file"
+                                        id="profile-photo-upload"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (event) => {
+                                                    setFormData({ ...formData, profilePhotoUrl: event.target?.result as string });
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                    <label
+                                        htmlFor="profile-photo-upload"
+                                        className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg p-6 text-center hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors cursor-pointer block"
+                                    >
+                                        {formData.profilePhotoUrl ? (
+                                            <div className="flex flex-col items-center gap-3">
+                                                <img src={formData.profilePhotoUrl} alt="Profil Önizleme" className="h-24 w-24 rounded-full object-cover" />
+                                                <span className="text-sm text-gray-500 dark:text-slate-400">Değiştirmek için tıklayın</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-3 text-gray-400 dark:text-slate-400">
+                                                    <UploadCloud className="w-6 h-6" />
+                                                </div>
+                                                <span className="text-sm text-gray-600 dark:text-slate-300 font-medium">Profil Fotoğrafı Yüklemek için Tıklayın</span>
+                                                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">PNG, JPG (Max 2MB) - Ana sayfada profil bölümünde görünür</p>
+                                            </>
+                                        )}
+                                    </label>
+                                </div>
                             </div>
                         )}
 
@@ -433,6 +476,17 @@ const WebBuilder: React.FC = () => {
                                                 placeholder="Örn: Aslan Emlak - Güvenilir Gayrimenkul"
                                             />
                                             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Google arama sonuçlarında görünecek ana başlık.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Unvan / Pozisyon</label>
+                                            <input
+                                                type="text"
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2.5 text-slate-800 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                                value={formData.brokerTitle || ''}
+                                                onChange={(e) => setFormData({ ...formData, brokerTitle: e.target.value })}
+                                                placeholder="Örn: Broker, Emlak Danışmanı, Gayrimenkul Uzmanı"
+                                            />
+                                            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Sitenizde görünecek unvan (boş bırakılırsa "Emlak Danışmanı" gösterilir).</p>
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Hakkımızda Yazısı</label>

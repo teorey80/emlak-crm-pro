@@ -71,6 +71,61 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
     const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
     const [selectedPropertySlug, setSelectedPropertySlug] = useState<string | null>(null);
 
+    const displayName = type === 'personal' ? ownerName : officeName;
+
+    // Update document head meta tags dynamically based on loaded site config
+    useEffect(() => {
+        const siteTitle = siteConfig.siteTitle || displayName || 'Emlak';
+        const brokerTitle = siteConfig.brokerTitle || 'Emlak Danışmanı';
+        const fullTitle = `${siteTitle} | ${brokerTitle} - Satılık ve Kiralık Emlak İlanları`;
+        const description = siteConfig.aboutText ||
+            `${siteTitle} - Profesyonel gayrimenkul danışmanlığı hizmeti. Satılık ve kiralık emlak ilanları.`;
+        const domain = siteConfig.domain || window.location.hostname;
+        const canonicalUrl = `https://${domain}/`;
+
+        // Update document title
+        document.title = fullTitle;
+
+        // Helper to set or create a meta tag
+        const setMeta = (selector: string, content: string) => {
+            let el = document.querySelector(selector) as HTMLMetaElement | null;
+            if (el) {
+                el.setAttribute('content', content);
+            } else {
+                el = document.createElement('meta');
+                const parts = selector.match(/\[(\w+(?::|-)?\w+)="([^"]+)"\]/);
+                if (parts) {
+                    el.setAttribute(parts[1], parts[2]);
+                    el.setAttribute('content', content);
+                    document.head.appendChild(el);
+                }
+            }
+        };
+
+        // Helper to set or create a link tag
+        const setLink = (rel: string, href: string) => {
+            let el = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+            if (!el) {
+                el = document.createElement('link');
+                el.setAttribute('rel', rel);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('href', href);
+        };
+
+        setMeta('meta[name="title"]', fullTitle);
+        setMeta('meta[name="description"]', description);
+        setMeta('meta[name="author"]', siteTitle);
+        setMeta('meta[property="og:title"]', `${siteTitle} | ${brokerTitle}`);
+        setMeta('meta[property="og:description"]', description);
+        setMeta('meta[property="og:url"]', canonicalUrl);
+        setMeta('meta[property="og:site_name"]', siteTitle);
+        setMeta('meta[property="twitter:title"]', `${siteTitle} | ${brokerTitle}`);
+        setMeta('meta[property="twitter:description"]', description);
+        setMeta('meta[property="twitter:url"]', canonicalUrl);
+        setLink('canonical', canonicalUrl);
+    }, [siteConfig, displayName, type]);
+
     // Handle hash-based routing for SEO-friendly URLs
     useEffect(() => {
         const handleHashChange = () => {
@@ -218,8 +273,7 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
 
     return (
         <div className="min-h-screen bg-white font-sans">
-            {/* SEO Meta Tags */}
-            <title>{siteConfig.siteTitle || (type === 'personal' ? ownerName : officeName)}</title>
+            {/* SEO meta tags are updated dynamically via useEffect */}
 
             {renderContent()}
 
@@ -273,10 +327,6 @@ interface LayoutProps {
     ownerName?: string;
 }
 
-// Profile image and logo paths
-const PROFILE_PHOTO = '/assets/profil.png';
-const SITE_LOGO = '/assets/logo.png';
-
 // Profile Hero Section Component
 const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ config, ownerName }) => {
     const stats = [
@@ -286,8 +336,8 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
         { icon: Star, value: '4.9', label: 'Müşteri Puanı' }
     ];
 
-    // Use dedicated profile photo, fallback to config.logoUrl, then placeholder
-    const profileImage = PROFILE_PHOTO;
+    // Use user-specific profile photo from config, fallback to initials
+    const profileImage = config.profilePhotoUrl || null;
     const [imageError, setImageError] = useState(false);
 
     return (
@@ -302,22 +352,24 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
             <div className="container mx-auto px-4 relative z-10">
                 <div className="flex flex-col lg:flex-row items-center gap-12">
                     {/* Logo Badge - Top Left on Desktop */}
-                    <div className="absolute top-6 left-6 hidden lg:block">
-                        <img
-                            src={SITE_LOGO}
-                            alt="Logo"
-                            className="h-16 w-auto"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                    </div>
+                    {config.logoUrl && (
+                        <div className="absolute top-6 left-6 hidden lg:block">
+                            <img
+                                src={config.logoUrl}
+                                alt="Logo"
+                                className="h-16 w-auto"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                        </div>
+                    )}
 
                     {/* Profile Image */}
                     <div className="relative">
                         <div className="w-64 h-64 lg:w-80 lg:h-80 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl bg-gradient-to-br from-blue-500 to-blue-600">
-                            {!imageError ? (
+                            {profileImage && !imageError ? (
                                 <img
                                     src={profileImage}
-                                    alt={ownerName || 'Emlak Danışmanı'}
+                                    alt={ownerName || config.brokerTitle || 'Emlak Danışmanı'}
                                     className="w-full h-full object-cover"
                                     onError={() => setImageError(true)}
                                 />
@@ -337,7 +389,7 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
                     <div className="flex-1 text-center lg:text-left">
                         <div className="inline-flex items-center gap-2 bg-white/10 text-white/80 px-4 py-2 rounded-full text-sm mb-4">
                             <Star className="w-4 h-4 text-yellow-400" />
-                            Profesyonel Gayrimenkul Danışmanı
+                            {config.brokerTitle || 'Emlak Danışmanı'}
                         </div>
 
                         <h1 className="text-4xl lg:text-5xl font-bold text-white mb-4">
@@ -574,15 +626,13 @@ const Header: React.FC<{
                     onClick={() => navigateTo?.('home')}
                     className="flex items-center gap-3 cursor-pointer"
                 >
-                    {!logoError ? (
+                    {config.logoUrl && !logoError ? (
                         <img
-                            src={SITE_LOGO}
+                            src={config.logoUrl}
                             alt="Logo"
                             className="h-14 w-auto"
                             onError={() => setLogoError(true)}
                         />
-                    ) : config.logoUrl ? (
-                        <img src={config.logoUrl} alt="Logo" className="h-14 w-auto" />
                     ) : (
                         <div className="p-3 rounded-xl text-white" style={{ backgroundColor: config.primaryColor }}>
                             <Home className="w-6 h-6" />
@@ -590,7 +640,7 @@ const Header: React.FC<{
                     )}
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 leading-none">{config.siteTitle || config.domain}</h1>
-                        {!compact && <span className="text-sm text-gray-500">Gayrimenkul Danışmanı</span>}
+                        {!compact && <span className="text-sm text-gray-500">{config.brokerTitle || 'Emlak Danışmanı'}</span>}
                     </div>
                 </button>
 
@@ -1080,7 +1130,7 @@ const BlogPostDetail: React.FC<{ post: typeof blogPosts[0]; config: WebSiteConfi
                         </span>
                         <span className="flex items-center gap-2">
                             <User className="w-5 h-5" />
-                            Emlak Danışmanı
+                            {config.brokerTitle || 'Emlak Danışmanı'}
                         </span>
                     </div>
                 </header>
@@ -1361,16 +1411,16 @@ const PropertyDetailPage: React.FC<{ property: Property; config: WebSiteConfig; 
                             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                                 <div className="text-center mb-4">
                                     <div className="w-20 h-20 rounded-full bg-gray-200 mx-auto mb-3 overflow-hidden">
-                                        {config.logoUrl ? (
-                                            <img src={config.logoUrl} alt="Danışman" className="w-full h-full object-cover" />
+                                        {(config.profilePhotoUrl || config.logoUrl) ? (
+                                            <img src={config.profilePhotoUrl || config.logoUrl} alt="Danışman" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 text-white text-2xl font-bold">
-                                                EA
+                                                {(config.siteTitle || 'EA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                             </div>
                                         )}
                                     </div>
                                     <h3 className="font-bold text-slate-800">{config.siteTitle || 'Emlak Danışmanı'}</h3>
-                                    <p className="text-sm text-gray-500">Gayrimenkul Danışmanı</p>
+                                    <p className="text-sm text-gray-500">{config.brokerTitle || 'Emlak Danışmanı'}</p>
                                 </div>
                                 <div className="space-y-2 text-sm">
                                     {config.phone && (
