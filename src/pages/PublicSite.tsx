@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone, Mail, Search, Menu, Bed, Bath, Maximize, Grid, List, Facebook, Instagram, Twitter, Linkedin, X, ChevronLeft, ChevronRight, MessageCircle, Send, Award, Home, Users, Star, Calendar, ArrowRight, Clock, User } from 'lucide-react';
+import { MapPin, Phone, Mail, Search, Menu, Bed, Bath, Maximize, Grid, List, Facebook, Instagram, Twitter, Linkedin, X, ChevronLeft, ChevronRight, MessageCircle, Send, Award, Home, Users, Star, Calendar, ArrowRight, Clock, User, Youtube, Calculator, Play } from 'lucide-react';
 import { Property, WebSiteConfig } from '../types';
 import { PublicSiteData } from '../services/publicSiteService';
 import toast from 'react-hot-toast';
 import { FLOOR_OPTIONS } from '../constants/propertyConstants';
+import { listPublishedBlogPosts, BlogPost } from '../services/blogService';
+import { listPublishedVideos, YoutubeVideo, getYouTubeEmbedUrl, getYouTubeThumbnail } from '../services/videoService';
+import MortgageCalculator from '../components/calculators/MortgageCalculator';
+import GainTaxCalculator from '../components/calculators/GainTaxCalculator';
+import RentYieldCalculator from '../components/calculators/RentYieldCalculator';
+import TapuFeeCalculator from '../components/calculators/TapuFeeCalculator';
 
 // Blog data for the public site
 const blogPosts = [
@@ -54,7 +60,21 @@ interface PublicSiteProps {
 }
 
 // View types for routing
-type ViewType = 'home' | 'satilik' | 'kiralik' | 'hakkimizda' | 'blog' | 'blog-post' | 'ilan';
+type ViewType = 'home' | 'satilik' | 'kiralik' | 'hakkimizda' | 'blog' | 'blog-post' | 'ilan' | 'videolar' | 'hesaplamalar';
+
+// Unified blog post type for display (merges hardcoded + Supabase posts)
+interface DisplayBlogPost {
+  id: string | number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  image?: string;
+  date: string;
+  category?: string;
+  readTime?: string;
+  content?: string;
+  isDynamic?: boolean;
+}
 
 const getFloorLabel = (value?: number) => {
     if (value === undefined || value === null) return '';
@@ -63,13 +83,58 @@ const getFloorLabel = (value?: number) => {
 };
 
 const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
-    const { siteConfig, properties, type, ownerName, officeName } = siteData;
+    const { siteConfig, properties, type, ownerName, officeName, userId } = siteData;
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [filter, setFilter] = useState<'all' | 'satilik' | 'kiralik'>('all');
     const [showContactForm, setShowContactForm] = useState(false);
     const [currentView, setCurrentView] = useState<ViewType>('home');
     const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
     const [selectedPropertySlug, setSelectedPropertySlug] = useState<string | null>(null);
+
+    // Dynamic content from Supabase
+    const [dynamicBlogPosts, setDynamicBlogPosts] = useState<DisplayBlogPost[]>([]);
+    const [youtubeVideos, setYoutubeVideos] = useState<YoutubeVideo[]>([]);
+
+    // Merge hardcoded + Supabase blog posts (Supabase takes priority)
+    const allBlogPosts: DisplayBlogPost[] = dynamicBlogPosts.length > 0
+        ? dynamicBlogPosts
+        : blogPosts.map(p => ({ ...p, id: String(p.id) }));
+
+    // Load dynamic content on mount
+    useEffect(() => {
+        const loadDynamicContent = async () => {
+            if (!userId) return;
+            try {
+                const [supabasePosts, videos] = await Promise.allSettled([
+                    listPublishedBlogPosts(userId),
+                    listPublishedVideos(userId)
+                ]);
+
+                if (supabasePosts.status === 'fulfilled' && supabasePosts.value.length > 0) {
+                    const mapped: DisplayBlogPost[] = supabasePosts.value.map(p => ({
+                        id: p.id!,
+                        slug: p.slug || p.id!,
+                        title: p.title,
+                        excerpt: p.summary || '',
+                        image: p.cover_image_url,
+                        date: p.published_at || p.created_at || new Date().toISOString(),
+                        category: p.tags?.[0] || 'Genel',
+                        readTime: undefined,
+                        content: p.content,
+                        isDynamic: true,
+                    }));
+                    setDynamicBlogPosts(mapped);
+                }
+
+                if (videos.status === 'fulfilled') {
+                    setYoutubeVideos(videos.value);
+                }
+            } catch {
+                // Silently fallback to hardcoded data
+            }
+        };
+        loadDynamicContent();
+    }, []);
 
     const displayName = type === 'personal' ? ownerName : officeName;
 
@@ -143,6 +208,10 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
                 setCurrentView('hakkimizda');
             } else if (hash === '/blog') {
                 setCurrentView('blog');
+            } else if (hash === '/videolar') {
+                setCurrentView('videolar');
+            } else if (hash === '/hesaplamalar') {
+                setCurrentView('hesaplamalar');
             } else if (hash.startsWith('/blog/')) {
                 setCurrentView('blog-post');
                 setSelectedBlogSlug(hash.replace('/blog/', ''));
@@ -174,6 +243,10 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
             window.location.hash = '/hakkimizda';
         } else if (view === 'blog') {
             window.location.hash = '/blog';
+        } else if (view === 'videolar') {
+            window.location.hash = '/videolar';
+        } else if (view === 'hesaplamalar') {
+            window.location.hash = '/hesaplamalar';
         } else if (view === 'blog-post' && slug) {
             window.location.hash = `/blog/${slug}`;
         } else if (view === 'ilan' && slug) {
@@ -205,7 +278,7 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
                 return <GridLayout config={siteConfig} properties={filteredProperties} onPropertyClick={handlePropertyClick} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} />;
             case 'standard':
             default:
-                return <StandardLayout config={siteConfig} properties={filteredProperties} onPropertyClick={handlePropertyClick} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} ownerName={ownerName} />;
+                return <StandardLayout config={siteConfig} properties={filteredProperties} onPropertyClick={handlePropertyClick} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} ownerName={ownerName} allBlogPosts={allBlogPosts} youtubeVideos={youtubeVideos} />;
         }
     };
 
@@ -222,14 +295,14 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
     const renderBlogList = () => (
         <div className="flex flex-col min-h-screen">
             <Header config={siteConfig} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} />
-            <BlogList config={siteConfig} navigateTo={navigateTo} />
+            <BlogList config={siteConfig} navigateTo={navigateTo} allPosts={allBlogPosts} />
             <Footer config={siteConfig} />
         </div>
     );
 
     // Render Blog Post
     const renderBlogPost = () => {
-        const post = blogPosts.find(p => p.slug === selectedBlogSlug);
+        const post = allBlogPosts.find(p => p.slug === selectedBlogSlug);
         if (!post) return renderBlogList();
         return (
             <div className="flex flex-col min-h-screen">
@@ -239,6 +312,24 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
             </div>
         );
     };
+
+    // Render Videos Page
+    const renderVideoList = () => (
+        <div className="flex flex-col min-h-screen">
+            <Header config={siteConfig} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} />
+            <VideoSection config={siteConfig} videos={youtubeVideos} />
+            <Footer config={siteConfig} />
+        </div>
+    );
+
+    // Render Calculators Page
+    const renderCalculators = () => (
+        <div className="flex flex-col min-h-screen">
+            <Header config={siteConfig} filter={filter} onFilterChange={(f) => navigateTo(f === 'all' ? 'home' : f)} navigateTo={navigateTo} currentView={currentView} />
+            <CalculatorsSection config={siteConfig} />
+            <Footer config={siteConfig} />
+        </div>
+    );
 
     // Render Property Detail Page (SEO-friendly)
     const renderPropertyDetail = () => {
@@ -264,6 +355,10 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
                 return renderBlogList();
             case 'blog-post':
                 return renderBlogPost();
+            case 'videolar':
+                return renderVideoList();
+            case 'hesaplamalar':
+                return renderCalculators();
             case 'ilan':
                 return renderPropertyDetail();
             default:
@@ -458,7 +553,7 @@ const ProfileHero: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({ 
 };
 
 // 1. STANDARD LAYOUT (Hero + Grid)
-const StandardLayout: React.FC<LayoutProps> = ({ config, properties, onPropertyClick, filter, onFilterChange, navigateTo, currentView, ownerName }) => {
+const StandardLayout: React.FC<LayoutProps & { allBlogPosts?: DisplayBlogPost[]; youtubeVideos?: YoutubeVideo[] }> = ({ config, properties, onPropertyClick, filter, onFilterChange, navigateTo, currentView, ownerName, allBlogPosts = [], youtubeVideos = [] }) => {
     return (
         <div className="flex flex-col min-h-screen">
             <Header config={config} filter={filter} onFilterChange={onFilterChange} navigateTo={navigateTo} currentView={currentView} />
@@ -521,7 +616,12 @@ const StandardLayout: React.FC<LayoutProps> = ({ config, properties, onPropertyC
             </div>
 
             {/* Blog Preview Section */}
-            <BlogPreview config={config} navigateTo={navigateTo} />
+            <BlogPreview config={config} navigateTo={navigateTo} allPosts={allBlogPosts} />
+
+            {/* Video Preview Section (if videos exist) */}
+            {youtubeVideos.length > 0 && (
+                <VideoPreview config={config} videos={youtubeVideos} navigateTo={navigateTo} />
+            )}
 
             <Footer config={config} />
         </div>
@@ -679,6 +779,20 @@ const Header: React.FC<{
                     >
                         Blog
                     </button>
+                    <button
+                        onClick={() => navigateTo?.('videolar')}
+                        className={`hover:text-black transition-colors ${currentView === 'videolar' ? 'font-bold' : ''}`}
+                        style={currentView === 'videolar' ? { color: config.primaryColor } : {}}
+                    >
+                        Videolar
+                    </button>
+                    <button
+                        onClick={() => navigateTo?.('hesaplamalar')}
+                        className={`hover:text-black transition-colors ${currentView === 'hesaplamalar' ? 'font-bold' : ''}`}
+                        style={currentView === 'hesaplamalar' ? { color: config.primaryColor } : {}}
+                    >
+                        Hesaplama
+                    </button>
                     <a
                         href={`https://wa.me/${config.phone?.replace(/\D/g, '')}`}
                         target="_blank"
@@ -709,6 +823,8 @@ const Header: React.FC<{
                         <button onClick={() => { navigateTo?.('kiralik'); setMobileMenuOpen(false); }} className="text-left py-2 text-slate-700 font-medium">Kiralık</button>
                         <button onClick={() => { navigateTo?.('hakkimizda'); setMobileMenuOpen(false); }} className="text-left py-2 text-slate-700 font-medium">Hakkımızda</button>
                         <button onClick={() => { navigateTo?.('blog'); setMobileMenuOpen(false); }} className="text-left py-2 text-slate-700 font-medium">Blog</button>
+                        <button onClick={() => { navigateTo?.('videolar'); setMobileMenuOpen(false); }} className="text-left py-2 text-slate-700 font-medium">Videolar</button>
+                        <button onClick={() => { navigateTo?.('hesaplamalar'); setMobileMenuOpen(false); }} className="text-left py-2 text-slate-700 font-medium">Hesaplama</button>
                         <a
                             href={`https://wa.me/${config.phone?.replace(/\D/g, '')}`}
                             target="_blank"
@@ -958,8 +1074,8 @@ const AboutSection: React.FC<{ config: WebSiteConfig; ownerName?: string }> = ({
 };
 
 // Blog Preview Component (for homepage)
-const BlogPreview: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void }> = ({ config, navigateTo }) => {
-    const latestPosts = blogPosts.slice(0, 3);
+const BlogPreview: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void; allPosts?: DisplayBlogPost[] }> = ({ config, navigateTo, allPosts }) => {
+    const latestPosts = (allPosts ?? blogPosts.map(p => ({ ...p, id: String(p.id) }))).slice(0, 3);
 
     return (
         <section className="py-20 bg-gray-50">
@@ -986,15 +1102,23 @@ const BlogPreview: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType
                             onClick={() => navigateTo('blog-post', post.slug)}
                             className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group border border-gray-100"
                         >
-                            <div className="relative h-48 overflow-hidden">
-                                <img
-                                    src={post.image}
-                                    alt={post.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                />
-                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-slate-700">
-                                    {post.category}
-                                </div>
+                            <div className="relative h-48 overflow-hidden bg-gray-100">
+                                {post.image ? (
+                                    <img
+                                        src={post.image}
+                                        alt={post.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <Home className="w-12 h-12" />
+                                    </div>
+                                )}
+                                {post.category && (
+                                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-slate-700">
+                                        {post.category}
+                                    </div>
+                                )}
                             </div>
                             <div className="p-6">
                                 <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
@@ -1002,10 +1126,12 @@ const BlogPreview: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType
                                         <Calendar className="w-4 h-4" />
                                         {new Date(post.date).toLocaleDateString('tr-TR')}
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <Clock className="w-4 h-4" />
-                                        {post.readTime}
-                                    </span>
+                                    {post.readTime && (
+                                        <span className="flex items-center gap-1">
+                                            <Clock className="w-4 h-4" />
+                                            {post.readTime}
+                                        </span>
+                                    )}
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
                                     {post.title}
@@ -1021,7 +1147,8 @@ const BlogPreview: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType
 };
 
 // Blog List Component
-const BlogList: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void }> = ({ config, navigateTo }) => {
+const BlogList: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void; allPosts?: DisplayBlogPost[] }> = ({ config, navigateTo, allPosts }) => {
+    const displayPosts = allPosts ?? blogPosts.map(p => ({ ...p, id: String(p.id) }));
     return (
         <div className="py-20 bg-white flex-1">
             <div className="container mx-auto px-4">
@@ -1036,21 +1163,29 @@ const BlogList: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, s
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {blogPosts.map(post => (
+                    {displayPosts.map(post => (
                         <article
                             key={post.id}
                             onClick={() => navigateTo('blog-post', post.slug)}
                             className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group border border-gray-100"
                         >
-                            <div className="relative h-56 overflow-hidden">
-                                <img
-                                    src={post.image}
-                                    alt={post.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                />
-                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-slate-700">
-                                    {post.category}
-                                </div>
+                            <div className="relative h-56 overflow-hidden bg-gray-100">
+                                {post.image ? (
+                                    <img
+                                        src={post.image}
+                                        alt={post.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <Home className="w-16 h-16" />
+                                    </div>
+                                )}
+                                {post.category && (
+                                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-slate-700">
+                                        {post.category}
+                                    </div>
+                                )}
                             </div>
                             <div className="p-6">
                                 <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
@@ -1058,10 +1193,12 @@ const BlogList: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, s
                                         <Calendar className="w-4 h-4" />
                                         {new Date(post.date).toLocaleDateString('tr-TR')}
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <Clock className="w-4 h-4" />
-                                        {post.readTime}
-                                    </span>
+                                    {post.readTime && (
+                                        <span className="flex items-center gap-1">
+                                            <Clock className="w-4 h-4" />
+                                            {post.readTime}
+                                        </span>
+                                    )}
                                 </div>
                                 <h2 className="text-xl font-bold text-slate-800 mb-3 group-hover:text-blue-600 transition-colors">
                                     {post.title}
@@ -1080,9 +1217,9 @@ const BlogList: React.FC<{ config: WebSiteConfig; navigateTo: (view: ViewType, s
 };
 
 // Blog Post Detail Component
-const BlogPostDetail: React.FC<{ post: typeof blogPosts[0]; config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void }> = ({ post, config, navigateTo }) => {
-    // Sample content - in a real app this would come from a CMS
-    const content = `
+const BlogPostDetail: React.FC<{ post: DisplayBlogPost; config: WebSiteConfig; navigateTo: (view: ViewType, slug?: string) => void }> = ({ post, config, navigateTo }) => {
+    // Use dynamic content if available, otherwise fallback to template
+    const content = post.content || `
         <p class="lead">Bu rehberde, ${post.title.toLowerCase()} konusunda bilmeniz gereken tüm önemli noktaları ele alacağız.</p>
 
         <h2>Neden Önemli?</h2>
@@ -1124,10 +1261,12 @@ const BlogPostDetail: React.FC<{ post: typeof blogPosts[0]; config: WebSiteConfi
                             <Calendar className="w-5 h-5" />
                             {new Date(post.date).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
-                        <span className="flex items-center gap-2">
-                            <Clock className="w-5 h-5" />
-                            {post.readTime} okuma
-                        </span>
+                        {post.readTime && (
+                            <span className="flex items-center gap-2">
+                                <Clock className="w-5 h-5" />
+                                {post.readTime} okuma
+                            </span>
+                        )}
                         <span className="flex items-center gap-2">
                             <User className="w-5 h-5" />
                             {config.brokerTitle || 'Emlak Danışmanı'}
@@ -1136,9 +1275,11 @@ const BlogPostDetail: React.FC<{ post: typeof blogPosts[0]; config: WebSiteConfi
                 </header>
 
                 {/* Featured Image */}
-                <div className="relative h-96 rounded-2xl overflow-hidden mb-8">
-                    <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
-                </div>
+                {post.image && (
+                    <div className="relative h-96 rounded-2xl overflow-hidden mb-8">
+                        <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+                    </div>
+                )}
 
                 {/* Content */}
                 <div
@@ -1173,6 +1314,194 @@ const BlogPostDetail: React.FC<{ post: typeof blogPosts[0]; config: WebSiteConfi
                 </div>
             </div>
         </article>
+    );
+};
+
+// Video Preview Component (for homepage - shows when videos exist)
+const VideoPreview: React.FC<{ config: WebSiteConfig; videos: YoutubeVideo[]; navigateTo: (view: ViewType, slug?: string) => void }> = ({ config, videos, navigateTo }) => {
+    const previewVideos = videos.slice(0, 3);
+    return (
+        <section className="py-20 bg-white">
+            <div className="container mx-auto px-4">
+                <div className="flex justify-between items-center mb-12">
+                    <div>
+                        <span className="inline-block bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-medium mb-4 flex items-center gap-2 w-fit">
+                            <Youtube className="w-4 h-4" /> YouTube
+                        </span>
+                        <h2 className="text-3xl font-bold text-slate-800">Videolarım</h2>
+                    </div>
+                    <button
+                        onClick={() => navigateTo('videolar')}
+                        className="flex items-center gap-2 text-gray-600 hover:text-slate-900 font-medium transition-colors"
+                    >
+                        Tümünü Gör <ArrowRight className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {previewVideos.map(video => (
+                        <a
+                            key={video.id}
+                            href={getYouTubeEmbedUrl(video.youtube_id!).replace('/embed/', '/watch?v=')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-gray-100"
+                        >
+                            <div className="relative h-48 bg-gray-900">
+                                {video.youtube_id && (
+                                    <img
+                                        src={getYouTubeThumbnail(video.youtube_id)}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                                    />
+                                )}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                        <Play className="w-6 h-6 text-white ml-1" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4">
+                                <h3 className="font-semibold text-slate-800 line-clamp-2 group-hover:text-red-600 transition-colors">{video.title}</h3>
+                                {video.description && <p className="text-sm text-gray-500 mt-1 line-clamp-1">{video.description}</p>}
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+};
+
+// Full Video Section Component (for /videolar page)
+const VideoSection: React.FC<{ config: WebSiteConfig; videos: YoutubeVideo[] }> = ({ config, videos }) => {
+    const [activeVideo, setActiveVideo] = useState<YoutubeVideo | null>(null);
+
+    if (videos.length === 0) {
+        return (
+            <div className="py-20 flex-1 flex items-center justify-center">
+                <div className="text-center">
+                    <Youtube className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-slate-700 mb-2">Henüz Video Yok</h2>
+                    <p className="text-gray-500">Yakında yeni videolar eklenecek.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="py-16 flex-1 bg-gray-50">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-12">
+                    <span className="inline-flex items-center gap-2 bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-medium mb-4">
+                        <Youtube className="w-4 h-4" /> YouTube
+                    </span>
+                    <h1 className="text-4xl font-bold text-slate-800 mb-4">Videolarım</h1>
+                    <p className="text-xl text-gray-600">Emlak dünyasından güncel videolar ve bilgiler</p>
+                </div>
+
+                {/* Active Video Player */}
+                {activeVideo && (
+                    <div className="mb-10 max-w-4xl mx-auto">
+                        <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl">
+                            <iframe
+                                src={getYouTubeEmbedUrl(activeVideo.youtube_id!) + '?autoplay=1'}
+                                title={activeVideo.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                className="w-full h-full"
+                            />
+                        </div>
+                        <div className="mt-4 flex justify-between items-start">
+                            <h2 className="text-xl font-bold text-slate-800">{activeVideo.title}</h2>
+                            <button onClick={() => setActiveVideo(null)} className="text-gray-400 hover:text-gray-700 text-sm">Kapat</button>
+                        </div>
+                        {activeVideo.description && <p className="text-gray-600 mt-2">{activeVideo.description}</p>}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {videos.map(video => (
+                        <div
+                            key={video.id}
+                            onClick={() => setActiveVideo(video)}
+                            className="group cursor-pointer bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-gray-100"
+                        >
+                            <div className="relative h-52 bg-gray-900">
+                                {video.youtube_id && (
+                                    <img
+                                        src={getYouTubeThumbnail(video.youtube_id)}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                                    />
+                                )}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                        <Play className="w-6 h-6 text-white ml-1" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-5">
+                                <h3 className="font-bold text-slate-800 line-clamp-2 group-hover:text-red-600 transition-colors">{video.title}</h3>
+                                {video.description && <p className="text-sm text-gray-500 mt-2 line-clamp-2">{video.description}</p>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Calculators Section Component (for /hesaplamalar page)
+const CalculatorsSection: React.FC<{ config: WebSiteConfig }> = ({ config }) => {
+    const [activeCalc, setActiveCalc] = useState<'mortgage' | 'gain' | 'rent' | 'tapu'>('mortgage');
+
+    const calculators = [
+        { id: 'mortgage' as const, label: 'Kredi Hesaplama', icon: Calculator, color: 'blue' },
+        { id: 'gain' as const, label: 'Değer Artış Vergisi', icon: Calculator, color: 'orange' },
+        { id: 'rent' as const, label: 'Kira Getirisi', icon: Calculator, color: 'green' },
+        { id: 'tapu' as const, label: 'Tapu Harcı', icon: Calculator, color: 'purple' },
+    ];
+
+    return (
+        <div className="py-16 flex-1 bg-gray-50">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-12">
+                    <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-600 px-4 py-2 rounded-full text-sm font-medium mb-4">
+                        <Calculator className="w-4 h-4" /> Araçlar
+                    </span>
+                    <h1 className="text-4xl font-bold text-slate-800 mb-4">Hesaplama Araçları</h1>
+                    <p className="text-xl text-gray-600">Emlak alım-satım kararlarınızı daha kolay verin</p>
+                </div>
+
+                {/* Tab selector */}
+                <div className="flex flex-wrap justify-center gap-3 mb-10">
+                    {calculators.map(calc => (
+                        <button
+                            key={calc.id}
+                            onClick={() => setActiveCalc(calc.id)}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${
+                                activeCalc === calc.id
+                                    ? 'text-white shadow-lg'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                            }`}
+                            style={activeCalc === calc.id ? { backgroundColor: config.primaryColor } : {}}
+                        >
+                            <calc.icon className="w-4 h-4" />
+                            {calc.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Active Calculator */}
+                <div className="max-w-2xl mx-auto">
+                    {activeCalc === 'mortgage' && <MortgageCalculator />}
+                    {activeCalc === 'gain' && <GainTaxCalculator />}
+                    {activeCalc === 'rent' && <RentYieldCalculator />}
+                    {activeCalc === 'tapu' && <TapuFeeCalculator />}
+                </div>
+            </div>
+        </div>
     );
 };
 

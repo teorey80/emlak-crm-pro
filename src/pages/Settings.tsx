@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, Eye, EyeOff } from 'lucide-react';
+import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, Eye, EyeOff, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
@@ -13,6 +13,19 @@ const Settings: React.FC = () => {
     const [exportStatus, setExportStatus] = useState<string | null>(null);
     const [profileForm, setProfileForm] = useState(userProfile);
     const [savedStatus, setSavedStatus] = useState(false);
+
+    // NetGSM entegrasyon ayarları (localStorage'da saklanır)
+    const [netgsmUser, setNetgsmUser] = useState(() => localStorage.getItem('netgsm_user') || '');
+    const [netgsmPass, setNetgsmPass] = useState(() => localStorage.getItem('netgsm_pass') || '');
+    const [netgsmSaved, setNetgsmSaved] = useState(false);
+
+    const handleSaveNetGSM = () => {
+        localStorage.setItem('netgsm_user', netgsmUser);
+        localStorage.setItem('netgsm_pass', netgsmPass);
+        setNetgsmSaved(true);
+        toast.success('NetGSM bilgileri kaydedildi.');
+        setTimeout(() => setNetgsmSaved(false), 2000);
+    };
 
     const handleSaveProfile = (e: React.FormEvent) => {
         e.preventDefault();
@@ -372,6 +385,64 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
+
+            {/* Entegrasyon Ayarları - NetGSM */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
+                <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                        <Smartphone className="w-5 h-5 text-blue-600" />
+                        Entegrasyonlar
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                        SMS gönderimi için NetGSM API bilgilerinizi girin.
+                    </p>
+                </div>
+                <div className="p-6">
+                    <div className="max-w-lg space-y-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
+                            📱 <strong>NetGSM SMS Entegrasyonu</strong><br />
+                            <span className="text-xs text-blue-600 dark:text-blue-400">
+                                netgsm.com.tr üzerinden hesap oluşturun. Kullanıcı adı ve şifrenizi girerek Mesajlaşma sayfasından SMS gönderebilirsiniz.
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">NetGSM Kullanıcı Adı</label>
+                                <input
+                                    type="text"
+                                    value={netgsmUser}
+                                    onChange={e => setNetgsmUser(e.target.value)}
+                                    placeholder="05xx veya kullanıcı adı"
+                                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">NetGSM Şifre</label>
+                                <input
+                                    type="password"
+                                    value={netgsmPass}
+                                    onChange={e => setNetgsmPass(e.target.value)}
+                                    placeholder="••••••••"
+                                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSaveNetGSM}
+                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                        >
+                            {netgsmSaved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                            {netgsmSaved ? 'Kaydedildi!' : 'Kaydet'}
+                        </button>
+                        {netgsmUser && (
+                            <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                NetGSM bağlı — Mesajlaşma sayfasından SMS gönderebilirsiniz.
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* Theme Settings Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">

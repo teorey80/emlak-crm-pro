@@ -32,6 +32,8 @@ import ResetPassword from './pages/ResetPassword';
 import JoinOffice from './pages/JoinOffice';
 import MatchCenter from './pages/MatchCenter';
 import Expenses from './pages/Expenses';
+import Messaging from './pages/Messaging';
+import ContentManager from './pages/ContentManager';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -46,6 +48,17 @@ const Layout: React.FC = () => {
   const [showMessageModal, setShowMessageModal] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  // Supabase'i aktif tut - her 4 dakikada bir ping at
+  // Free tier projeler 1 hafta inaktiflikte duraklatılır, bu bunu önler
+  useEffect(() => {
+    // Hemen bir kez ping at (giriş sonrası bağlantıyı canlandır)
+    keepSupabaseAlive();
+    const keepAliveInterval = setInterval(() => {
+      keepSupabaseAlive();
+    }, 4 * 60 * 1000); // 4 dakika
+    return () => clearInterval(keepAliveInterval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-200">
@@ -207,6 +220,8 @@ const CRMApp: React.FC = () => {
 
             <Route path="reports" element={<Reports />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="messaging" element={<Messaging />} />
+            <Route path="content" element={<ContentManager />} />
             <Route path="team" element={<Team />} />
             <Route path="matches" element={<MatchCenter />} />
             <Route path="settings" element={<Settings />} />

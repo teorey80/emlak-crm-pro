@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 // Sortable column type
@@ -8,7 +8,17 @@ type SortColumn = 'title' | 'type' | 'price' | 'status' | 'owner' | null;
 type SortDirection = 'asc' | 'desc';
 
 const PropertyList: React.FC = () => {
-    const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore } = useData();
+    const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore, propertiesLoadError, refetchData, loading } = useData();
+    const [isRefetching, setIsRefetching] = useState(false);
+
+    const handleRefetch = async () => {
+        setIsRefetching(true);
+        try {
+            await refetchData();
+        } finally {
+            setIsRefetching(false);
+        }
+    };
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Filter States - Initialize from URL params with sensible defaults
@@ -164,13 +174,42 @@ const PropertyList: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Mevcut Emlaklar</h2>
                     <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">Toplam {filteredAndSortedProperties.length} ilan listeleniyor</p>
                 </div>
-                <Link
-                    to="/properties/new"
-                    className="flex items-center gap-2 bg-[#1193d4] text-white px-4 py-2.5 rounded-lg hover:opacity-90 transition-all shadow-sm font-medium">
-                    <Plus className="w-4 h-4" />
-                    Yeni Emlak Ekle
-                </Link>
+                <div className="flex items-center gap-3">
+                    {/* Yenile butonu - her zaman görünür */}
+                    <button
+                        onClick={handleRefetch}
+                        disabled={loading || isRefetching}
+                        title="Verileri yenile"
+                        className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+                        {isRefetching ? 'Yükleniyor...' : 'Yenile'}
+                    </button>
+                    <Link
+                        to="/properties/new"
+                        className="flex items-center gap-2 bg-[#1193d4] text-white px-4 py-2.5 rounded-lg hover:opacity-90 transition-all shadow-sm font-medium">
+                        <Plus className="w-4 h-4" />
+                        Yeni Emlak Ekle
+                    </Link>
+                </div>
             </div>
+
+            {/* Portföy yükleme hatası banner */}
+            {propertiesLoadError && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                    <div className="flex-1">
+                        <p className="font-medium text-amber-800 dark:text-amber-300 text-sm">Portföy verileri yüklenemedi</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Supabase bağlantısı geçici olarak kesilmiş olabilir. "Yenile" butonuna tıklayın.</p>
+                    </div>
+                    <button
+                        onClick={handleRefetch}
+                        className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm font-medium hover:bg-amber-200 transition-colors"
+                    >
+                        Yenile
+                    </button>
+                </div>
+            )}
 
             {/* Advanced Filters Bar */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm transition-colors">

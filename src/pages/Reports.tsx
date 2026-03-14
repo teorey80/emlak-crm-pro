@@ -182,6 +182,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     let totalAgentShare = 0;
     let totalSaleValue = 0;
     let totalRentalValue = 0;
+    // KDV hesaplamaları
+    let totalKdvAmount = 0;
+    let kdvIncludedCount = 0;
+    let totalCommissionExKdv = 0;
 
     typedSales.forEach(sale => {
       const shares = calculateCommissionShares(sale, brokerIds);
@@ -190,6 +194,15 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       totalNetCommission += shares.netCommission;
       totalOfficeShare += shares.officeShare;
       totalAgentShare += shares.agentShare;
+
+      // KDV takibi
+      const hasKdv = sale.kdvIncluded || sale.kdv_included;
+      if (hasKdv) {
+        const kdvAmt = sale.kdvAmount || sale.kdv_amount || 0;
+        totalKdvAmount += kdvAmt;
+        kdvIncludedCount += 1;
+        totalCommissionExKdv += shares.grossCommission; // KDV'siz komisyon
+      }
 
       if (sale.transactionType === 'rental') {
         totalRentalValue += (sale.monthlyRent || sale.monthly_rent || 0);
@@ -244,7 +257,12 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
       rentalCount: typedSales.filter(s => s.transactionType === 'rental').length,
       totalTx: typedSales.length,
       consultantBreakdown,
-      monthlyTrend
+      monthlyTrend,
+      // KDV verileri
+      totalKdvAmount,
+      kdvIncludedCount,
+      totalCommissionExKdv,
+      kdvExcludedCount: typedSales.length - kdvIncludedCount,
     };
   }, [sales, teamMembers, dateRange, selectedAgent, commissionTab, brokerIds]);
 
@@ -558,6 +576,41 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
               <p className="text-lg font-bold text-slate-800 dark:text-white">{commissionStats.rentalCount}</p>
             </div>
           </div>
+
+          {/* KDV Özeti — sadece KDV'li işlem varsa göster */}
+          {commissionStats.kdvIncludedCount > 0 && (
+            <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Receipt className="w-4 h-4 text-orange-500" />
+                <h4 className="font-semibold text-orange-800 dark:text-orange-300 text-sm">🧾 KDV Özeti</h4>
+                <span className="text-xs text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">
+                  {commissionStats.kdvIncludedCount} KDV'li işlem
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-orange-600 dark:text-orange-400">KDV'li İşlem Sayısı</p>
+                  <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{commissionStats.kdvIncludedCount}</p>
+                  <p className="text-[10px] text-orange-500">KDV'siz: {commissionStats.kdvExcludedCount}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-orange-600 dark:text-orange-400">Toplam KDV Tutarı</p>
+                  <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{commissionStats.totalKdvAmount.toLocaleString('tr-TR')} ₺</p>
+                  <p className="text-[10px] text-orange-500">Devlete giden</p>
+                </div>
+                <div>
+                  <p className="text-xs text-orange-600 dark:text-orange-400">KDV Hariç Net Komisyon</p>
+                  <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{(commissionStats.totalGrossCommission - commissionStats.totalKdvAmount).toLocaleString('tr-TR')} ₺</p>
+                  <p className="text-[10px] text-orange-500">Gerçek net gelir</p>
+                </div>
+                <div>
+                  <p className="text-xs text-orange-600 dark:text-orange-400">KDV Dahil Brüt</p>
+                  <p className="text-lg font-bold text-slate-700 dark:text-slate-300">{(commissionStats.totalGrossCommission + commissionStats.totalKdvAmount).toLocaleString('tr-TR')} ₺</p>
+                  <p className="text-[10px] text-orange-500">Müşteriden alınan</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Komisyon Trend Grafiği */}
           {commissionStats.monthlyTrend.length > 0 && (

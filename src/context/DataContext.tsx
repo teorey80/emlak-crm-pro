@@ -28,6 +28,8 @@ interface DataContextType {
   userProfile: UserProfile;
   office: Office | null;
   loading: boolean;
+  propertiesLoadError: boolean;  // Portföy verileri yüklenemedi mi?
+  refetchData: () => Promise<void>;  // Verileri yeniden yükle
   // Subscription
   subscription: Subscription | null;
   planLimits: PlanLimits | null;
@@ -93,6 +95,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Properties yükleme hatası takibi
+  const [propertiesLoadError, setPropertiesLoadError] = useState(false);
 
   // Web Config is kept in LocalStorage for simplicity as it's browser-specific preference for the builder
 
@@ -787,6 +792,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('[fetchData] Setting properties:', nextProperties.length);
         setProperties(applyPropertyPrivacyMask(nextProperties, currentUserId));
         setHasMoreProperties(nextProperties.length === PAGE_SIZE);
+        setPropertiesLoadError(false); // Başarılı
       } else {
         console.log('[fetchData] No properties from main query, trying fallback');
         // Fallback: if office-level visibility is broken, try own properties first.
@@ -838,6 +844,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.warn('[fetchData] All property fetch attempts returned empty');
           setProperties([]);
           setHasMoreProperties(false);
+          setPropertiesLoadError(true); // Portföyler yüklenemedi
         }
       }
       if (custRes.data) {
@@ -2228,6 +2235,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider value={{
       session, signOut,
       properties, customers, sites, activities, requests, sales, expenses, teamMembers, webConfig, userProfile, office, loading,
+      propertiesLoadError,
+      refetchData: fetchData,
       subscription, planLimits, canAddProperty, canAddCustomer, getUsageStats,
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,

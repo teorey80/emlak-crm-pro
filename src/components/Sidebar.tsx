@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, Building2, BarChart3, Settings, LayoutDashboard, Building, CalendarCheck, SearchCheck, Moon, Sun, Globe, LogOut, Briefcase, Calendar, Menu, X, Receipt } from 'lucide-react';
+import { Home, Users, Building2, BarChart3, Settings, LayoutDashboard, Building, CalendarCheck, SearchCheck, Moon, Sun, Globe, LogOut, Briefcase, Calendar, Menu, X, Receipt, MessageSquare, BookOpen } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -38,6 +38,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { path: '/team', label: 'Ekibim', icon: Briefcase },
     { path: '/reports', label: 'Raporlar', icon: BarChart3 },
     ...(isBroker ? [{ path: '/expenses', label: 'Giderler', icon: Receipt }] : []),
+    { path: '/messaging', label: 'Mesajlaşma', icon: MessageSquare },
+    { path: '/content', label: 'İçerik Yönetimi', icon: BookOpen },
   ];
 
   return (

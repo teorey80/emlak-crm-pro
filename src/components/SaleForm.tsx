@@ -92,6 +92,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         initialData?.partnerShareAmount ? formatMoney(initialData.partnerShareAmount) : ''
     );
 
+    // KDV (VAT) states
+    const [kdvIncluded, setKdvIncluded] = useState<boolean>(initialData?.kdvIncluded || false);
+    const [kdvRate, setKdvRate] = useState<number>(initialData?.kdvRate ?? 20);
+
     // Handle partner share input - format while typing
     const handlePartnerShareChange = (value: string) => {
         const numValue = parseMoney(value);
@@ -126,6 +130,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
     const consultantShareRate = 100 - formData.officeShareRate;
     const totalConsultantShare = netProfit - officeShareAmount;
+
+    // KDV calculations
+    const kdvAmount = kdvIncluded ? (totalCommissionAmount * kdvRate) / 100 : 0;
+    const grossAmountWithKdv = totalCommissionAmount + kdvAmount;
+    const netCommissionExKdv = totalCommissionAmount; // Komisyon KDV hariç net tutar
 
     // Cross-commission calculation
     const propertyOwnerShareAmount = formData.enableCrossCommission
@@ -219,6 +228,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             partnerShareType: hasPartnerOffice ? partnerShareType : undefined,
             partnerShareAmount: hasPartnerOffice ? partnerShareAmount : undefined,
             partnerShareRate: hasPartnerOffice ? partnerShareRate : undefined,
+
+            // KDV (VAT)
+            kdvIncluded,
+            kdvRate: kdvIncluded ? kdvRate : 0,
+            kdvAmount: kdvIncluded ? kdvAmount : 0,
+            grossAmountWithKdv: kdvIncluded ? grossAmountWithKdv : totalCommissionAmount,
+            netCommissionExKdv: netCommissionExKdv,
         };
 
         onSave(sale);
@@ -678,6 +694,24 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <span className="font-semibold text-gray-800 dark:text-white">Net Kâr</span>
                                 <span className="font-bold text-green-600">{formatMoney(netProfit)} ₺</span>
                             </div>
+
+                            {/* KDV Özeti */}
+                            {kdvIncluded && (
+                                <div className="border-t border-orange-100 dark:border-orange-900/30 pt-2 space-y-1 bg-orange-50 dark:bg-orange-900/10 rounded-lg p-2 mt-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-orange-700 dark:text-orange-300">KDV Tutarı (%{kdvRate})</span>
+                                        <span className="font-medium text-orange-600">+{formatMoney(kdvAmount)} ₺</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-semibold">
+                                        <span className="text-orange-800 dark:text-orange-200">KDV Dahil Toplam</span>
+                                        <span className="text-orange-700 dark:text-orange-300">{formatMoney(grossAmountWithKdv)} ₺</span>
+                                    </div>
+                                    <div className="text-xs text-orange-500 dark:text-orange-400">
+                                        ⚠️ KDV tutarı devlete ödenir — net gelir {formatMoney(netCommissionExKdv)} ₺
+                                    </div>
+                                </div>
+                            )}
+
                             <div className={`grid ${formData.enableCrossCommission ? 'grid-cols-3' : 'grid-cols-2'} gap-4 pt-2 border-t border-gray-100 dark:border-slate-700`}>
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">Ofise Kalan</div>
@@ -697,6 +731,52 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* KDV Seçimi */}
+                    <div className="bg-orange-50 dark:bg-orange-900/10 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
+                        <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-3 flex items-center gap-2">
+                            🧾 KDV (Katma Değer Vergisi)
+                        </h3>
+                        <div className="flex items-center gap-3 mb-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={kdvIncluded}
+                                    onChange={e => setKdvIncluded(e.target.checked)}
+                                    className="w-4 h-4 rounded accent-orange-500"
+                                />
+                                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                                    KDV'li fatura kesildi (+KDV)
+                                </span>
+                            </label>
+                        </div>
+                        {kdvIncluded && (
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">KDV Oranı</label>
+                                    <select
+                                        value={kdvRate}
+                                        onChange={e => setKdvRate(Number(e.target.value))}
+                                        className="w-full rounded-lg border border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 p-2 text-sm text-gray-900 dark:text-white"
+                                    >
+                                        <option value={10}>%10 KDV</option>
+                                        <option value={20}>%20 KDV</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">Hesaplanan KDV</label>
+                                    <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2 text-center font-bold text-orange-800 dark:text-orange-200 text-sm">
+                                        {formatMoney(kdvAmount)} ₺
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {!kdvIncluded && (
+                            <p className="text-xs text-orange-500 dark:text-orange-400">
+                                KDV'siz işlem — komisyon net gelir olarak sayılır.
+                            </p>
+                        )}
                     </div>
 
                     {/* Notes */}

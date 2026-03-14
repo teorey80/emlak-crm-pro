@@ -31,6 +31,29 @@ export async function keepSupabaseAlive(): Promise<{ success: boolean; latency: 
     }
 }
 
+// Exponential backoff retry - bağlantı kopukluğunda yeniden dener
+export async function keepAliveWithRetry(maxRetries = 3): Promise<{ success: boolean; latency: number; attempts: number }> {
+    let lastResult = { success: false, latency: 0 };
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        lastResult = await keepSupabaseAlive();
+
+        if (lastResult.success) {
+            return { ...lastResult, attempts: attempt };
+        }
+
+        if (attempt < maxRetries) {
+            // Exponential backoff: 1s, 2s, 4s
+            const delay = Math.pow(2, attempt - 1) * 1000;
+            console.log(`[KeepAlive] Retry ${attempt}/${maxRetries} in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    console.error(`[KeepAlive] All ${maxRetries} attempts failed`);
+    return { ...lastResult, attempts: maxRetries };
+}
+
 // Pre-warm cache function - call this when user visits any page
 export async function preWarmPublicSiteData() {
     const start = Date.now();

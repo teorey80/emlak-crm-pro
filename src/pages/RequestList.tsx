@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, MapPin, Pencil, Trash2, Sparkles, User } from 'lucide-react';
+import { Plus, Search, MapPin, Pencil, Trash2, Sparkles, User, PauseCircle, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Request } from '../types';
 
 const RequestList: React.FC = () => {
-    const { requests, deleteRequest, userProfile, teamMembers } = useData();
+    const { requests, deleteRequest, updateRequest, userProfile, teamMembers } = useData();
     const navigate = useNavigate();
 
     // Check if current user can edit a request (owner or broker)
@@ -33,6 +33,19 @@ const RequestList: React.FC = () => {
                 console.error("Silme hatası:", error);
                 toast.error("Silinemedi.");
             }
+        }
+    };
+
+    const handleToggleStatus = async (e: React.MouseEvent, req: Request) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const newStatus = req.status === 'Aktif' ? 'Pasif' : 'Aktif';
+        try {
+            await updateRequest({ ...req, status: newStatus });
+            toast.success(newStatus === 'Pasif' ? '✅ Talep pasife alındı. Artık eşleşmelerde görünmeyecek.' : '✅ Talep aktife alındı.');
+        } catch (error) {
+            console.error("Statü güncelleme hatası:", error);
+            toast.error("Statü güncellenemedi.");
         }
     };
 
@@ -78,6 +91,18 @@ const RequestList: React.FC = () => {
                                 {/* Show Edit/Delete only for own requests or if broker */}
                                 {canEditRequest(req) ? (
                                     <>
+                                        <button
+                                            onClick={(e) => handleToggleStatus(e, req)}
+                                            title={req.status === 'Aktif' ? 'Pasife Al — Eşleşmelerde görünmez' : 'Aktife Al'}
+                                            className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+                                                req.status === 'Aktif'
+                                                    ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40'
+                                                    : 'bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40'
+                                            }`}
+                                        >
+                                            {req.status === 'Aktif' ? <PauseCircle className="w-3 h-3" /> : <PlayCircle className="w-3 h-3" />}
+                                            {req.status === 'Aktif' ? 'Pasife Al' : 'Aktife Al'}
+                                        </button>
                                         <Link
                                             to={`/requests/edit/${req.id}`}
                                             className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1"
@@ -109,8 +134,13 @@ const RequestList: React.FC = () => {
                                         Eşleşme Öner
                                     </button>
                                 )}
-                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${req.status === 'Aktif' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400'
-                                    }`}>
+                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                    req.status === 'Aktif'
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                        : req.status === 'Pasif'
+                                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                                            : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400'
+                                }`}>
                                     {req.status}
                                 </span>
                             </div>

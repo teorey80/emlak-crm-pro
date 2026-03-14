@@ -54,6 +54,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
 
+    // KDV (VAT) states
+    const [kdvIncluded, setKdvIncluded] = useState<boolean>(initialData?.kdvIncluded || initialData?.kdv_included || false);
+    const [kdvRate, setKdvRate] = useState<number>(initialData?.kdvRate ?? initialData?.kdv_rate ?? 20);
+
     // Calculate lease end date
     const leaseEndDate = useMemo(() => {
         const start = new Date(formData.leaseStartDate);
@@ -68,6 +72,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
     const consultantShareRate = 100 - formData.officeShareRate;
     const totalConsultantShare = netProfit - officeShareAmount;
+
+    // KDV calculations
+    const kdvAmount = kdvIncluded ? (commissionAmount * kdvRate) / 100 : 0;
+    const grossAmountWithKdv = commissionAmount + kdvAmount;
 
     // Cross-commission calculation
     const propertyOwnerShareAmount = formData.enableCrossCommission
@@ -151,6 +159,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
 
             // Property info
             propertyTitle: property.title,
+
+            // KDV (VAT)
+            kdvIncluded,
+            kdvRate: kdvIncluded ? kdvRate : 0,
+            kdvAmount: kdvIncluded ? kdvAmount : 0,
+            grossAmountWithKdv: kdvIncluded ? grossAmountWithKdv : commissionAmount,
+            netCommissionExKdv: commissionAmount,
         };
 
         onSave(sale);
@@ -457,6 +472,65 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                                     </div>
                                 ))}
                             </div>
+                        )}
+                    </div>
+
+                    {/* KDV Seçimi */}
+                    <div className="bg-orange-50 dark:bg-orange-900/10 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
+                        <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-3 flex items-center gap-2">
+                            🧾 KDV (Katma Değer Vergisi)
+                        </h3>
+                        <div className="flex items-center gap-3 mb-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={kdvIncluded}
+                                    onChange={e => setKdvIncluded(e.target.checked)}
+                                    className="w-4 h-4 rounded accent-orange-500"
+                                />
+                                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                                    KDV'li fatura kesildi (+KDV)
+                                </span>
+                            </label>
+                        </div>
+                        {kdvIncluded && (
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">KDV Oranı</label>
+                                    <select
+                                        value={kdvRate}
+                                        onChange={e => setKdvRate(Number(e.target.value))}
+                                        className="w-full rounded-lg border border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 p-2 text-sm text-gray-900 dark:text-white"
+                                    >
+                                        <option value={10}>%10 KDV</option>
+                                        <option value={20}>%20 KDV</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">Hesaplanan KDV</label>
+                                    <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2 text-center font-bold text-orange-800 dark:text-orange-200 text-sm">
+                                        {kdvAmount.toLocaleString('tr-TR')} ₺
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {kdvIncluded && (
+                            <div className="mt-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg p-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-orange-700 dark:text-orange-300">KDV Hariç Komisyon</span>
+                                    <span className="font-semibold">{commissionAmount.toLocaleString('tr-TR')} ₺</span>
+                                </div>
+                                <div className="flex justify-between mt-1">
+                                    <span className="text-orange-700 dark:text-orange-300">KDV Dahil Toplam</span>
+                                    <span className="font-bold text-orange-800 dark:text-orange-200">{grossAmountWithKdv.toLocaleString('tr-TR')} ₺</span>
+                                </div>
+                                <p className="text-xs text-orange-500 mt-1">⚠️ {kdvAmount.toLocaleString('tr-TR')} ₺ devlete ödenir</p>
+                            </div>
+                        )}
+                        {!kdvIncluded && (
+                            <p className="text-xs text-orange-500 dark:text-orange-400">
+                                KDV'siz işlem — komisyon net gelir olarak sayılır.
+                            </p>
                         )}
                     </div>
 

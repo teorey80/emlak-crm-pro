@@ -396,6 +396,18 @@ export interface Sale {
   partner_share_amount?: number; // DB field
   partnerShareRate?: number; // Calculated percentage
   partner_share_rate?: number; // DB field
+
+  // KDV (VAT) fields
+  kdvIncluded?: boolean;           // KDV dahil mi?
+  kdv_included?: boolean;          // DB field
+  kdvRate?: number;                // KDV oranı: 0, 10, 20
+  kdv_rate?: number;               // DB field
+  kdvAmount?: number;              // KDV tutarı (TL)
+  kdv_amount?: number;             // DB field
+  grossAmountWithKdv?: number;     // KDV dahil brüt tutar
+  gross_amount_with_kdv?: number;  // DB field
+  netCommissionExKdv?: number;     // KDV hariç net komisyon
+  net_commission_ex_kdv?: number;  // DB field
 }
 
 // Document Management
