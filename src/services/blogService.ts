@@ -35,7 +35,7 @@ export async function listBlogPosts(userId: string): Promise<BlogPost[]> {
 export async function listPublishedBlogPosts(userId: string): Promise<BlogPost[]> {
   const { data, error } = await supabase
     .from('blog_posts')
-    .select('id,title,slug,summary,cover_image_url,tags,published_at,created_at')
+    .select('id,user_id,title,slug,summary,cover_image_url,tags,published,published_at,created_at')
     .eq('user_id', userId)
     .eq('published', true)
     .order('published_at', { ascending: false });
