@@ -982,12 +982,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const canAddProperty = async (): Promise<{ allowed: boolean; message?: string }> => {
     if (!session?.user.id) return { allowed: false, message: 'Oturum bulunamadı' };
 
+    // Broker ve ofis yöneticileri limitsiz portföy ekleyebilir
+    const role = userProfile?.role;
+    if (role === 'broker' || role === 'ofis_broker' || role === 'admin' || role === 'owner') {
+      return { allowed: true };
+    }
+
     const result = await checkPropertyLimit(session.user.id, properties.length);
     return { allowed: result.allowed, message: result.message };
   };
 
   const canAddCustomer = async (): Promise<{ allowed: boolean; message?: string }> => {
     if (!session?.user.id) return { allowed: false, message: 'Oturum bulunamadı' };
+
+    // Broker ve ofis yöneticileri limitsiz müşteri ekleyebilir
+    const role = userProfile?.role;
+    if (role === 'broker' || role === 'ofis_broker' || role === 'admin' || role === 'owner') {
+      return { allowed: true };
+    }
 
     const result = await checkCustomerLimit(session.user.id, customers.length);
     return { allowed: result.allowed, message: result.message };

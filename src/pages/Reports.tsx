@@ -146,7 +146,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
     endDate.setHours(23, 59, 59, 999);
 
     let filteredSales = sales?.filter(s => {
-      const saleDate = new Date(s.saleDate || s.sale_date || '');
+      // Önce işlem tarihini dene, yoksa oluşturulma tarihini kullan
+      const rawDate = s.saleDate || s.sale_date || s.createdAt || s.created_at || '';
+      const saleDate = new Date(rawDate);
+      if (isNaN(saleDate.getTime())) return true; // Geçersiz tarihli işlemleri yine göster
       return saleDate >= startDate && saleDate <= endDate;
     }) || [];
 

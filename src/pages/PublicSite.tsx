@@ -2061,4 +2061,180 @@ const PropertyModal: React.FC<{ property: Property, config: WebSiteConfig, onClo
     );
 };
 
+// Video Preview Component (homepage section - only shows if videos exist)
+const VideoPreview: React.FC<{ config: WebSiteConfig; videos: YoutubeVideo[]; navigateTo: (view: ViewType, slug?: string) => void }> = ({ config, videos, navigateTo }) => {
+    const latestVideos = videos.slice(0, 3);
+    const [playingId, setPlayingId] = useState<string | null>(null);
+
+    return (
+        <section className="py-20 bg-white">
+            <div className="container mx-auto px-4">
+                <div className="flex justify-between items-center mb-12">
+                    <div>
+                        <span className="inline-flex items-center gap-2 bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-medium mb-4">
+                            <Youtube className="w-4 h-4" /> Video
+                        </span>
+                        <h2 className="text-3xl font-bold text-slate-800">Videolarımız</h2>
+                    </div>
+                    <button
+                        onClick={() => navigateTo('videolar')}
+                        className="flex items-center gap-2 text-gray-600 hover:text-slate-900 font-medium transition-colors"
+                    >
+                        Tümünü Gör <ArrowRight className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {latestVideos.map(video => (
+                        <div key={video.id} className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 group cursor-pointer"
+                            onClick={() => setPlayingId(playingId === video.youtube_id ? null : (video.youtube_id || null))}>
+                            {playingId === video.youtube_id ? (
+                                <div className="relative" style={{ paddingBottom: '56.25%' }}>
+                                    <iframe
+                                        className="absolute inset-0 w-full h-full"
+                                        src={getYouTubeEmbedUrl(video.youtube_id || '') + '?autoplay=1'}
+                                        title={video.title}
+                                        allow="autoplay; encrypted-media"
+                                        allowFullScreen
+                                    />
+                                </div>
+                            ) : (
+                                <div className="relative h-48 overflow-hidden bg-black">
+                                    <img
+                                        src={getYouTubeThumbnail(video.youtube_id || '')}
+                                        alt={video.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                            <Play className="w-6 h-6 text-white ml-1" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="p-4">
+                                <h3 className="font-semibold text-slate-800 line-clamp-2">{video.title}</h3>
+                                {video.description && <p className="text-sm text-gray-500 mt-1 line-clamp-1">{video.description}</p>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+};
+
+// Video Section Full Page
+const VideoSection: React.FC<{ config: WebSiteConfig; videos: YoutubeVideo[] }> = ({ config, videos }) => {
+    const [playingId, setPlayingId] = useState<string | null>(null);
+
+    return (
+        <div className="py-20 bg-white flex-1">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-16">
+                    <span className="inline-flex items-center gap-2 bg-red-100 text-red-600 px-4 py-2 rounded-full text-sm font-medium mb-4">
+                        <Youtube className="w-4 h-4" /> Video
+                    </span>
+                    <h1 className="text-4xl font-bold text-slate-800 mb-4">Videolarımız</h1>
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                        Gayrimenkul rehber videoları ve portföy tanıtımları
+                    </p>
+                </div>
+
+                {videos.length === 0 ? (
+                    <div className="text-center py-16 text-gray-400">
+                        <Youtube className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                        <p>Henüz video eklenmemiş.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {videos.map(video => (
+                            <div key={video.id} className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 group cursor-pointer"
+                                onClick={() => setPlayingId(playingId === video.youtube_id ? null : (video.youtube_id || null))}>
+                                {playingId === video.youtube_id ? (
+                                    <div className="relative" style={{ paddingBottom: '56.25%' }}>
+                                        <iframe
+                                            className="absolute inset-0 w-full h-full"
+                                            src={getYouTubeEmbedUrl(video.youtube_id || '') + '?autoplay=1'}
+                                            title={video.title}
+                                            allow="autoplay; encrypted-media"
+                                            allowFullScreen
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="relative h-52 overflow-hidden bg-black">
+                                        <img
+                                            src={getYouTubeThumbnail(video.youtube_id || '', 'hq')}
+                                            alt={video.title}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                <Play className="w-7 h-7 text-white ml-1" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="p-5">
+                                    <h2 className="font-bold text-slate-800 mb-2">{video.title}</h2>
+                                    {video.description && <p className="text-sm text-gray-600 line-clamp-2">{video.description}</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Calculators Section Full Page
+const CalculatorsSection: React.FC<{ config: WebSiteConfig }> = ({ config }) => {
+    const [activeCalc, setActiveCalc] = useState<'mortgage' | 'gaintax' | 'rentyield' | 'tapu'>('mortgage');
+
+    const calcs = [
+        { id: 'mortgage' as const, label: 'Kredi Hesaplama', icon: Calculator },
+        { id: 'gaintax' as const, label: 'Değer Artışı Vergisi', icon: Calculator },
+        { id: 'rentyield' as const, label: 'Kira Getirisi', icon: Calculator },
+        { id: 'tapu' as const, label: 'Tapu Harcı', icon: Calculator },
+    ];
+
+    return (
+        <div className="py-20 bg-gray-50 flex-1">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-12">
+                    <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-600 px-4 py-2 rounded-full text-sm font-medium mb-4">
+                        <Calculator className="w-4 h-4" /> Araçlar
+                    </span>
+                    <h1 className="text-4xl font-bold text-slate-800 mb-4">Hesaplama Araçları</h1>
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                        Gayrimenkul kararlarınızı kolaylaştıran ücretsiz hesaplama araçları
+                    </p>
+                </div>
+
+                {/* Calculator Tabs */}
+                <div className="flex flex-wrap justify-center gap-3 mb-10">
+                    {calcs.map(c => (
+                        <button
+                            key={c.id}
+                            onClick={() => setActiveCalc(c.id)}
+                            className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all ${activeCalc === c.id ? 'text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+                            style={activeCalc === c.id ? { backgroundColor: config.primaryColor } : {}}
+                        >
+                            {c.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="max-w-2xl mx-auto">
+                    {activeCalc === 'mortgage' && <MortgageCalculator />}
+                    {activeCalc === 'gaintax' && <GainTaxCalculator />}
+                    {activeCalc === 'rentyield' && <RentYieldCalculator />}
+                    {activeCalc === 'tapu' && <TapuFeeCalculator />}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default PublicSite;
