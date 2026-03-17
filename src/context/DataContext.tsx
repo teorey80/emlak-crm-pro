@@ -1490,6 +1490,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           monthly_rent: saleWithId.monthlyRent,
           deposit_amount: saleWithId.depositAmount,
           lease_duration: saleWithId.leaseDuration,
+          lease_start_date: saleWithId.leaseStartDate,
           lease_end_date: saleWithId.leaseEndDate,
 
           // Commission fields
@@ -1539,6 +1540,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         monthlyRent: saleWithId.monthlyRent,
         depositAmount: saleWithId.depositAmount,
         leaseDuration: saleWithId.leaseDuration,
+        leaseStartDate: saleWithId.leaseStartDate,
         leaseEndDate: saleWithId.leaseEndDate,
 
         // Commission fields

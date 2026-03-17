@@ -36,7 +36,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
     const [formData, setFormData] = useState({
         monthlyRent: initialData?.monthlyRent || initialData?.monthly_rent || property.price || 0,
         depositAmount: initialData?.depositAmount || initialData?.deposit_amount || (property.price || 0) * 2,
-        leaseStartDate: initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
+        transactionDate: initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
+        leaseStartDate: initialData?.leaseStartDate || initialData?.lease_start_date || initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
         leaseDuration: initialData?.leaseDuration || initialData?.lease_duration || 12,
         tenantId: initialData?.buyerId || initialData?.buyer_id || '',
         tenantName: initialData?.buyerName || initialData?.buyer_name || '',
@@ -125,7 +126,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
 
             // Use sale fields for rental data
             salePrice: commissionAmount, // Total commission
-            saleDate: formData.leaseStartDate,
+            saleDate: formData.transactionDate, // İşlem tarihi (sözleşme imza tarihi)
             buyerId: formData.tenantId,
             buyerName: formData.tenantName,
 
@@ -133,6 +134,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
             monthlyRent: formData.monthlyRent,
             depositAmount: formData.depositAmount,
             leaseDuration: formData.leaseDuration,
+            leaseStartDate: formData.leaseStartDate, // Kira başlangıç tarihi (sözleşmedeki)
             leaseEndDate: leaseEndDate,
 
             // Consultant
@@ -237,6 +239,30 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                         </div>
                     </div>
 
+                    {/* İşlem Tarihi */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
+                        <h3 className="font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-2 mb-3">
+                            <Calendar className="w-4 h-4" />
+                            İşlem Tarihi
+                        </h3>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                                Sözleşme / İmza Tarihi
+                                <span className="ml-2 text-xs text-blue-500 font-normal">(Raporlarda bu tarih kullanılır)</span>
+                            </label>
+                            <input
+                                type="date"
+                                value={formData.transactionDate}
+                                onChange={(e) => setFormData({ ...formData, transactionDate: e.target.value })}
+                                className="w-full px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                                required
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                                Kira başlangıcından farklıysa burayı güncelleyin. Örn: Sözleşme 12 Mart'ta imzalandı ama kira 1 Nisan'da başlıyor.
+                            </p>
+                        </div>
+                    </div>
+
                     {/* Lease Period */}
                     <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 space-y-4">
                         <h3 className="font-semibold text-purple-900 dark:text-purple-300 flex items-center gap-2">
@@ -246,7 +272,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                                    Başlangıç Tarihi
+                                    Kira Başlangıç Tarihi
+                                    <span className="ml-2 text-xs text-purple-500 font-normal">(Sözleşmedeki tarih)</span>
                                 </label>
                                 <input
                                     type="date"

@@ -341,6 +341,8 @@ export interface Sale {
   deposit_amount?: number; // DB field
   leaseDuration?: number; // Kira süresi (ay)
   lease_duration?: number; // DB field
+  leaseStartDate?: string; // Kira başlangıç tarihi (sözleşmedeki tarih)
+  lease_start_date?: string; // DB field
   leaseEndDate?: string; // Kira bitiş tarihi
   lease_end_date?: string; // DB field
 

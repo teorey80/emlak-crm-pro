@@ -281,7 +281,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                                Satış Tarihi
+                                İşlem / Satış Tarihi
+                                <span className="ml-2 text-xs text-blue-500 font-normal">(Raporlarda bu tarih kullanılır)</span>
                             </label>
                             <input
                                 type="date"
