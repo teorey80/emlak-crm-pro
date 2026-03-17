@@ -19,9 +19,10 @@ type Tab = 'blog' | 'videos' | 'tools';
 const BlogFormModal: React.FC<{
   post?: BlogPost;
   userId: string;
+  officeId?: string;
   onSave: (post: BlogPost) => void;
   onClose: () => void;
-}> = ({ post, userId, onSave, onClose }) => {
+}> = ({ post, userId, officeId, onSave, onClose }) => {
   const [form, setForm] = useState<Partial<BlogPost>>({
     title: post?.title || '',
     summary: post?.summary || '',
@@ -30,6 +31,7 @@ const BlogFormModal: React.FC<{
     tags: post?.tags || [],
     published: post?.published || false,
     user_id: userId,
+    office_id: officeId,
   });
   const [saving, setSaving] = useState(false);
   const [tagsInput, setTagsInput] = useState((post?.tags || []).join(', '));
@@ -48,7 +50,7 @@ const BlogFormModal: React.FC<{
       if (post?.id) {
         result = await updateBlogPost(post.id, data);
       } else {
-        result = await createBlogPost({ ...data, user_id: userId } as any);
+        result = await createBlogPost({ ...data, user_id: userId, office_id: officeId } as any);
       }
       if (result) {
         toast.success(post?.id ? 'Blog yazısı güncellendi.' : 'Blog yazısı oluşturuldu.');
@@ -129,9 +131,10 @@ const BlogFormModal: React.FC<{
 const VideoFormModal: React.FC<{
   video?: YoutubeVideo;
   userId: string;
+  officeId?: string;
   onSave: (v: YoutubeVideo) => void;
   onClose: () => void;
-}> = ({ video, userId, onSave, onClose }) => {
+}> = ({ video, userId, officeId, onSave, onClose }) => {
   const [form, setForm] = useState<Partial<YoutubeVideo>>({
     title: video?.title || '',
     youtube_url: video?.youtube_url || '',
@@ -139,6 +142,7 @@ const VideoFormModal: React.FC<{
     published: video?.published || false,
     display_order: video?.display_order || 0,
     user_id: userId,
+    office_id: officeId,
   });
   const [saving, setSaving] = useState(false);
 
@@ -153,7 +157,7 @@ const VideoFormModal: React.FC<{
       if (video?.id) {
         result = await updateVideo(video.id, form as any);
       } else {
-        result = await createVideo({ ...form, user_id: userId } as any);
+        result = await createVideo({ ...form, user_id: userId, office_id: officeId } as any);
       }
       if (result) {
         toast.success(video?.id ? 'Video güncellendi.' : 'Video eklendi.');
@@ -239,16 +243,18 @@ const ContentManager: React.FC = () => {
   const [editingVideo, setEditingVideo] = useState<YoutubeVideo | undefined>();
 
   const userId = session?.user?.id || '';
+  const officeId = userProfile?.office_id || undefined;
 
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    Promise.all([listBlogPosts(userId), listVideos(userId)]).then(([posts, vids]) => {
+    // Ofis üyesiyse ofisteki tüm içerikleri göster
+    Promise.all([listBlogPosts(userId, officeId), listVideos(userId, officeId)]).then(([posts, vids]) => {
       setBlogPosts(posts);
       setVideos(vids);
       setLoading(false);
     });
-  }, [userId]);
+  }, [userId, officeId]);
 
   const handleBlogSave = (post: BlogPost) => {
     setBlogPosts(prev => {
@@ -451,6 +457,7 @@ const ContentManager: React.FC = () => {
         <BlogFormModal
           post={editingBlog}
           userId={userId}
+          officeId={officeId}
           onSave={handleBlogSave}
           onClose={() => { setShowBlogForm(false); setEditingBlog(undefined); }}
         />
@@ -459,6 +466,7 @@ const ContentManager: React.FC = () => {
         <VideoFormModal
           video={editingVideo}
           userId={userId}
+          officeId={officeId}
           onSave={handleVideoSave}
           onClose={() => { setShowVideoForm(false); setEditingVideo(undefined); }}
         />

@@ -46,12 +46,20 @@ export function getYouTubeEmbedUrl(youtubeId: string): string {
 }
 
 // Tüm videoları listele (yönetim için)
-export async function listVideos(userId: string): Promise<YoutubeVideo[]> {
-  const { data, error } = await supabase
+// officeId varsa ofisteki tüm üyelerin videolarını göster
+export async function listVideos(userId: string, officeId?: string): Promise<YoutubeVideo[]> {
+  let query = supabase
     .from('youtube_videos')
     .select('*')
-    .eq('user_id', userId)
     .order('display_order', { ascending: true });
+
+  if (officeId) {
+    query = query.eq('office_id', officeId);
+  } else {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[videoService] listVideos error:', error.message);
@@ -61,13 +69,20 @@ export async function listVideos(userId: string): Promise<YoutubeVideo[]> {
 }
 
 // Yayınlanan videoları listele (web sitesi için)
-export async function listPublishedVideos(userId: string): Promise<YoutubeVideo[]> {
-  const { data, error } = await supabase
+export async function listPublishedVideos(userId?: string, officeId?: string): Promise<YoutubeVideo[]> {
+  let query = supabase
     .from('youtube_videos')
     .select('*')
-    .eq('user_id', userId)
     .eq('published', true)
     .order('display_order', { ascending: true });
+
+  if (officeId) {
+    query = query.eq('office_id', officeId);
+  } else if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[videoService] listPublishedVideos error:', error.message);

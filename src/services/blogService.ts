@@ -17,12 +17,20 @@ export interface BlogPost {
 }
 
 // Tüm blog yazılarını listele (yönetim için)
-export async function listBlogPosts(userId: string): Promise<BlogPost[]> {
-  const { data, error } = await supabase
+// officeId varsa ofisteki tüm üyelerin yazılarını göster
+export async function listBlogPosts(userId: string, officeId?: string): Promise<BlogPost[]> {
+  let query = supabase
     .from('blog_posts')
     .select('*')
-    .eq('user_id', userId)
     .order('created_at', { ascending: false });
+
+  if (officeId) {
+    query = query.eq('office_id', officeId);
+  } else {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[blogService] listBlogPosts error:', error.message);
@@ -31,14 +39,21 @@ export async function listBlogPosts(userId: string): Promise<BlogPost[]> {
   return data || [];
 }
 
-// Yayınlanan blog yazılarını listele (web sitesi için)
-export async function listPublishedBlogPosts(userId: string): Promise<BlogPost[]> {
-  const { data, error } = await supabase
+// Yayınlanan blog yazılarını listele (web sitesi için - content dahil)
+export async function listPublishedBlogPosts(userId?: string, officeId?: string): Promise<BlogPost[]> {
+  let query = supabase
     .from('blog_posts')
-    .select('id,user_id,title,slug,summary,cover_image_url,tags,published,published_at,created_at')
-    .eq('user_id', userId)
+    .select('*')
     .eq('published', true)
     .order('published_at', { ascending: false });
+
+  if (officeId) {
+    query = query.eq('office_id', officeId);
+  } else if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[blogService] listPublishedBlogPosts error:', error.message);

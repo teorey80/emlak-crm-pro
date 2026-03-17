@@ -83,7 +83,7 @@ const getFloorLabel = (value?: number) => {
 };
 
 const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
-    const { siteConfig, properties, type, ownerName, officeName, userId } = siteData;
+    const { siteConfig, properties, type, ownerName, officeName, userId, officeId } = siteData;
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [filter, setFilter] = useState<'all' | 'satilik' | 'kiralik'>('all');
     const [showContactForm, setShowContactForm] = useState(false);
@@ -103,11 +103,11 @@ const PublicSite: React.FC<PublicSiteProps> = ({ siteData }) => {
     // Load dynamic content on mount
     useEffect(() => {
         const loadDynamicContent = async () => {
-            if (!userId) return;
+            if (!userId && !officeId) return;
             try {
                 const [supabasePosts, videos] = await Promise.allSettled([
-                    listPublishedBlogPosts(userId),
-                    listPublishedVideos(userId)
+                    listPublishedBlogPosts(userId, officeId),
+                    listPublishedVideos(userId, officeId)
                 ]);
 
                 if (supabasePosts.status === 'fulfilled' && supabasePosts.value.length > 0) {

@@ -988,6 +988,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { allowed: true };
     }
 
+    // Bir ofise bağlı üyeler (ofis_danisman vb.) ofis planını miras alır → limitsiz
+    // Not: SaaS'a geçişte burası office subscription kontrolüne dönüşecek
+    if (userProfile?.office_id) {
+      return { allowed: true };
+    }
+
     const result = await checkPropertyLimit(session.user.id, properties.length);
     return { allowed: result.allowed, message: result.message };
   };
