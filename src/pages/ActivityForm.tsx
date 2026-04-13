@@ -28,7 +28,7 @@ const ActivityForm: React.FC = () => {
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
+    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', customerType: 'Alıcı' });
     const [propertySearch, setPropertySearch] = useState('');
     const [showPropertyResults, setShowPropertyResults] = useState(false);
     const [showingProperties, setShowingProperties] = useState<ShowingPropertySelection[]>([]);
@@ -271,6 +271,7 @@ const ActivityForm: React.FC = () => {
             phone: newCustomer.phone,
             email: '',
             status: 'Aktif',
+            customerType: newCustomer.customerType as Customer['customerType'],
             source: 'Hızlı Ekleme',
             createdAt: new Date().toISOString().split('T')[0],
             interactions: [],
@@ -279,7 +280,7 @@ const ActivityForm: React.FC = () => {
 
         addCustomer(customer);
         setFormData({ ...formData, customerId: customer.id });
-        setNewCustomer({ name: '', phone: '' });
+        setNewCustomer({ name: '', phone: '', customerType: 'Alıcı' });
         setShowCustomerModal(false);
     };
 
@@ -591,6 +592,21 @@ const ActivityForm: React.FC = () => {
                                     onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                                     required
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Müşteri Tipi</label>
+                                <select
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                    value={newCustomer.customerType}
+                                    onChange={e => setNewCustomer({ ...newCustomer, customerType: e.target.value })}
+                                >
+                                    <option value="Alıcı">Alıcı</option>
+                                    <option value="Alıcı Adayı">Alıcı Adayı</option>
+                                    <option value="Satıcı">Satıcı</option>
+                                    <option value="Kiracı Adayı">Kiracı Adayı</option>
+                                    <option value="Mal Sahibi">Mal Sahibi</option>
+                                    <option value="Diğer">Diğer</option>
+                                </select>
                             </div>
                             <div className="pt-2 flex gap-3">
                                 <button

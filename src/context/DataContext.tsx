@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 20; // Reduced from 50 for better performance
-const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,ownerId,ownerName,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at,images';
+const PROPERTY_LIST_SELECT = 'id,title,price,currency,location,type,status,rooms,area,bathrooms,heating,coordinates,city,district,neighborhood,address,user_id,office_id,ownerId,ownerName,listing_status,sold_date,rented_date,deposit_amount,deposit_date,deposit_buyer_id,inactive_reason,created_at,images,siteName,isInSite';
 // Minimal select for fallback when full select fails (missing columns)
 const PROPERTY_MINIMAL_SELECT = '*';
 

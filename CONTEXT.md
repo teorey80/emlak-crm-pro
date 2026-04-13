@@ -285,6 +285,10 @@ Lütfen önce şu dosyaları oku:
 | 2026-02-09 | Çeşitli RLS ve sorgu optimizasyonları | Codex |
 | 2026-02-10 | PROPERTY_LIST_SELECT sütun adları düzeltmesi (ownerId/ownerName) | Claude |
 | 2026-02-10 | RLS için publishedOnPersonalSite/publishedOnMarketplace sütunları eklendi | Claude |
+| 2026-04-13 | customerType bazlı müşteri pasifleştirme (Kiracı Adayı: 30g, Alıcı/Adayı: 365g, Mal Sahibi: hiç) | Claude |
+| 2026-04-13 | ActivityForm hızlı müşteri ekleme'ye müşteri tipi dropdown eklendi | Claude |
+| 2026-04-13 | PROPERTY_LIST_SELECT'e siteName,isInSite eklendi (portföy düzenle site adı silinmesi fix) | Claude |
+| 2026-04-13 | Reports.tsx komisyon raporlarına ortak ofis payı düşürme eklendi (partnerShareAmount) | Claude |
 
 ---
 

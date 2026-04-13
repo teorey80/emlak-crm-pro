@@ -108,7 +108,10 @@ const BrokerReportView: React.FC<BrokerReportViewProps> = ({ sales, teamMembers,
                            (sale.sellerCommissionAmount || sale.seller_commission_amount || 0);
     const grossCommission = sale.commissionAmount || sale.commission_amount || totalCommission;
     const expenses = sale.totalExpenses || sale.total_expenses || 0;
-    const netCommission = grossCommission - expenses;
+    const partnerShare = sale.hasPartnerOffice
+        ? (sale.partnerShareAmount || sale.partner_share_amount || 0)
+        : 0;
+    const netCommission = grossCommission - expenses - partnerShare;
 
     const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
     const isBroker = brokerIdList.includes(saleUserId);
@@ -1648,7 +1651,10 @@ const SalesTable: React.FC<{ sales: Sale[], isBroker: boolean, brokerIds?: strin
   const calculateShares = (sale: Sale) => {
     const grossCommission = sale.commissionAmount || sale.commission_amount || 0;
     const totalExpenses = sale.totalExpenses || sale.total_expenses || 0;
-    const netCommission = grossCommission - totalExpenses;
+    const partnerShare = sale.hasPartnerOffice
+        ? (sale.partnerShareAmount || sale.partner_share_amount || 0)
+        : 0;
+    const netCommission = grossCommission - totalExpenses - partnerShare;
     const saleUserId = sale.consultantId || sale.consultant_id || sale.user_id || '';
     const isSaleByBroker = brokerIds.includes(saleUserId);
 
