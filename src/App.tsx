@@ -21,6 +21,8 @@ import RequestDetail from './pages/RequestDetail';
 import Reports from './pages/Reports';
 import WebBuilder from './pages/WebBuilder';
 import WebPreview from './pages/WebPreview';
+import ProjectReviewsList from './pages/WebContent/ProjectReviewsList';
+import ProjectReviewForm from './pages/WebContent/ProjectReviewForm';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -31,9 +33,6 @@ import AdminPanel from './pages/AdminPanel';
 import ResetPassword from './pages/ResetPassword';
 import JoinOffice from './pages/JoinOffice';
 import MatchCenter from './pages/MatchCenter';
-import Expenses from './pages/Expenses';
-import Messaging from './pages/Messaging';
-import ContentManager from './pages/ContentManager';
 import { DataProvider, useData } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { getSiteByDomain, PublicSiteData, warmupSupabase } from './services/publicSiteService';
@@ -48,17 +47,6 @@ const Layout: React.FC = () => {
   const [showMessageModal, setShowMessageModal] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
-  // Supabase'i aktif tut - her 4 dakikada bir ping at
-  // Free tier projeler 1 hafta inaktiflikte duraklatılır, bu bunu önler
-  useEffect(() => {
-    // Hemen bir kez ping at (giriş sonrası bağlantıyı canlandır)
-    keepSupabaseAlive();
-    const keepAliveInterval = setInterval(() => {
-      keepSupabaseAlive();
-    }, 4 * 60 * 1000); // 4 dakika
-    return () => clearInterval(keepAliveInterval);
-  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-200">
@@ -218,10 +206,12 @@ const CRMApp: React.FC = () => {
             <Route path="sites" element={<SiteManagement />} />
             <Route path="web-builder" element={<WebBuilder />} />
 
+            {/* Web İçerikleri — ademaslan.com içerik yönetimi */}
+            <Route path="web-content/projects" element={<ProjectReviewsList />} />
+            <Route path="web-content/projects/new" element={<ProjectReviewForm />} />
+            <Route path="web-content/projects/:id/edit" element={<ProjectReviewForm />} />
+
             <Route path="reports" element={<Reports />} />
-            <Route path="expenses" element={<Expenses />} />
-            <Route path="messaging" element={<Messaging />} />
-            <Route path="content" element={<ContentManager />} />
             <Route path="team" element={<Team />} />
             <Route path="matches" element={<MatchCenter />} />
             <Route path="settings" element={<Settings />} />
@@ -258,71 +248,10 @@ const App: React.FC = () => {
   const hostname = window.location.hostname;
   const skipCheck = shouldSkipPublicSiteCheck(hostname);
 
-  // Check for preview mode via URL parameter: ?preview=public
-  const urlParams = new URLSearchParams(window.location.search);
-  const previewMode = urlParams.get('preview') === 'public';
-
-  const [isPublicSite, setIsPublicSite] = useState<boolean | null>(skipCheck && !previewMode ? false : null);
+  const [isPublicSite, setIsPublicSite] = useState<boolean | null>(skipCheck ? false : null);
   const [publicSiteData, setPublicSiteData] = useState<PublicSiteData | null>(null);
 
   useEffect(() => {
-    // If preview mode is enabled, fetch ademaslan.com site data for preview
-    if (previewMode) {
-      const fetchPreviewData = async () => {
-        try {
-          const siteData = await getSiteByDomain('ademaslan.com');
-          if (siteData) {
-            setIsPublicSite(true);
-            setPublicSiteData(siteData);
-          } else {
-            // Fallback: create demo data for preview
-            console.log('Creating demo data for preview mode');
-            const demoData: PublicSiteData = {
-              type: 'personal',
-              ownerName: 'Adem Aslan',
-              officeName: 'Adem Aslan Emlak',
-              siteConfig: {
-                domain: 'ademaslan.com',
-                siteTitle: 'Adem Aslan',
-                primaryColor: '#1e40af',
-                layout: 'standard',
-                phone: '+90 555 123 4567',
-                email: 'info@ademaslan.com',
-                aboutText: 'Profesyonel gayrimenkul danışmanlığı hizmeti. 10 yılı aşkın deneyimimle hayalinizdeki evi bulmanıza yardımcı oluyorum.',
-                logoUrl: ''
-              },
-              properties: []
-            };
-            setIsPublicSite(true);
-            setPublicSiteData(demoData);
-          }
-        } catch (error) {
-          console.error('Preview fetch failed:', error);
-          // Even on error, show demo data
-          const demoData: PublicSiteData = {
-            type: 'personal',
-            ownerName: 'Adem Aslan',
-            officeName: 'Adem Aslan Emlak',
-            siteConfig: {
-              domain: 'ademaslan.com',
-              siteTitle: 'Adem Aslan',
-              primaryColor: '#1e40af',
-              layout: 'standard',
-              phone: '+90 555 123 4567',
-              email: 'info@ademaslan.com',
-              aboutText: 'Profesyonel gayrimenkul danışmanlığı hizmeti.',
-              logoUrl: ''
-            },
-            properties: []
-          };
-          setIsPublicSite(true);
-          setPublicSiteData(demoData);
-        }
-      };
-      fetchPreviewData();
-      return;
-    }
-
     // If we already know this is not a public site domain, don't do anything
     if (skipCheck) {
       return;
@@ -347,7 +276,7 @@ const App: React.FC = () => {
     };
 
     checkDomain();
-  }, [hostname, skipCheck, previewMode]);
+  }, [hostname, skipCheck]);
 
   // Still checking domain (only for custom domains)
   if (isPublicSite === null) {

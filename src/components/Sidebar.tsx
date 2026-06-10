@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, Building2, BarChart3, Settings, LayoutDashboard, Building, CalendarCheck, SearchCheck, Moon, Sun, Globe, LogOut, Briefcase, Calendar, Menu, X, Receipt, MessageSquare, BookOpen } from 'lucide-react';
+import { Home, Users, Building2, BarChart3, Settings, LayoutDashboard, Building, CalendarCheck, SearchCheck, Moon, Sun, Globe, LogOut, Briefcase, Calendar, Menu, X, Newspaper } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -24,8 +24,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
-  const isBroker = userProfile?.role === 'ofis_broker' || userProfile?.role === 'broker';
-
   const navItems = [
     { path: '/', label: 'Ana Sayfa', icon: LayoutDashboard },
     { path: '/calendar', label: 'Takvim / Ajanda', icon: Calendar },
@@ -35,11 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { path: '/properties', label: 'Emlaklar', icon: Building2 },
     { path: '/sites', label: 'Site Yönetimi', icon: Building },
     { path: '/web-builder', label: 'Web & Domain', icon: Globe },
+    { path: '/web-content/projects', label: 'Web İçerikleri', icon: Newspaper },
     { path: '/team', label: 'Ekibim', icon: Briefcase },
     { path: '/reports', label: 'Raporlar', icon: BarChart3 },
-    ...(isBroker ? [{ path: '/expenses', label: 'Giderler', icon: Receipt }] : []),
-    { path: '/messaging', label: 'Mesajlaşma', icon: MessageSquare },
-    { path: '/content', label: 'İçerik Yönetimi', icon: BookOpen },
   ];
 
   return (

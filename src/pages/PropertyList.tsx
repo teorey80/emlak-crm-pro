@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown, RefreshCw, AlertTriangle, Globe } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
+import { Property } from '../types';
 
 // Sortable column type
 type SortColumn = 'title' | 'type' | 'price' | 'status' | 'owner' | null;
 type SortDirection = 'asc' | 'desc';
 
 const PropertyList: React.FC = () => {
-    const { properties, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore, propertiesLoadError, refetchData, loading } = useData();
+    const { properties, updateProperty, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore, propertiesLoadError, refetchData, loading } = useData();
     const [isRefetching, setIsRefetching] = useState(false);
 
     const handleRefetch = async () => {
@@ -17,6 +19,19 @@ const PropertyList: React.FC = () => {
             await refetchData();
         } finally {
             setIsRefetching(false);
+        }
+    };
+
+    // Toggle "Web sitesinde göster" — ademaslan.com'a portföyü basmak için
+    const handleToggleWebVisibility = async (property: Property, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const newValue = !property.publishedOnPersonalSite;
+        try {
+            await updateProperty({ id: property.id, publishedOnPersonalSite: newValue } as Property);
+            toast.success(newValue ? 'İlan ademaslan.com\'da yayında' : 'İlan ademaslan.com\'dan kaldırıldı');
+        } catch (err: any) {
+            toast.error('Hata: ' + (err?.message || 'bilinmeyen hata'));
         }
     };
     const [searchParams, setSearchParams] = useSearchParams();
@@ -434,6 +449,19 @@ const PropertyList: React.FC = () => {
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex items-center justify-end gap-3">
+                                                    {(property.user_id === session?.user.id || userProfile?.role === 'broker') && (
+                                                        <button
+                                                            onClick={(e) => handleToggleWebVisibility(property, e)}
+                                                            title={property.publishedOnPersonalSite ? 'Web sitesinden kaldır' : 'ademaslan.com\'da yayınla'}
+                                                            className={`p-1.5 rounded-md transition-colors ${property.publishedOnPersonalSite
+                                                                ? 'text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30'
+                                                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-slate-500 dark:hover:bg-slate-700'
+                                                                }`}
+                                                            aria-label="Web sitesinde göster"
+                                                        >
+                                                            <Globe className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     <Link to={`/properties/${property.id}`} className="text-gray-600 hover:text-[#1193d4] dark:text-slate-400 dark:hover:text-white font-medium text-sm">Detay</Link>
                                                     {(property.user_id === session?.user.id || userProfile?.role === 'broker') && (
                                                         <>
