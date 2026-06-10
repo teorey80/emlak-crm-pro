@@ -1,9 +1,10 @@
 // Web İçerikleri → Proje İncelemesi Formu (Yeni / Düzenle)
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Plus, X, Eye, EyeOff, Newspaper } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Plus, X, Eye, EyeOff, Newspaper, Upload, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { projectReviewsService, ProjectReview } from '../../services/projectReviewsService';
+import { uploadToCloudinary, isCloudinaryConfigured } from '../../services/cloudinaryService';
 
 // Türkçe karakterleri ASCII slug'a çevirir
 function slugify(s: string): string {
@@ -84,6 +85,61 @@ const ProjectReviewForm: React.FC = () => {
     };
 
     const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#1193d4]';
+
+    // Görsel yükleyici — Cloudinary'a upload + URL yapıştırma desteği
+    const ImageUpload: React.FC<{ value: string; onChange: (url: string) => void; folder?: string }> = ({ value, onChange, folder = 'project-reviews' }) => {
+        const [uploading, setUploading] = useState(false);
+
+        const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            if (!isCloudinaryConfigured()) {
+                toast.error('Cloudinary yapılandırılmamış. URL\'i manuel yapıştır veya .env.local\'a VITE_CLOUDINARY_CLOUD_NAME ve VITE_CLOUDINARY_UPLOAD_PRESET ekle.');
+                return;
+            }
+            setUploading(true);
+            try {
+                const result = await uploadToCloudinary(file, folder);
+                onChange(result.secureUrl);
+                toast.success('Görsel yüklendi');
+            } catch (err: any) {
+                toast.error('Upload hatası: ' + (err?.message || ''));
+            } finally {
+                setUploading(false);
+                e.target.value = ''; // aynı dosyayı tekrar seçebilmek için
+            }
+        };
+
+        return (
+            <div className="space-y-2">
+                {value && (
+                    <div className="relative inline-block">
+                        <img src={value} alt="" className="h-32 w-auto rounded-lg border border-gray-200 dark:border-slate-700 object-cover" />
+                        <button type="button" onClick={() => onChange('')}
+                            title="Kaldır"
+                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                            ×
+                        </button>
+                    </div>
+                )}
+                <div className="flex gap-2 flex-wrap">
+                    <input type="text" className={inputCls + ' flex-1 min-w-[200px]'} value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder="URL yapıştır veya aşağıdan dosya seç" />
+                    <label className="px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                        <Upload className="w-4 h-4" />
+                        {uploading ? 'Yükleniyor...' : 'Dosya Seç'}
+                        <input type="file" accept="image/*" onChange={handleFile} className="hidden" disabled={uploading} />
+                    </label>
+                </div>
+                {!isCloudinaryConfigured() && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" /> Cloudinary kurulumu için <code className="bg-amber-50 dark:bg-amber-900/30 px-1 rounded">.env.local</code> dosyasına env değişkenleri ekle.
+                    </p>
+                )}
+            </div>
+        );
+    };
 
     // Dinamik string-list helper (pros, cons)
     const StringList: React.FC<{ label: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }> = ({ label, values, onChange, placeholder }) => (
@@ -262,8 +318,8 @@ const ProjectReviewForm: React.FC = () => {
                 {/* MEDYA */}
                 <section className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700 space-y-4">
                     <h2 className="font-bold text-slate-800 dark:text-slate-100">Medya</h2>
-                    <Field label="Hero Görseli URL" hint="Sayfa üstündeki büyük görsel. Cloudinary veya doğrudan link.">
-                        <input className={inputCls} value={form.hero_image_url || ''} onChange={(e) => set('hero_image_url', e.target.value)} placeholder="https://..." />
+                    <Field label="Hero Görseli" hint="Sayfa üstündeki büyük görsel. Bilgisayardan yükle veya URL yapıştır.">
+                        <ImageUpload value={form.hero_image_url || ''} onChange={(url) => set('hero_image_url', url)} />
                     </Field>
                     <Field label="YouTube Video Linki" hint="Watch URL'i yapıştır (jv66EZrUduo formatı). Sayfaya otomatik embed olur.">
                         <input className={inputCls} value={form.video_url || ''} onChange={(e) => set('video_url', e.target.value)} placeholder="https://youtu.be/jv66EZrUduo" />
