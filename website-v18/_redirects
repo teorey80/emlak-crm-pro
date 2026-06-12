@@ -1,0 +1,3 @@
+# Netlify yönlendirmeleri — ademaslan.com
+# Proje detay: /projeler/nef-korukoy gibi URL'ler tek template'e gider (rewrite, 200)
+/projeler/:slug   /proje-detay.html   200

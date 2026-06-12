@@ -42,7 +42,7 @@ export async function createInviteLink(
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) throw new Error('Not authenticated');
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('office_invitations')
             .insert({
                 office_id: officeId,
@@ -53,7 +53,7 @@ export async function createInviteLink(
                 current_uses: 0,
                 created_by: user.user.id
             })
-            .select('id')
+            .select()
             .single();
 
         if (error) throw error;
@@ -79,7 +79,7 @@ export async function validateInvitation(token: string): Promise<OfficeInvitatio
     try {
         const { data, error } = await supabase
             .from('office_invitations')
-            .select('id,office_id,token,role,expires_at,max_uses,current_uses,created_by,created_at,offices(id,name,logo)')
+            .select('*, offices(id, name, logo)')
             .eq('token', token)
             .single();
 
@@ -207,7 +207,7 @@ export async function leaveOffice(): Promise<{ success: boolean; error?: string 
         if (profile.role === 'broker') {
             const { count } = await supabase
                 .from('profiles')
-                .select('id', { count: 'exact', head: true })
+                .select('*', { count: 'exact', head: true })
                 .eq('office_id', profile.office_id)
                 .eq('role', 'broker');
 
@@ -355,7 +355,7 @@ export async function getOfficeInvitations(officeId: string): Promise<OfficeInvi
     try {
         const { data, error } = await supabase
             .from('office_invitations')
-            .select('id,office_id,token,role,expires_at,max_uses,current_uses,created_by,created_at')
+            .select('*')
             .eq('office_id', officeId)
             .order('created_at', { ascending: false });
 

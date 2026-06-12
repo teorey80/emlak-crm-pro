@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light" data-accent="blue">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Proje İncelemeleri — Çekmeköy & Alemdağ Konut Projeleri | Adem Aslan</title>
+<meta name="description" content="Çekmeköy, Alemdağ ve çevresindeki konut projelerinin bağımsız incelemeleri. Hazır, inşaat aşamasında ve yeni projeleri filtreleyin; daire tipleri, fiyat ve dürüst değerlendirmeyle." />
+<meta property="og:title" content="Proje İncelemeleri — Adem Aslan" />
+<meta property="og:description" content="Bölgedeki konut projelerinin bağımsız ve dürüst incelemeleri tek sayfada." />
+<meta property="og:image" content="assets/logo-adem-aslan.png" />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;540;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/system.css" />
+<link rel="stylesheet" href="css/article.css" />
+<script>
+(function () {
+  try {
+    var r = document.documentElement;
+    r.dataset.theme = localStorage.getItem('aa-theme') || 'light';
+    r.dataset.accent = localStorage.getItem('aa-accent') || 'blue';
+  } catch (e) {}
+})();
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Proje İncelemeleri",
+  "about": ["Çekmeköy konut projeleri", "Alemdağ konut projeleri", "gayrimenkul incelemesi"],
+  "publisher": { "@type": "Organization", "name": "Adem Aslan Gayrimenkul" }
+}
+</script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="Anasayfa.html" aria-label="Adem Aslan — Anasayfa"><img src="assets/logo-adem-aslan.png" alt="Adem Aslan" /></a>
+    <nav class="nav-links" aria-label="Ana menü">
+      <a href="Çekmeköy Rehberi.html">Bölge Rehberleri</a>
+      <a href="Proje İncelemeleri.html" class="active">Proje İncelemeleri</a>
+      <a href="Anasayfa.html#portfoy">Portföy</a>
+      <a href="Anasayfa.html#sorular">Soru-Cevap</a>
+      <a href="Hakkımda.html">Hakkımda</a>
+    </nav>
+    <div class="nav-right">
+      <button class="icon-btn" data-theme-toggle aria-label="Tema değiştir">
+        <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+      </button>
+      <a href="Anasayfa.html#iletisim" class="btn btn-primary btn-sm">İletişime geç</a>
+      <button class="icon-btn nav-toggle" data-nav-toggle aria-label="Menüyü aç">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- HERO -->
+<section class="list-hero">
+  <div class="wrap">
+    <nav class="crumb" aria-label="breadcrumb"><a href="Anasayfa.html">Anasayfa</a><span class="sep">/</span><b>Proje İncelemeleri</b></nav>
+    <p class="eyebrow" style="margin-top:18px;">İçerik tipi · İnceleme</p>
+    <h1>Bölgedeki projeleri tek tek inceledim</h1>
+    <p class="lead">Çekmeköy, Alemdağ ve çevresindeki konut projelerini sahada gezip dürüstçe değerlendiriyorum — hazır, inşaat aşamasında ya da yeni, fark etmez. Aşağıdan filtreleyin, ilgilendiğiniz projeyi açın, kararınızı veriyle verin.</p>
+  </div>
+</section>
+
+<!-- FİLTRE ÇUBUĞU -->
+<div class="filterbar">
+  <div class="filterbar-inner">
+    <div class="fb-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="q" placeholder="Proje veya geliştirici ara…" aria-label="Ara" />
+    </div>
+    <div class="statuspills" id="statusPills" role="group" aria-label="Duruma göre filtrele">
+      <button data-status="all" aria-pressed="true">Tümü</button>
+      <button data-status="hazir" aria-pressed="false"><span class="sdot" style="background:#1F8A5B"></span> Hazır</button>
+      <button data-status="insaat" aria-pressed="false"><span class="sdot" style="background:#C9912E"></span> İnşaatta</button>
+      <button data-status="yeni" aria-pressed="false"><span class="sdot" style="background:var(--accent)"></span> Yeni / Lansman</button>
+    </div>
+    <div class="fb-selects">
+      <select id="district" aria-label="İlçe / bölge">
+        <option value="all">Tüm bölgeler</option>
+        <option value="Çekmeköy">Çekmeköy</option>
+        <option value="Alemdağ">Alemdağ</option>
+        <option value="Taşdelen">Taşdelen</option>
+        <option value="Ümraniye">Ümraniye</option>
+      </select>
+      <select id="sort" aria-label="Sırala">
+        <option value="recent">En yeni inceleme</option>
+        <option value="price-asc">Fiyat (artan)</option>
+        <option value="price-desc">Fiyat (azalan)</option>
+      </select>
+    </div>
+    <div class="fb-count"><b id="visCount">9</b> proje</div>
+  </div>
+</div>
+
+<!-- KART GRID -->
+<section class="section" style="padding-top:clamp(32px,4vw,48px);">
+  <div class="wrap">
+    <div class="proj-grid" id="grid">
+
+      <!-- 1 — Nef Çamlıtepe (incelemeli) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="nef çamlıtepe" data-dev="nef" data-status="insaat" data-district="Çekmeköy" data-price="6200000" data-date="2026-06-04">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=560&q=80&auto=format&fit=crop" alt="Nef Çamlıtepe" />
+          <span class="pc-status"><span class="sdot" style="background:#C9912E"></span> İnşaatta</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Nef</span>
+          <h3 class="pc-name">Nef Çamlıtepe</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Çekmeköy</div>
+          <p class="pc-verdict">Sosyal donatılı aile projesi; oturmuş çevre arayana güçlü, kısa vade yatırımcıya fiyatlar yüksek.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q2 2027</dd></div>
+            <div><dt>Fiyat</dt><dd>6,2–13 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>2+1 · 3+1 · 4+1</dd></div>
+            <div><dt>Aidat</dt><dd>2.400 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">11 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 2 — Emlak Konut Mavişehir (incelemeli demo) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="emlak konut yamaçevler" data-dev="emlak konut" data-status="hazir" data-district="Çekmeköy" data-price="4800000" data-date="2026-05-30">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&h=560&q=80&auto=format&fit=crop" alt="Yamaçevler" />
+          <span class="pc-status"><span class="sdot" style="background:#1F8A5B"></span> Hazır</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Emlak Konut</span>
+          <h3 class="pc-name">Yamaçevler Çekmeköy</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Çekmeköy · Hamidiye</div>
+          <p class="pc-verdict">Teslim edilmiş, oturulabilir. Uygun aidat ve hazır çevre isteyen aileler için mantıklı giriş.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Tamamlandı</dd></div>
+            <div><dt>Fiyat</dt><dd>4,8–8,1 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>2+1 · 3+1</dd></div>
+            <div><dt>Aidat</dt><dd>1.900 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">9 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 3 — Alemdağ Park (yeni / lansman) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="alemdağ park evleri" data-dev="özyurtlar" data-status="yeni" data-district="Alemdağ" data-price="3600000" data-date="2026-06-02">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&h=560&q=80&auto=format&fit=crop" alt="Alemdağ Park Evleri" />
+          <span class="pc-status"><span class="sdot" style="background:var(--accent)"></span> Yeni</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Özyurtlar</span>
+          <h3 class="pc-name">Alemdağ Park Evleri</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Alemdağ</div>
+          <p class="pc-verdict">Düşük giriş fiyatı ve yüksek gelişim potansiyeli; uzun vadeli yatırımcının radarında olmalı.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q4 2028</dd></div>
+            <div><dt>Fiyat</dt><dd>3,6–6,4 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>1+1 · 2+1 · 3+1</dd></div>
+            <div><dt>Aidat</dt><dd>1.500 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">10 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 4 — Taşdelen Vadi (hazır) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="taşdelen vadi konakları" data-dev="sur yapı" data-status="hazir" data-district="Taşdelen" data-price="5200000" data-date="2026-05-22">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&h=560&q=80&auto=format&fit=crop" alt="Taşdelen Vadi Konakları" />
+          <span class="pc-status"><span class="sdot" style="background:#1F8A5B"></span> Hazır</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Sur Yapı</span>
+          <h3 class="pc-name">Taşdelen Vadi Konakları</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Taşdelen</div>
+          <p class="pc-verdict">Bahçe dubleksleri öne çıkıyor; geniş aile ve yeşil isteyenler için cazip, merkeze görece uzak.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Tamamlandı</dd></div>
+            <div><dt>Fiyat</dt><dd>5,2–9,8 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>3+1 · 4+1 dublex</dd></div>
+            <div><dt>Aidat</dt><dd>2.100 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">8 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 5 — Çekmeköy Loft (inşaatta) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="çekmeköy loft rezidans" data-dev="teknik yapı" data-status="insaat" data-district="Çekmeköy" data-price="7100000" data-date="2026-05-18">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&h=560&q=80&auto=format&fit=crop" alt="Çekmeköy Loft Rezidans" />
+          <span class="pc-status"><span class="sdot" style="background:#C9912E"></span> İnşaatta</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Teknik Yapı</span>
+          <h3 class="pc-name">Çekmeköy Loft Rezidans</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Çekmeköy · Merkez</div>
+          <p class="pc-verdict">Metroya en yakın projelerden; kompakt loft tipleriyle genç profesyonel ve kira yatırımcısına uygun.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q1 2027</dd></div>
+            <div><dt>Fiyat</dt><dd>7,1–10,5 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>1+1 · 2+1 loft</dd></div>
+            <div><dt>Aidat</dt><dd>2.700 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">12 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 6 — Ümraniye Skyport (hazır) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="ümraniye skyport" data-dev="dap yapı" data-status="hazir" data-district="Ümraniye" data-price="9200000" data-date="2026-05-10">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=560&q=80&auto=format&fit=crop" alt="Ümraniye Skyport" />
+          <span class="pc-status"><span class="sdot" style="background:#1F8A5B"></span> Hazır</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Dap Yapı</span>
+          <h3 class="pc-name">Ümraniye Skyport</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Ümraniye</div>
+          <p class="pc-verdict">Komşu ilçede, iş merkezlerine yakın; manzaralı yüksek katlar prim yapıyor, aidat yüksek.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Tamamlandı</dd></div>
+            <div><dt>Fiyat</dt><dd>9,2–18 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>2+1 · 3+1 · 4+1</dd></div>
+            <div><dt>Aidat</dt><dd>4.200 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">13 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 7 — Alemdağ Bahçe (yeni) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="alemdağ bahçe konakları" data-dev="yerel geliştirici" data-status="yeni" data-district="Alemdağ" data-price="4100000" data-date="2026-05-28">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&h=560&q=80&auto=format&fit=crop" alt="Alemdağ Bahçe Konakları" />
+          <span class="pc-status"><span class="sdot" style="background:var(--accent)"></span> Yeni</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Yerel Geliştirici</span>
+          <h3 class="pc-name">Alemdağ Bahçe Konakları</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Alemdağ</div>
+          <p class="pc-verdict">Az katlı, bahçeli müstakil hava; site yaşamı yerine sakinlik arayan aileler için ilginç bir alternatif.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q3 2028</dd></div>
+            <div><dt>Fiyat</dt><dd>4,1–7,2 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>3+1 · 4+1 bahçe</dd></div>
+            <div><dt>Aidat</dt><dd>1.300 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">10 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 8 — Mimar Sinan Terrace (inşaatta) -->
+      <a class="proj-card" href="Nef Çamlıtepe İnceleme.html" data-name="mimar sinan terrace" data-dev="kuzu grup" data-status="insaat" data-district="Çekmeköy" data-price="8300000" data-date="2026-04-30">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1481253127861-534498168948?w=800&h=560&q=80&auto=format&fit=crop" alt="Mimar Sinan Terrace" />
+          <span class="pc-status"><span class="sdot" style="background:#C9912E"></span> İnşaatta</span>
+          <span class="pc-reviewed">İnceleme hazır</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Kuzu Grup</span>
+          <h3 class="pc-name">Mimar Sinan Terrace</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Çekmeköy · Mimar Sinan</div>
+          <p class="pc-verdict">Okul yoğun bölgede, teraslı geniş daireler; üst segment aile alıcısına hitap ediyor.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q3 2027</dd></div>
+            <div><dt>Fiyat</dt><dd>8,3–15 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>3+1 · 4+1</dd></div>
+            <div><dt>Aidat</dt><dd>3.400 ₺~</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İncelemeyi oku <span class="arrow">→</span></span><span class="pc-readtime">11 dk</span></div>
+        </div>
+      </a>
+
+      <!-- 9 — Çekmeköy Cumhuriyet (yeni, inceleme yakında) -->
+      <a class="proj-card soon" href="#" data-name="cumhuriyet yaşam" data-dev="emlak konut" data-status="yeni" data-district="Çekmeköy" data-price="5500000" data-date="2026-06-01" aria-disabled="true">
+        <div class="pc-media">
+          <img src="https://images.unsplash.com/photo-1448630360428-65456885c650?w=800&h=560&q=80&auto=format&fit=crop" alt="Cumhuriyet Yaşam" />
+          <span class="pc-status"><span class="sdot" style="background:var(--accent)"></span> Yeni</span>
+        </div>
+        <div class="pc-body">
+          <span class="pc-dev">Emlak Konut</span>
+          <h3 class="pc-name">Cumhuriyet Yaşam</h3>
+          <div class="pc-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Çekmeköy · Cumhuriyet</div>
+          <p class="pc-verdict">Yeni lanse edildi; ben de yeni gezdim. Detaylı incelemeyi önümüzdeki günlerde yayınlıyorum.</p>
+          <dl class="pc-stats">
+            <div><dt>Teslim</dt><dd>Q2 2029</dd></div>
+            <div><dt>Fiyat</dt><dd>5,5–9 M ₺</dd></div>
+            <div><dt>Tipler</dt><dd>2+1 · 3+1</dd></div>
+            <div><dt>Aidat</dt><dd>—</dd></div>
+          </dl>
+          <div class="pc-foot"><span class="pc-read">İnceleme yakında</span><span class="pc-readtime">Hazırlanıyor</span></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- Boş durum -->
+    <div class="list-empty" id="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <p style="font-family:var(--serif);font-size:1.3rem;color:var(--ink);margin:0 0 6px;">Sonuç bulunamadı</p>
+      <p style="margin:0;">Filtreleri değiştirin veya aramayı temizleyin.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ÖNERİ ŞERİDİ -->
+<section class="section-tight" style="background:var(--accent); color:var(--accent-ink);">
+  <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+    <div>
+      <h2 style="color:var(--accent-ink);font-size:clamp(1.5rem,2.6vw,2rem);max-width:24ch;">Aradığınız projeyi bulamadınız mı?</h2>
+      <p style="color:var(--accent-ink);opacity:.82;margin:8px 0 0;max-width:52ch;">Bölgede ilgilendiğiniz herhangi bir projeyi benimle paylaşın; sizin için inceleyip dürüst görüşümü ileteyim.</p>
+    </div>
+    <a href="Anasayfa.html#iletisim" class="btn" style="background:var(--accent-ink);color:var(--accent);">Bir proje öner</a>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div>
+      <div class="footer-logo"><img src="assets/logo-adem-aslan.png" alt="Adem Aslan" /></div>
+      <p style="color:var(--ink-muted); font-size:14.5px; max-width:34ch; margin:0 0 18px;">Çekmeköy ve Alemdağ gayrimenkulünde bağımsız, güncel ve dürüst kaynak.</p>
+      <a href="Anasayfa.html#iletisim" class="btn btn-wa btn-sm">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.2c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-5-4.3-5.1-4.5-.2-.2-1.3-1.7-1.3-3.2s.8-2.3 1.1-2.6c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.3.4c-.2.2-.3.4-.1.7.2.3.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.6 1.6.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.3.1.2.1.8-.1 1.5Z"/></svg>
+        WhatsApp
+      </a>
+    </div>
+    <div><h5>İçerik tipleri</h5><ul><li><a href="Çekmeköy Rehberi.html">Bölge Rehberleri</a></li><li><a href="Proje İncelemeleri.html">Proje İncelemeleri</a></li><li><a href="#">Alıcı Rehberleri</a></li><li><a href="Anasayfa.html#sorular">Soru-Cevap</a></li></ul></div>
+    <div><h5>Bölgeler</h5><ul><li><a href="#">Çekmeköy</a></li><li><a href="#">Alemdağ</a></li><li><a href="#">Taşdelen</a></li><li><a href="#">Fikirtepe</a></li></ul></div>
+    <div><h5>İletişim</h5><ul><li><a href="#">Nidakule Göztepe, İstanbul</a></li><li><a href="#">+90 5XX XXX XX XX</a></li><li><a href="#">WhatsApp</a></li><li><a href="#">Instagram · YouTube</a></li></ul></div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Adem Aslan Gayrimenkul Danışmanlığı</span>
+    <span><a href="Tasarım Sistemi.html" class="link-u">Tasarım Sistemi →</a></span>
+  </div>
+</footer>
+
+<div id="tweaks-root"></div>
+
+<style>
+  .nav-links.open { display:flex; position:absolute; top:72px; left:0; right:0; flex-direction:column; gap:0; background:var(--bg); border-bottom:1px solid var(--line); padding:8px 0; }
+  .nav-links.open a { padding:14px 32px; }
+</style>
+
+<!-- Liste filtreleme -->
+<script>
+(function () {
+  var grid = document.getElementById('grid');
+  if (!grid) return;
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('.proj-card'));
+  var q = document.getElementById('q');
+  var districtSel = document.getElementById('district');
+  var sortSel = document.getElementById('sort');
+  var pills = document.getElementById('statusPills');
+  var visCount = document.getElementById('visCount');
+  var empty = document.getElementById('empty');
+  var statusFilter = 'all';
+
+  function apply() {
+    var term = (q.value || '').trim().toLowerCase();
+    var dist = districtSel.value;
+    var visible = 0;
+
+    cards.forEach(function (c) {
+      var matchTerm = !term || c.dataset.name.indexOf(term) > -1 || c.dataset.dev.indexOf(term) > -1;
+      var matchStatus = statusFilter === 'all' || c.dataset.status === statusFilter;
+      var matchDist = dist === 'all' || c.dataset.district === dist;
+      var show = matchTerm && matchStatus && matchDist;
+      c.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    // Sıralama
+    var sort = sortSel.value;
+    var sorted = cards.slice().filter(function (c) { return c.style.display !== 'none'; });
+    sorted.sort(function (a, b) {
+      if (sort === 'price-asc') return (+a.dataset.price) - (+b.dataset.price);
+      if (sort === 'price-desc') return (+b.dataset.price) - (+a.dataset.price);
+      return new Date(b.dataset.date) - new Date(a.dataset.date); // recent
+    });
+    sorted.forEach(function (c) { grid.appendChild(c); });
+
+    visCount.textContent = visible;
+    empty.classList.toggle('show', visible === 0);
+  }
+
+  q.addEventListener('input', apply);
+  districtSel.addEventListener('change', apply);
+  sortSel.addEventListener('change', apply);
+  pills.addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    statusFilter = btn.dataset.status;
+    pills.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+    apply();
+  });
+
+  // "İnceleme yakında" kartlarına tıklamayı engelle
+  grid.addEventListener('click', function (e) {
+    var soon = e.target.closest('.proj-card.soon');
+    if (soon) e.preventDefault();
+  });
+
+  apply();
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="js/tweaks-app.js"></script>
+<script src="js/site.js"></script>
+</body>
+</html>

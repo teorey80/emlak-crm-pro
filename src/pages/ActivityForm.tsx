@@ -1,17 +1,11 @@
 
 import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { Activity, Customer, Property } from '../types';
+import { Activity, Customer } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-
-type ShowingPropertySelection = {
-    propertyId: string;
-    note: string;
-    status: Activity['status'];
-};
+import { useEffect } from 'react';
 
 const ActivityForm: React.FC = () => {
     const navigate = useNavigate();
@@ -22,42 +16,16 @@ const ActivityForm: React.FC = () => {
         type: 'Yer Gösterimi',
         date: new Date().toISOString().split('T')[0],
         time: '09:00',
-        status: 'Planlandı',
+        status: 'Düşünüyor',
         description: ''
     });
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', customerType: 'Alıcı' });
-    const [propertySearch, setPropertySearch] = useState('');
-    const [showPropertyResults, setShowPropertyResults] = useState(false);
-    const [showingProperties, setShowingProperties] = useState<ShowingPropertySelection[]>([]);
+    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const initializedRef = useRef(false);
-
-    const activeProperties = properties.filter((p) => {
-        const listingStatus = p.listingStatus || p.listing_status || 'Aktif';
-        return listingStatus === 'Aktif';
-    });
-
-    const selectedProperty = formData.propertyId
-        ? (properties.find((p) => p.id === formData.propertyId) as Property | undefined)
-        : undefined;
-
-    const filteredProperties = activeProperties
-        .filter((p) => {
-            if (!propertySearch.trim()) return true;
-            const q = propertySearch.toLocaleLowerCase('tr');
-            return (
-                p.title?.toLocaleLowerCase('tr').includes(q) ||
-                p.location?.toLocaleLowerCase('tr').includes(q) ||
-                p.id?.toLocaleLowerCase('tr').includes(q)
-            );
-        })
-        .slice(0, 8);
 
     const startListening = () => {
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -88,7 +56,7 @@ const ActivityForm: React.FC = () => {
     };
 
     useEffect(() => {
-        if (id && !initializedRef.current) {
+        if (id) {
             const activityToEdit = activities.find(a => a.id === id);
             if (activityToEdit) {
                 setFormData({
@@ -100,164 +68,42 @@ const ActivityForm: React.FC = () => {
                     customerId: activityToEdit.customerId,
                     propertyId: activityToEdit.propertyId
                 });
-                const prop = properties.find((p) => p.id === activityToEdit.propertyId);
-                if (prop) setPropertySearch(prop.title || '');
-                if (activityToEdit.type === 'Yer Gösterimi' && activityToEdit.propertyId) {
-                    setShowingProperties([{
-                        propertyId: activityToEdit.propertyId,
-                        note: '',
-                        status: activityToEdit.status
-                    }]);
-                }
-                initializedRef.current = true;
             }
         }
-    }, [id, activities, properties]);
+    }, [id, activities]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isSaving) return;
-        if (!formData.customerId || !formData.type) {
-            toast.error('Müşteri ve aktivite tipi zorunludur.');
-            return;
-        }
+        if (!formData.customerId || !formData.type) return;
 
-        setIsSaving(true);
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
         const selectedProperty = properties.find(p => p.id === formData.propertyId);
 
+        const activityData: Activity = {
+            id: id || Date.now().toString(),
+            type: formData.type as any,
+            customerId: formData.customerId,
+            customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+            propertyId: formData.propertyId,
+            propertyTitle: selectedProperty?.title,
+            date: formData.date || '',
+            time: formData.time,
+            description: formData.description || '',
+            status: formData.status as any
+        };
+
         try {
             if (id) {
-                if (formData.type === 'Yer Gösterimi') {
-                    const generalNote = (formData.description || '').trim();
-                    const validShowings = showingProperties.filter((s) => !!s.propertyId);
-                    if (validShowings.length === 0) {
-                        toast.error('Yer gösterimi için en az 1 aktif portföy seçmelisiniz.');
-                        return;
-                    }
-
-                    const first = validShowings[0];
-                    const firstProp = properties.find((p) => p.id === first.propertyId);
-                    const firstDescParts: string[] = [];
-                    if (generalNote) firstDescParts.push(`Genel Not: ${generalNote}`);
-                    if (first.note.trim()) firstDescParts.push(`Portföy Yorumu: ${first.note.trim()}`);
-
-                    const firstActivity: Activity = {
-                        id,
-                        type: 'Yer Gösterimi',
-                        customerId: formData.customerId,
-                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                        propertyId: first.propertyId,
-                        propertyTitle: firstProp?.title,
-                        date: formData.date || '',
-                        time: formData.time,
-                        description: firstDescParts.join('\n') || 'Yer gösterimi yapıldı.',
-                        status: first.status || formData.status || 'Planlandı'
-                    };
-
-                    await updateActivity(firstActivity);
-
-                    const extras = validShowings.slice(1);
-                    if (extras.length > 0) {
-                        await Promise.all(extras.map(async (item) => {
-                            const prop = properties.find((p) => p.id === item.propertyId);
-                            const descParts: string[] = [];
-                            if (generalNote) descParts.push(`Genel Not: ${generalNote}`);
-                            if (item.note.trim()) descParts.push(`Portföy Yorumu: ${item.note.trim()}`);
-
-                            const activityData: Activity = {
-                                id: crypto.randomUUID(),
-                                type: 'Yer Gösterimi',
-                                customerId: formData.customerId!,
-                                customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                                propertyId: item.propertyId,
-                                propertyTitle: prop?.title,
-                                date: formData.date || '',
-                                time: formData.time,
-                                description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
-                                status: item.status || formData.status || 'Planlandı'
-                            };
-                            await addActivity(activityData);
-                        }));
-                    }
-
-                    toast.success(`${validShowings.length} portföy için yer gösterimi güncellendi!`);
-                } else {
-                    const activityData: Activity = {
-                        id,
-                        type: formData.type as any,
-                        customerId: formData.customerId,
-                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                        propertyId: formData.propertyId,
-                        propertyTitle: selectedProperty?.title,
-                        date: formData.date || '',
-                        time: formData.time,
-                        description: formData.description || '',
-                        status: formData.status as any
-                    };
-                    await updateActivity(activityData);
-                    toast.success('Aktivite güncellendi!');
-                }
+                await updateActivity(activityData);
+                toast.success('Aktivite güncellendi!');
             } else {
-                if (formData.type === 'Yer Gösterimi') {
-                    if (showingProperties.length === 0) {
-                        toast.error('Yer gösterimi için en az 1 aktif portföy seçmelisiniz.');
-                        return;
-                    }
-
-                    const generalNote = (formData.description || '').trim();
-                    const validShowings = showingProperties.filter((s) => !!s.propertyId);
-                    if (validShowings.length === 0) {
-                        toast.error('Geçerli portföy seçimi bulunamadı.');
-                        return;
-                    }
-
-                    await Promise.all(validShowings.map(async (item) => {
-                        const prop = properties.find((p) => p.id === item.propertyId);
-                        const descParts: string[] = [];
-                        if (generalNote) descParts.push(`Genel Not: ${generalNote}`);
-                        if (item.note.trim()) descParts.push(`Portföy Yorumu: ${item.note.trim()}`);
-
-                        const activityData: Activity = {
-                            id: crypto.randomUUID(),
-                            type: 'Yer Gösterimi',
-                            customerId: formData.customerId!,
-                            customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                            propertyId: item.propertyId,
-                            propertyTitle: prop?.title,
-                            date: formData.date || '',
-                            time: formData.time,
-                            description: descParts.join('\n') || 'Yer gösterimi yapıldı.',
-                            status: item.status || (formData.status as any) || 'Planlandı'
-                        };
-
-                        await addActivity(activityData);
-                    }));
-
-                    toast.success(`${validShowings.length} portföy için yer gösterimi kaydedildi!`);
-                } else {
-                    const activityData: Activity = {
-                        id: crypto.randomUUID(),
-                        type: formData.type as any,
-                        customerId: formData.customerId,
-                        customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
-                        propertyId: formData.propertyId,
-                        propertyTitle: selectedProperty?.title,
-                        date: formData.date || '',
-                        time: formData.time,
-                        description: formData.description || '',
-                        status: formData.status as any
-                    };
-                    await addActivity(activityData);
-                    toast.success('Aktivite eklendi!');
-                }
+                await addActivity(activityData);
+                toast.success('Aktivite eklendi!');
             }
             navigate('/activities');
         } catch (error) {
             console.error(error);
-            toast.error('Kayıt sırasında hata oluştu. Lütfen tekrar deneyin.');
-        } finally {
-            setIsSaving(false);
+            toast.error('İşlem başarısız oldu.');
         }
     };
 
@@ -271,7 +117,6 @@ const ActivityForm: React.FC = () => {
             phone: newCustomer.phone,
             email: '',
             status: 'Aktif',
-            customerType: newCustomer.customerType as Customer['customerType'],
             source: 'Hızlı Ekleme',
             createdAt: new Date().toISOString().split('T')[0],
             interactions: [],
@@ -280,20 +125,8 @@ const ActivityForm: React.FC = () => {
 
         addCustomer(customer);
         setFormData({ ...formData, customerId: customer.id });
-        setNewCustomer({ name: '', phone: '', customerType: 'Alıcı' });
+        setNewCustomer({ name: '', phone: '' });
         setShowCustomerModal(false);
-    };
-
-    const addShowingProperty = (property: Property) => {
-        if (showingProperties.some((p) => p.propertyId === property.id)) {
-            toast('Bu portföy zaten eklendi.');
-            return;
-        }
-        // Use the form's current status instead of hardcoding 'Düşünüyor'
-        setShowingProperties((prev) => [
-            ...prev,
-            { propertyId: property.id, note: '', status: (formData.status as Activity['status']) || 'Planlandı' }
-        ]);
     };
 
     return (
@@ -321,7 +154,6 @@ const ActivityForm: React.FC = () => {
                                 <option>Giden Arama</option>
                                 <option>Ofis Toplantısı</option>
                                 <option>Tapu İşlemi</option>
-                                <option>Kira Kontratı</option>
                                 <option>Kapora Alındı</option>
                                 <option>Diğer</option>
                             </select>
@@ -376,114 +208,18 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {/* Property Selection */}
-                    <div className="relative">
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">İlgili Emlak (Opsiyonel)</label>
-                        <input
-                            type="text"
-                            value={propertySearch}
-                            onChange={(e) => {
-                                setPropertySearch(e.target.value);
-                                setShowPropertyResults(true);
-                            }}
-                            onFocus={() => setShowPropertyResults(true)}
-                            placeholder="Aktif portföy ara (başlık, konum, kod)"
+                        <select
                             className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
-                        />
-
-                        {showPropertyResults && (
-                            <div className="absolute z-20 w-full mt-1 max-h-56 overflow-auto rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg">
-                                {filteredProperties.length > 0 ? (
-                                    filteredProperties.map((p) => (
-                                        <button
-                                            key={p.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (formData.type === 'Yer Gösterimi') {
-                                                    addShowingProperty(p);
-                                                    setPropertySearch('');
-                                                } else {
-                                                    setFormData({ ...formData, propertyId: p.id });
-                                                    setPropertySearch(p.title || p.id);
-                                                }
-                                                setShowPropertyResults(false);
-                                            }}
-                                            className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 border-b border-gray-100 dark:border-slate-700 last:border-b-0"
-                                        >
-                                            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.title}</div>
-                                            <div className="text-xs text-gray-500 dark:text-slate-400">#{p.id.slice(-6)} • {p.location}</div>
-                                        </button>
-                                    ))
-                                ) : (
-                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-slate-400">
-                                        Uygun aktif portföy bulunamadı.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {formData.type === 'Yer Gösterimi' ? (
-                            <div className="mt-2 space-y-2">
-                                {showingProperties.length === 0 ? (
-                                    <p className="text-xs text-gray-500 dark:text-slate-400">Henüz portföy eklenmedi.</p>
-                                ) : showingProperties.map((item) => {
-                                    const prop = properties.find((p) => p.id === item.propertyId);
-                                    return (
-                                        <div key={item.propertyId} className="rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-900/20 p-3 space-y-2">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{prop?.title || item.propertyId}</p>
-                                                    <p className="text-xs text-emerald-700/80 dark:text-emerald-400">#{item.propertyId.slice(-6)} • {prop?.location || '-'}</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowingProperties((prev) => prev.filter((x) => x.propertyId !== item.propertyId))}
-                                                    className="text-xs px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300"
-                                                >
-                                                    Kaldır
-                                                </button>
-                                            </div>
-                                            <select
-                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2 text-sm text-gray-900 dark:text-white"
-                                                value={item.status}
-                                                onChange={(e) => setShowingProperties((prev) => prev.map((x) => x.propertyId === item.propertyId ? { ...x, status: e.target.value as Activity['status'] } : x))}
-                                            >
-                                                <option value="Planlandı">Planlandı</option>
-                                                <option value="Olumlu">Olumlu</option>
-                                                <option value="Düşünüyor">Düşünüyor</option>
-                                                <option value="Olumsuz">Olumsuz</option>
-                                                <option value="Tamamlandı">Tamamlandı</option>
-                                            </select>
-                                            <textarea
-                                                rows={2}
-                                                placeholder="Bu portföy için müşteri yorumu..."
-                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2 text-sm text-gray-900 dark:text-white"
-                                                value={item.note}
-                                                onChange={(e) => setShowingProperties((prev) => prev.map((x) => x.propertyId === item.propertyId ? { ...x, note: e.target.value } : x))}
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : selectedProperty && (
-                            <div className="mt-2 flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-900/20 px-3 py-2">
-                                <div>
-                                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{selectedProperty.title}</p>
-                                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400">#{selectedProperty.id.slice(-6)} • {selectedProperty.location}</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setFormData({ ...formData, propertyId: undefined });
-                                        setPropertySearch('');
-                                    }}
-                                    className="text-xs px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-emerald-300 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300"
-                                >
-                                    Kaldır
-                                </button>
-                            </div>
-                        )}
-
-                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Sadece aktif portföyler listelenir.</p>
+                            value={formData.propertyId || ''}
+                            onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
+                        >
+                            <option value="">Emlak Seçiniz (Yok)</option>
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>#{p.id.slice(-4)} - {p.title}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Notes */}
@@ -545,10 +281,9 @@ const ActivityForm: React.FC = () => {
                     <div className="pt-4 flex gap-3">
                         <button
                             type="submit"
-                            disabled={isSaving}
                             className="flex-1 bg-[#1193d4] text-white py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity"
                         >
-                            {isSaving ? 'Kaydediliyor...' : 'Aktiviteyi Kaydet'}
+                            Aktiviteyi Kaydet
                         </button>
                         <button
                             type="button"
@@ -592,21 +327,6 @@ const ActivityForm: React.FC = () => {
                                     onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
                                     required
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Müşteri Tipi</label>
-                                <select
-                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
-                                    value={newCustomer.customerType}
-                                    onChange={e => setNewCustomer({ ...newCustomer, customerType: e.target.value })}
-                                >
-                                    <option value="Alıcı">Alıcı</option>
-                                    <option value="Alıcı Adayı">Alıcı Adayı</option>
-                                    <option value="Satıcı">Satıcı</option>
-                                    <option value="Kiracı Adayı">Kiracı Adayı</option>
-                                    <option value="Mal Sahibi">Mal Sahibi</option>
-                                    <option value="Diğer">Diğer</option>
-                                </select>
                             </div>
                             <div className="pt-2 flex gap-3">
                                 <button

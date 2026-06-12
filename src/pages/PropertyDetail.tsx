@@ -1,103 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ChevronLeft, ChevronRight, FileText, Sparkles } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
 import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
-import { notifyDeposit } from '../services/notificationService';
-import { supabase } from '../services/supabaseClient';
-import GenerateReportModal from '../components/reports/GenerateReportModal';
-import PropertyAIDashboard from '../components/reports/PropertyAIDashboard';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, updateSale, deleteSale, addActivity, sales } = useData();
-    const baseProperty = properties.find(p => p.id === id);
-    const [propertyOverride, setPropertyOverride] = useState<any | null>(null);
-    const property = propertyOverride || baseProperty;
-    // Find associated sale record if exists
-    const currentSale = sales.find(s => s.propertyId === property?.id);
-
+    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, deleteSale, addActivity, sales } = useData();
+    const property = properties.find(p => p.id === id);
     const [showSaleForm, setShowSaleForm] = useState(false);
     const [showRentalForm, setShowRentalForm] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
     const [inactiveReason, setInactiveReason] = useState('');
+    const [cancelingSale, setCancelingSale] = useState(false);
+
+    // Find sale for this property
+    const propertySale = sales.find(s => s.propertyId === id || s.property_id === id);
     const [customReason, setCustomReason] = useState('');
     const [kaporaAmount, setKaporaAmount] = useState('');
     const [kaporaDate, setKaporaDate] = useState(new Date().toISOString().split('T')[0]);
     const [kaporaBuyerId, setKaporaBuyerId] = useState('');
     const [kaporaNotes, setKaporaNotes] = useState('');
-    const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-    const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [showReportModal, setShowReportModal] = useState(false);
-    const [showAIDashboard, setShowAIDashboard] = useState(false);
 
-    useEffect(() => {
-        const fetchFullProperty = async () => {
-            if (!id || !baseProperty) return;
-            if (baseProperty.images && baseProperty.images.length > 0) return;
-
-            const { data } = await supabase
-                .from('properties')
-                .select('*')
-                .eq('id', id)
-                .maybeSingle();
-
-            if (data) {
-                setPropertyOverride(data);
-            }
-        };
-
-        void fetchFullProperty();
-    }, [id, baseProperty]);
-
-    // Permission model:
-    // - Property can be managed by owner or broker.
-    // - Customer-sensitive owner data is visible only to listing owner.
-    const canManageProperty = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
-    const canViewOwnerCustomerData = session?.user?.id === property?.user_id;
-
-    const placeholderImage = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23e2e8f0'/><stop offset='100%' stop-color='%23c7d2fe'/></linearGradient></defs><rect width='1200' height='800' fill='url(%23g)'/><rect x='140' y='140' width='920' height='520' rx='40' fill='white' opacity='0.65'/><path d='M340 560l160-200 150 170 140-150 210 180H340z' fill='%2394a3b8'/><circle cx='430' cy='360' r='55' fill='%2394a3b8'/><text x='600' y='660' text-anchor='middle' font-family='Arial, Helvetica, sans-serif' font-size='36' fill='%2364748b'>Görsel Yok</text></svg>";
-    const images = property?.images?.length ? property.images : [placeholderImage];
-    const maxGridImages = 5;
-    const gridImages = images.slice(0, maxGridImages);
-    const remainingCount = images.length - gridImages.length;
-
-    const openGallery = (index: number) => {
-        setActiveImageIndex(index);
-        setIsGalleryOpen(true);
-    };
-
-    const closeGallery = () => setIsGalleryOpen(false);
-
-    const showPrevImage = () => {
-        setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
-    };
-
-    const showNextImage = () => {
-        setActiveImageIndex((prev) => (prev + 1) % images.length);
-    };
-
-    useEffect(() => {
-        if (!isGalleryOpen) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') closeGallery();
-            if (event.key === 'ArrowLeft') showPrevImage();
-            if (event.key === 'ArrowRight') showNextImage();
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        document.body.style.overflow = 'hidden';
-
-        return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
-        };
-    }, [isGalleryOpen, images.length]);
+    // Privacy Check
+    const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
 
     if (!property) {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
@@ -209,98 +140,21 @@ const PropertyDetail: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Images Gallery */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 md:grid-rows-2 md:auto-rows-[180px] gap-3">
-                        {gridImages.map((img, idx) => {
-                            const isMain = idx === 0;
-                            return (
-                                <button
-                                    key={img + idx}
-                                    type="button"
-                                    onClick={() => openGallery(idx)}
-                                    className={`relative group overflow-hidden rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${isMain ? 'col-span-2 row-span-2 h-64 md:h-full' : 'h-32 md:h-full'}`}
-                                >
-                                    <img
-                                        src={img}
-                                        alt={`Fotoğraf ${idx + 1}`}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                    />
-                                    {isMain && (
-                                        <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm flex items-center">
-                                            <Maximize className="w-3 h-3 mr-1" />
-                                            Tüm Fotoğraflar ({images.length})
-                                        </div>
-                                    )}
-                                    {remainingCount > 0 && idx === gridImages.length - 1 && (
-                                        <div className="absolute inset-0 bg-black/50 text-white flex items-center justify-center text-lg font-semibold">
-                                            +{remainingCount}
-                                        </div>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {isGalleryOpen && (
-                        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-                            <button
-                                type="button"
-                                onClick={closeGallery}
-                                className="absolute top-6 right-6 text-white/80 hover:text-white transition-colors"
-                                aria-label="Kapat"
-                            >
-                                <X className="w-7 h-7" />
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={showPrevImage}
-                                className="absolute left-4 md:left-8 text-white/80 hover:text-white transition-colors"
-                                aria-label="Önceki"
-                            >
-                                <ChevronLeft className="w-10 h-10" />
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={showNextImage}
-                                className="absolute right-4 md:right-8 text-white/80 hover:text-white transition-colors"
-                                aria-label="Sonraki"
-                            >
-                                <ChevronRight className="w-10 h-10" />
-                            </button>
-
-                            <div className="w-full max-w-6xl px-6">
-                                <div className="w-full h-[70vh] bg-black/40 rounded-2xl overflow-hidden flex items-center justify-center">
-                                    <img
-                                        src={images[activeImageIndex]}
-                                        alt={`Fotoğraf ${activeImageIndex + 1}`}
-                                        className="max-h-full max-w-full object-contain"
-                                    />
-                                </div>
-
-                                <div className="mt-4 flex items-center justify-between text-sm text-white/70">
-                                    <span>{activeImageIndex + 1} / {images.length}</span>
-                                    <span>{property.title}</span>
-                                </div>
-
-                                {images.length > 1 && (
-                                    <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-                                        {images.map((img, idx) => (
-                                            <button
-                                                key={img + idx}
-                                                type="button"
-                                                onClick={() => setActiveImageIndex(idx)}
-                                                className={`h-16 w-24 flex-shrink-0 rounded-lg overflow-hidden border ${idx === activeImageIndex ? 'border-white' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                                            >
-                                                <img src={img} alt={`Küçük ${idx + 1}`} className="w-full h-full object-cover" />
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
+                    {/* Images Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-96">
+                        <div className="md:col-span-2 h-64 md:h-full relative group cursor-pointer overflow-hidden rounded-2xl">
+                            <img src={property.images[0]} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                            <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm flex items-center">
+                                <Maximize className="w-3 h-3 mr-1" />
+                                Tüm Fotoğraflar ({property.images.length})
                             </div>
                         </div>
-                    )}
+                        {property.images.slice(1).map((img, idx) => (
+                            <div key={idx} className="hidden md:block h-full relative rounded-2xl overflow-hidden">
+                                <img src={img} alt="Sub" className="w-full h-full object-cover" />
+                            </div>
+                        ))}
+                    </div>
 
                     {/* Matching Requests Section - NEW */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/50 bg-gradient-to-r from-white to-indigo-50/30 dark:from-slate-800 dark:to-indigo-900/20 transition-colors">
@@ -506,7 +360,7 @@ const PropertyDetail: React.FC = () => {
                     </div>
 
                     {/* Documents Section */}
-                    {canManageProperty && (
+                    {isOwner && (
                         <DocumentManager
                             entityType="property"
                             entityId={property.id}
@@ -619,25 +473,7 @@ const PropertyDetail: React.FC = () => {
                                 <Map className="w-4 h-4" />
                                 Yer Gösterimi Ekle
                             </Link>
-                            {/* Weekly Report Button - Only for brokers */}
-                            {(userProfile?.role === 'broker' || userProfile?.role === 'ofis_broker' || userProfile?.role === 'admin' || userProfile?.role === 'owner') && (
-                                <button
-                                    onClick={() => setShowReportModal(true)}
-                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
-                                >
-                                    <FileText className="w-4 h-4" />
-                                    Haftalık Rapor Oluştur
-                                </button>
-                            )}
-                            {/* AI Portfolio Analysis Button */}
-                            <button
-                                onClick={() => setShowAIDashboard(true)}
-                                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-violet-500/25"
-                            >
-                                <Sparkles className="w-4 h-4" />
-                                AI Portföy Analizi
-                            </button>
-                            {canManageProperty ? (
+                            {isOwner ? (
                                 <>
                                     <Link to={`/properties/edit/${id}`} className="w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2">
                                         <Edit className="w-4 h-4" />
@@ -645,100 +481,69 @@ const PropertyDetail: React.FC = () => {
                                     </Link>
                                     {/* Show Sale or Rental button based on property status */}
                                     {(property.listingStatus === 'Satıldı' || property.listing_status === 'Satıldı') ? (
-                                        <>
-                                            <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 p-3 rounded-xl border border-green-100 dark:border-green-900/50 mb-3 text-center">
-                                                <p className="font-bold flex items-center justify-center gap-2">
-                                                    <DollarSign className="w-5 h-5" />
-                                                    Bu Mülk Satıldı
-                                                </p>
-                                                {currentSale?.salePrice && (
-                                                    <p className="text-lg font-bold text-green-700 dark:text-green-400 mt-1">
-                                                        {currentSale.salePrice.toLocaleString('tr-TR')} ₺
-                                                    </p>
-                                                )}
-                                                {(property.soldDate || currentSale?.saleDate) && (
-                                                    <p className="text-xs mt-1">Tarih: {property.soldDate || currentSale?.saleDate}</p>
-                                                )}
+                                        /* Property is SOLD - Show sale info and cancel option */
+                                        <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 border border-red-200 dark:border-red-800">
+                                            <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-semibold mb-3">
+                                                <DollarSign className="w-5 h-5" />
+                                                Bu Emlak Satıldı
                                             </div>
-                                            <button
-                                                onClick={() => setShowSaleForm(true)}
-                                                className="w-full bg-white dark:bg-slate-700 border border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-400 py-3 rounded-xl font-medium hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Edit className="w-4 h-4" />
-                                                Satışı Düzenle
-                                            </button>
+                                            {propertySale && (
+                                                <div className="text-sm text-red-600 dark:text-red-300 space-y-1 mb-3">
+                                                    <p>Satış Bedeli: {(propertySale.salePrice || propertySale.sale_price)?.toLocaleString('tr-TR')} ₺</p>
+                                                    <p>Satış Tarihi: {new Date(propertySale.saleDate || propertySale.sale_date || '').toLocaleDateString('tr-TR')}</p>
+                                                    <p>Komisyon: {(propertySale.commissionAmount || propertySale.commission_amount)?.toLocaleString('tr-TR')} ₺</p>
+                                                </div>
+                                            )}
                                             <button
                                                 onClick={async () => {
-                                                    if (confirm('Satış işlemini iptal etmek istediğinize emin misiniz? Mülk tekrar Aktif duruma geçecek.')) {
-                                                        if (currentSale) {
-                                                            await deleteSale(currentSale.id, property.id);
-                                                        } else {
-                                                            // Fallback if sale record missing
-                                                            await updateProperty({
-                                                                ...property,
-                                                                listing_status: 'Aktif',
-                                                                sold_date: null
-                                                            });
-                                                            toast.success('Satış iptal edildi (Kayıt bulunamadı, manuel düzeltildi).');
+                                                    if (confirm('Satışı iptal etmek istediğinize emin misiniz? Satış kaydı ve ilgili ciro bilgisi silinecek, emlak tekrar aktif olacak.')) {
+                                                        setCancelingSale(true);
+                                                        try {
+                                                            if (propertySale) {
+                                                                await deleteSale(propertySale.id, property.id);
+                                                            } else {
+                                                                // No sale record found, just update property status
+                                                                await updateProperty({
+                                                                    ...property,
+                                                                    listingStatus: 'Satılık',
+                                                                    listing_status: 'Satılık',
+                                                                    soldDate: undefined,
+                                                                    sold_date: undefined
+                                                                });
+                                                            }
+                                                            toast.success('Satış iptal edildi! Emlak tekrar aktif.');
+                                                        } catch (error) {
+                                                            console.error('Satış iptal hatası:', error);
+                                                            toast.error('İşlem başarısız oldu.');
+                                                        } finally {
+                                                            setCancelingSale(false);
                                                         }
                                                     }
                                                 }}
-                                                className="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-100 dark:border-red-900/50 flex items-center justify-center gap-2"
+                                                disabled={cancelingSale}
+                                                className="w-full bg-red-600 text-white py-2 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                             >
-                                                <Ban className="w-4 h-4" />
-                                                Satışı İptal Et
+                                                {cancelingSale ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                        İptal Ediliyor...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Ban className="w-4 h-4" />
+                                                        Satışı İptal Et
+                                                    </>
+                                                )}
                                             </button>
-                                        </>
+                                        </div>
                                     ) : (property.listingStatus === 'Kiralandı' || property.listing_status === 'Kiralandı') ? (
-                                        <>
-                                            <div className="bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 p-3 rounded-xl border border-purple-100 dark:border-purple-900/50 mb-3 text-center">
-                                                <p className="font-bold flex items-center justify-center gap-2">
-                                                    <DollarSign className="w-5 h-5" />
-                                                    Bu Mülk Kiralandı
-                                                </p>
-                                                {currentSale?.monthlyRent && (
-                                                    <p className="text-lg font-bold text-purple-700 dark:text-purple-400 mt-1">
-                                                        {currentSale.monthlyRent.toLocaleString('tr-TR')} ₺/ay
-                                                    </p>
-                                                )}
-                                                {currentSale?.commissionAmount && (
-                                                    <p className="text-sm text-purple-600 dark:text-purple-400 mt-1">
-                                                        Komisyon: {currentSale.commissionAmount.toLocaleString('tr-TR')} ₺
-                                                    </p>
-                                                )}
-                                                {(property.rentedDate || currentSale?.saleDate) && (
-                                                    <p className="text-xs mt-1">Tarih: {property.rentedDate || currentSale?.saleDate}</p>
-                                                )}
+                                        /* Property is RENTED - Show rental info */
+                                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                                            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-semibold">
+                                                <DollarSign className="w-5 h-5" />
+                                                Bu Emlak Kiralandı
                                             </div>
-                                            <button
-                                                onClick={() => setShowRentalForm(true)}
-                                                className="w-full bg-white dark:bg-slate-700 border border-purple-200 dark:border-purple-900/50 text-purple-700 dark:text-purple-400 py-3 rounded-xl font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Edit className="w-4 h-4" />
-                                                Kiralamayı Düzenle
-                                            </button>
-                                            <button
-                                                onClick={async () => {
-                                                    if (confirm('Kiralama işlemini iptal etmek istediğinize emin misiniz? Mülk tekrar Aktif duruma geçecek.')) {
-                                                        if (currentSale) {
-                                                            await deleteSale(currentSale.id, property.id);
-                                                        } else {
-                                                            // Fallback if rental record missing
-                                                            await updateProperty({
-                                                                ...property,
-                                                                listing_status: 'Aktif',
-                                                                rented_date: null
-                                                            });
-                                                            toast.success('Kiralama iptal edildi.');
-                                                        }
-                                                    }
-                                                }}
-                                                className="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-100 dark:border-red-900/50 flex items-center justify-center gap-2"
-                                            >
-                                                <Ban className="w-4 h-4" />
-                                                Kiralamayı İptal Et
-                                            </button>
-                                        </>
+                                        </div>
                                     ) : property.status === 'Kiralık' ? (
                                         <button
                                             onClick={() => setShowRentalForm(true)}
@@ -856,7 +661,7 @@ const PropertyDetail: React.FC = () => {
                         </div>
 
                         {/* Property Owner Info - ONLY VISIBLE TO OWNER/BROKER */}
-                        {canViewOwnerCustomerData && (
+                        {isOwner && (
                             <div className="mt-6 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50">
                                 <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
                                     <User className="w-4 h-4" />
@@ -877,69 +682,75 @@ const PropertyDetail: React.FC = () => {
                 </div>
             </div>
 
-            {/* Data Integrity Warning - Self Healing */}
-            {currentSale && (property.listingStatus !== 'Satıldı' && property.listing_status !== 'Satıldı' && property.listingStatus !== 'Kiralandı' && property.listing_status !== 'Kiralandı') && (
-                <div className="fixed bottom-4 right-4 z-50 bg-red-50 border border-red-200 p-4 rounded-xl shadow-lg flex items-center gap-3 animate-bounce-short">
-                    <div className="bg-red-100 p-2 rounded-full">
-                        <X className="w-5 h-5 text-red-600" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-red-800">Veri Tutarsızlığı Tespit Edildi</p>
-                        <p className="text-xs text-red-600">Bu mülk için satış kaydı var ancak mülk durumu 'Aktif'.</p>
-                    </div>
-                    <button
-                        onClick={async () => {
-                            if (confirm('Mülk durumunu "Satıldı" olarak güncellemek istiyor musunuz?')) {
-                                await updateProperty({
-                                    ...property,
-                                    listing_status: 'Satıldı',
-                                    listingStatus: 'Satıldı',
-                                    soldDate: currentSale.saleDate
-                                });
-                                toast.success('Mülk durumu düzeltildi.');
-                                window.location.reload();
-                            }
-                        }}
-                        className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700"
-                    >
-                        Düzelt
-                    </button>
-                    <button
-                        onClick={async () => {
-                            if (confirm('Hatali satis kaydini silmek istiyor musunuz?')) {
-                                await deleteSale(currentSale.id, property.id);
-                                toast.success('Hatali satis kaydi silindi.');
-                            }
-                        }}
-                        className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50"
-                    >
-                        Satışı Sil
-                    </button>
-                </div>
-            )}
-
             {/* SaleForm Modal */}
             {showSaleForm && property && (
                 <SaleForm
                     property={property}
-                    initialData={currentSale} // Pass existing sale if available
                     onClose={() => setShowSaleForm(false)}
                     onSave={async (sale: Sale) => {
                         try {
-                            if (currentSale) {
-                                // Update existing sale
-                                await updateSale(sale);
-                                toast.success('Satış başarıyla güncellendi.');
-                            } else {
-                                // Create new sale
-                                await addSale({ ...sale, transactionType: 'sale' });
-                                toast.success('Satış işlemi başarıyla tamamlandı!');
+                            // Save sale to database
+                            await addSale({ ...sale, transactionType: 'sale' });
+
+                            // Update property status to Satıldı - only send required fields
+                            await updateProperty({
+                                id: property.id,
+                                listing_status: 'Satıldı',
+                                sold_date: sale.saleDate
+                            } as any);
+
+                            // Create Tapu İşlemi activities for both buyer and seller (non-blocking)
+                            const activityDate = sale.saleDate;
+                            const activityDescription = `Tapu işlemi tamamlandı. Satış bedeli: ${sale.salePrice?.toLocaleString('tr-TR')} ₺`;
+
+                            // Activity for Buyer (Alıcı)
+                            if (sale.buyerId || sale.buyerName) {
+                                try {
+                                    await addActivity({
+                                        id: `tapu-alici-${Date.now()}`,
+                                        type: 'Tapu İşlemi',
+                                        customerId: sale.buyerId || '',
+                                        customerName: sale.buyerName || 'Alıcı',
+                                        propertyId: property.id,
+                                        propertyTitle: property.title,
+                                        date: activityDate,
+                                        description: `${activityDescription} (Alıcı olarak)`,
+                                        status: 'Tamamlandı'
+                                    });
+                                } catch (e) {
+                                    console.warn('Alıcı aktivitesi kaydedilemedi:', e);
+                                }
                             }
+
+                            // Activity for Seller (Satıcı - property owner)
+                            if (property.ownerId || property.ownerName || property.customer_id) {
+                                try {
+                                    const sellerId = property.ownerId || property.customer_id || '';
+                                    const sellerCustomer = customers.find(c => c.id === sellerId);
+                                    const sellerName = sellerCustomer?.name || property.ownerName || 'Satıcı';
+
+                                    await addActivity({
+                                        id: `tapu-satici-${Date.now() + 1}`,
+                                        type: 'Tapu İşlemi',
+                                        customerId: sellerId,
+                                        customerName: sellerName,
+                                        propertyId: property.id,
+                                        propertyTitle: property.title,
+                                        date: activityDate,
+                                        description: `${activityDescription} (Satıcı olarak)`,
+                                        status: 'Tamamlandı'
+                                    });
+                                } catch (e) {
+                                    console.warn('Satıcı aktivitesi kaydedilemedi:', e);
+                                }
+                            }
+
                             setShowSaleForm(false);
+                            toast.success('Satış başarıyla kaydedildi!');
                             navigate('/properties');
-                        } catch (error: any) {
-                            console.error('Satış işlem hatası:', error);
-                            toast.error(error.message || 'İşlem başarısız oldu.');
+                        } catch (error) {
+                            console.error('Satış kaydetme hatası:', error);
+                            toast.error('Satış kaydedilemedi. Lütfen tekrar deneyin.');
                         }
                     }}
                 />
@@ -949,61 +760,40 @@ const PropertyDetail: React.FC = () => {
             {showRentalForm && property && (
                 <RentalForm
                     property={property}
-                    initialData={currentSale?.transactionType === 'rental' ? currentSale : undefined}
                     onClose={() => setShowRentalForm(false)}
                     onSave={async (sale: Sale) => {
                         try {
-                            const isEditMode = currentSale && currentSale.transactionType === 'rental';
+                            // Save rental to database (as sale with transactionType='rental')
+                            await addSale(sale);
 
-                            if (isEditMode) {
-                                // Update existing rental
-                                await updateSale(sale);
+                            // Update property status to Kiralandı
+                            await updateProperty({
+                                ...property,
+                                listingStatus: 'Kiralandı',
+                                listing_status: 'Kiralandı',
+                                rentedDate: sale.saleDate,
+                                tenantId: sale.buyerId,
+                                tenantName: sale.buyerName,
+                                monthlyRent: sale.monthlyRent,
+                                leaseEndDate: sale.leaseEndDate
+                            });
 
-                                // Also update property details if needed
-                                await updateProperty({
-                                    ...property,
-                                    rentedDate: sale.saleDate,
-                                    tenantId: sale.buyerId,
-                                    tenantName: sale.buyerName,
-                                    monthlyRent: sale.monthlyRent,
-                                    leaseEndDate: sale.leaseEndDate
-                                });
+                            // Create activity record for the rental
+                            await addActivity({
+                                id: `rental-activity-${Date.now()}`,
+                                type: 'Diğer',
+                                customerId: sale.buyerId || '',
+                                customerName: sale.buyerName || 'Kiracı',
+                                propertyId: property.id,
+                                propertyTitle: property.title,
+                                date: sale.saleDate,
+                                description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
+                                status: 'Tamamlandı'
+                            });
 
-                                setShowRentalForm(false);
-                                toast.success('Kiralama başarıyla güncellendi!');
-                            } else {
-                                // Save rental to database (as sale with transactionType='rental')
-                                await addSale(sale);
-
-                                // Update property status to Kiralandı
-                                await updateProperty({
-                                    ...property,
-                                    listingStatus: 'Kiralandı',
-                                    listing_status: 'Kiralandı',
-                                    rentedDate: sale.saleDate,
-                                    tenantId: sale.buyerId,
-                                    tenantName: sale.buyerName,
-                                    monthlyRent: sale.monthlyRent,
-                                    leaseEndDate: sale.leaseEndDate
-                                });
-
-                                // Create activity record for the rental
-                                await addActivity({
-                                    id: `rental-activity-${Date.now()}`,
-                                    type: 'Diğer',
-                                    customerId: sale.buyerId || '',
-                                    customerName: sale.buyerName || 'Kiracı',
-                                    propertyId: property.id,
-                                    propertyTitle: property.title,
-                                    date: sale.saleDate,
-                                    description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
-                                    status: 'Tamamlandı'
-                                });
-
-                                setShowRentalForm(false);
-                                toast.success('Kiralama başarıyla kaydedildi!');
-                                navigate('/properties');
-                            }
+                            setShowRentalForm(false);
+                            toast.success('Kiralama başarıyla kaydedildi!');
+                            navigate('/properties');
                         } catch (error) {
                             console.error('Kiralama kaydetme hatası:', error);
                             toast.error('Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
@@ -1194,21 +984,6 @@ const PropertyDetail: React.FC = () => {
                                                 console.warn('Aktivite oluşturulamadı:', activityError);
                                             }
 
-                                            // 3. Notify Broker
-                                            try {
-                                                const broker = teamMembers.find(m => m.role === 'broker');
-                                                if (broker) {
-                                                    await notifyDeposit(
-                                                        broker.id,
-                                                        userProfile.name,
-                                                        property.title,
-                                                        parseFloat(kaporaAmount)
-                                                    );
-                                                }
-                                            } catch (notifyError) {
-                                                console.warn('Bildirim gönderilemedi:', notifyError);
-                                            }
-
                                             // Close modal and reset form
                                             setShowStatusModal(null);
                                             setKaporaAmount('');
@@ -1232,26 +1007,6 @@ const PropertyDetail: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* Weekly Report Modal */}
-            {session?.user?.id && (
-                <GenerateReportModal
-                    isOpen={showReportModal}
-                    onClose={() => setShowReportModal(false)}
-                    propertyId={property.id}
-                    propertyTitle={property.title}
-                    userId={session.user.id}
-                    activities={propertyActivities}
-                />
-            )}
-
-            {/* AI Portfolio Dashboard */}
-            <PropertyAIDashboard
-                isOpen={showAIDashboard}
-                onClose={() => setShowAIDashboard(false)}
-                property={property}
-                activities={propertyActivities}
-            />
         </div>
     );
 };

@@ -36,6 +36,10 @@ export interface ProjectReview {
     gallery?: Array<{ url: string; caption?: string }>;
     video_url?: string;
 
+    // Sahibinden.com proje ilan listesi linki — haftalık otomatik
+    // fiyat takibi (sahibinden-ilan-takip görevi) bu linki okur
+    sahibinden_url?: string;
+
     // İçerik
     quick_answer?: string;
     location_intro?: string;

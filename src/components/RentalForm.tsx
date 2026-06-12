@@ -7,7 +7,6 @@ interface RentalFormProps {
     property: Property;
     onClose: () => void;
     onSave: (sale: Sale) => void;
-    initialData?: Sale; // Düzenleme modu için
 }
 
 const EXPENSE_TYPES = [
@@ -19,11 +18,8 @@ const EXPENSE_TYPES = [
     'Diğer'
 ];
 
-const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, initialData }) => {
+const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) => {
     const { customers, session, userProfile, teamMembers } = useData();
-
-    // Düzenleme modu mu?
-    const isEditMode = !!initialData;
 
     // Detect if this is a cross-consultant rental
     const propertyOwner = useMemo(() => {
@@ -34,30 +30,25 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
     const isCrossConsultant = propertyOwner && propertyOwner.id !== session?.user?.id;
 
     const [formData, setFormData] = useState({
-        monthlyRent: initialData?.monthlyRent || initialData?.monthly_rent || property.price || 0,
-        depositAmount: initialData?.depositAmount || initialData?.deposit_amount || (property.price || 0) * 2,
-        transactionDate: initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
-        leaseStartDate: initialData?.leaseStartDate || initialData?.lease_start_date || initialData?.saleDate || initialData?.sale_date || new Date().toISOString().split('T')[0],
-        leaseDuration: initialData?.leaseDuration || initialData?.lease_duration || 12,
-        tenantId: initialData?.buyerId || initialData?.buyer_id || '',
-        tenantName: initialData?.buyerName || initialData?.buyer_name || '',
-        consultantId: initialData?.consultantId || initialData?.consultant_id || session?.user?.id || '',
-        consultantName: initialData?.consultantName || initialData?.consultant_name || userProfile?.name || '',
-        commissionRate: initialData?.commissionRate || initialData?.commission_rate || 100,
-        officeShareRate: initialData?.officeShareRate || initialData?.office_share_rate || 50,
-        notes: initialData?.notes || '',
+        monthlyRent: property.price || 0,
+        depositAmount: (property.price || 0) * 2, // Default: 2 months deposit
+        leaseStartDate: new Date().toISOString().split('T')[0],
+        leaseDuration: 12, // Default: 1 year
+        tenantId: '',
+        tenantName: '',
+        consultantId: session?.user?.id || '',
+        consultantName: userProfile?.name || '',
+        commissionRate: 100, // Default: 1 month rent as commission (100% of monthly)
+        officeShareRate: 50, // Default 50%
+        notes: '',
         // Cross-commission fields
         enableCrossCommission: isCrossConsultant || false,
-        propertyOwnerShareRate: initialData?.propertyOwnerShareRate || initialData?.property_owner_share_rate || 30,
+        propertyOwnerShareRate: 30,
     });
 
-    const [expenses, setExpenses] = useState<SaleExpense[]>(initialData?.expenses || []);
+    const [expenses, setExpenses] = useState<SaleExpense[]>([]);
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
-
-    // KDV (VAT) states
-    const [kdvIncluded, setKdvIncluded] = useState<boolean>(initialData?.kdvIncluded || initialData?.kdv_included || false);
-    const [kdvRate, setKdvRate] = useState<number>(initialData?.kdvRate ?? initialData?.kdv_rate ?? 20);
 
     // Calculate lease end date
     const leaseEndDate = useMemo(() => {
@@ -74,10 +65,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
     const consultantShareRate = 100 - formData.officeShareRate;
     const totalConsultantShare = netProfit - officeShareAmount;
 
-    // KDV calculations
-    const kdvAmount = kdvIncluded ? (commissionAmount * kdvRate) / 100 : 0;
-    const grossAmountWithKdv = commissionAmount + kdvAmount;
-
     // Cross-commission calculation
     const propertyOwnerShareAmount = formData.enableCrossCommission
         ? (totalConsultantShare * formData.propertyOwnerShareRate) / 100
@@ -91,7 +78,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
         setExpenses([
             ...expenses,
             {
-                id: crypto.randomUUID(),
+                id: Date.now().toString(),
                 type: newExpenseType,
                 amount: newExpenseAmount,
             }
@@ -120,13 +107,13 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
         e.preventDefault();
 
         const sale: Sale = {
-            id: initialData?.id || crypto.randomUUID(), // Düzenleme modunda mevcut ID'yi koru
+            id: `rental-${Date.now()}`,
             propertyId: property.id,
             transactionType: 'rental',
 
             // Use sale fields for rental data
             salePrice: commissionAmount, // Total commission
-            saleDate: formData.transactionDate, // İşlem tarihi (sözleşme imza tarihi)
+            saleDate: formData.leaseStartDate,
             buyerId: formData.tenantId,
             buyerName: formData.tenantName,
 
@@ -134,7 +121,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
             monthlyRent: formData.monthlyRent,
             depositAmount: formData.depositAmount,
             leaseDuration: formData.leaseDuration,
-            leaseStartDate: formData.leaseStartDate, // Kira başlangıç tarihi (sözleşmedeki)
             leaseEndDate: leaseEndDate,
 
             // Consultant
@@ -161,13 +147,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
 
             // Property info
             propertyTitle: property.title,
-
-            // KDV (VAT)
-            kdvIncluded,
-            kdvRate: kdvIncluded ? kdvRate : 0,
-            kdvAmount: kdvIncluded ? kdvAmount : 0,
-            grossAmountWithKdv: kdvIncluded ? grossAmountWithKdv : commissionAmount,
-            netCommissionExKdv: commissionAmount,
         };
 
         onSave(sale);
@@ -191,7 +170,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Home className="w-5 h-5 text-blue-500" />
-                            {isEditMode ? 'Kiralama Düzenle' : 'Kiralama İşlemi'}
+                            Kiralama İşlemi
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                             {property.title}
@@ -239,30 +218,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                         </div>
                     </div>
 
-                    {/* İşlem Tarihi */}
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-                        <h3 className="font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-2 mb-3">
-                            <Calendar className="w-4 h-4" />
-                            İşlem Tarihi
-                        </h3>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                                Sözleşme / İmza Tarihi
-                                <span className="ml-2 text-xs text-blue-500 font-normal">(Raporlarda bu tarih kullanılır)</span>
-                            </label>
-                            <input
-                                type="date"
-                                value={formData.transactionDate}
-                                onChange={(e) => setFormData({ ...formData, transactionDate: e.target.value })}
-                                className="w-full px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                required
-                            />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                                Kira başlangıcından farklıysa burayı güncelleyin. Örn: Sözleşme 12 Mart'ta imzalandı ama kira 1 Nisan'da başlıyor.
-                            </p>
-                        </div>
-                    </div>
-
                     {/* Lease Period */}
                     <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 space-y-4">
                         <h3 className="font-semibold text-purple-900 dark:text-purple-300 flex items-center gap-2">
@@ -272,8 +227,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                                    Kira Başlangıç Tarihi
-                                    <span className="ml-2 text-xs text-purple-500 font-normal">(Sözleşmedeki tarih)</span>
+                                    Başlangıç Tarihi
                                 </label>
                                 <input
                                     type="date"
@@ -502,65 +456,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                         )}
                     </div>
 
-                    {/* KDV Seçimi */}
-                    <div className="bg-orange-50 dark:bg-orange-900/10 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
-                        <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-3 flex items-center gap-2">
-                            🧾 KDV (Katma Değer Vergisi)
-                        </h3>
-                        <div className="flex items-center gap-3 mb-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={kdvIncluded}
-                                    onChange={e => setKdvIncluded(e.target.checked)}
-                                    className="w-4 h-4 rounded accent-orange-500"
-                                />
-                                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
-                                    KDV'li fatura kesildi (+KDV)
-                                </span>
-                            </label>
-                        </div>
-                        {kdvIncluded && (
-                            <div className="grid grid-cols-2 gap-4 mt-2">
-                                <div>
-                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">KDV Oranı</label>
-                                    <select
-                                        value={kdvRate}
-                                        onChange={e => setKdvRate(Number(e.target.value))}
-                                        className="w-full rounded-lg border border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 p-2 text-sm text-gray-900 dark:text-white"
-                                    >
-                                        <option value={10}>%10 KDV</option>
-                                        <option value={20}>%20 KDV</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">Hesaplanan KDV</label>
-                                    <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2 text-center font-bold text-orange-800 dark:text-orange-200 text-sm">
-                                        {kdvAmount.toLocaleString('tr-TR')} ₺
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {kdvIncluded && (
-                            <div className="mt-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg p-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-orange-700 dark:text-orange-300">KDV Hariç Komisyon</span>
-                                    <span className="font-semibold">{commissionAmount.toLocaleString('tr-TR')} ₺</span>
-                                </div>
-                                <div className="flex justify-between mt-1">
-                                    <span className="text-orange-700 dark:text-orange-300">KDV Dahil Toplam</span>
-                                    <span className="font-bold text-orange-800 dark:text-orange-200">{grossAmountWithKdv.toLocaleString('tr-TR')} ₺</span>
-                                </div>
-                                <p className="text-xs text-orange-500 mt-1">⚠️ {kdvAmount.toLocaleString('tr-TR')} ₺ devlete ödenir</p>
-                            </div>
-                        )}
-                        {!kdvIncluded && (
-                            <p className="text-xs text-orange-500 dark:text-orange-400">
-                                KDV'siz işlem — komisyon net gelir olarak sayılır.
-                            </p>
-                        )}
-                    </div>
-
                     {/* Notes */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -589,7 +484,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave, init
                             disabled={!formData.tenantId || !formData.monthlyRent}
                             className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isEditMode ? 'Değişiklikleri Kaydet' : 'Kiralamayı Kaydet'}
+                            Kiralamayı Kaydet
                         </button>
                     </div>
                 </form>

@@ -14,7 +14,7 @@ export interface PublicSiteData {
 // Memory cache to prevent repeated Supabase calls
 const siteCache = new Map<string, { data: PublicSiteData | null; timestamp: number }>();
 const CACHE_TTL = 300000; // 5 minute memory cache (reduced)
-const LOCAL_STORAGE_KEY = 'emlak_site_v3'; // Version bump to invalidate old caches
+const LOCAL_STORAGE_KEY = 'emlak_site_v2'; // Version bump to invalidate old caches
 const LOCAL_STORAGE_TTL = 1800000; // 30 minute localStorage cache (reduced from 1 hour)
 
 // Warm-up flag to prevent multiple warm-ups
@@ -61,23 +61,8 @@ function getLocalStorageCache(domain: string): PublicSiteData | null {
  */
 function setLocalStorageCache(domain: string, data: PublicSiteData): void {
     try {
-        const slimProperties = (data.properties || []).slice(0, 24).map((p) => {
-            const firstImage = p.images?.[0];
-            const safeImage = firstImage && !String(firstImage).startsWith('data:') ? [firstImage] : [];
-            return {
-                ...p,
-                images: safeImage,
-                description: p.description ? String(p.description).slice(0, 300) : ''
-            };
-        });
-
-        const slimData: PublicSiteData = {
-            ...data,
-            properties: slimProperties as Property[]
-        };
-
         localStorage.setItem(`${LOCAL_STORAGE_KEY}_${domain}`, JSON.stringify({
-            data: slimData,
+            data,
             timestamp: Date.now()
         }));
     } catch (e) { /* ignore - storage full */ }
@@ -145,8 +130,8 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
     console.log('[PublicSite] Fetching from DB:', cleanDomain);
 
     try {
-        // PARALLEL QUERIES: Fetch profiles and offices at the same time with timeout
-        const siteConfigQuery = Promise.all([
+        // PARALLEL QUERIES: Fetch profiles and offices at the same time
+        const [profilesResult, officesResult] = await Promise.all([
             supabase
                 .from('profiles')
                 .select('id, full_name, site_config')
@@ -159,81 +144,28 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
                 .limit(50)
         ]);
 
-        // 10 second timeout for site config queries
-        const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Site config query timeout')), 10000)
-        );
-
-        const [profilesResult, officesResult] = await Promise.race([siteConfigQuery, timeoutPromise]) as [
-            { data: any[] | null; error: any },
-            { data: any[] | null; error: any }
-        ];
-
         const profiles = profilesResult.data;
         const offices = officesResult.data;
-
-        // DEBUG: Log all found domains for troubleshooting
-        console.log('[PublicSite] Looking for domain:', cleanDomain);
-        console.log('[PublicSite] Found profiles with site_config:', profiles?.length || 0);
-        console.log('[PublicSite] Found offices with site_config:', offices?.length || 0);
-
-        if (profiles) {
-            profiles.forEach(p => {
-                const cfg = p.site_config as WebSiteConfig | null;
-                if (cfg?.domain) {
-                    console.log('[PublicSite] Profile domain:', cfg.domain, '-> cleaned:', cleanDomainString(cfg.domain), '| isActive:', cfg.isActive);
-                }
-            });
-        }
-        if (offices) {
-            offices.forEach(o => {
-                const cfg = o.site_config as WebSiteConfig | null;
-                if (cfg?.domain) {
-                    console.log('[PublicSite] Office domain:', cfg.domain, '-> cleaned:', cleanDomainString(cfg.domain), '| isActive:', cfg.isActive);
-                }
-            });
-        }
 
         // Check profiles for domain match
         if (profiles) {
             for (const profile of profiles) {
                 const config = profile.site_config as WebSiteConfig | null;
-                // isActive !== false: site is active by default unless explicitly disabled
-                if (config?.domain && config.isActive !== false) {
+                if (config?.domain && config.isActive) {
                     const configDomain = cleanDomainString(config.domain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Personal site:', profile.full_name);
 
-                        // Fetch properties with retry logic for slow connections
-                        let activeProps: Property[] = [];
-                        const fetchProps = async (attempt: number = 1): Promise<Property[]> => {
-                            try {
-                                const { data, error } = await supabase
-                                    .from('properties')
-                                    .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                    .eq('user_id', profile.id)
-                                    .or('listing_status.eq.Aktif,listing_status.is.null')
-                                    .limit(24);
+                        // Fetch properties - optimized with specific columns and DB-level filtering
+                        const { data: props } = await supabase
+                            .from('properties')
+                            .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                            .eq('user_id', profile.id)
+                            .or('listing_status.eq.Aktif,listing_status.is.null')
+                            .limit(50);
 
-                                if (error) throw error;
-                                return data || [];
-                            } catch (err) {
-                                console.warn(`[PublicSite] Properties fetch attempt ${attempt} failed:`, err);
-                                if (attempt < 3) {
-                                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Wait 1s, 2s between retries
-                                    return fetchProps(attempt + 1);
-                                }
-                                return [];
-                            }
-                        };
-
-                        try {
-                            activeProps = await fetchProps();
-                            console.log('[PublicSite] Properties query for user:', profile.id);
-                            console.log('[PublicSite] Properties found:', activeProps.length);
-                        } catch (propsErr) {
-                            console.warn('[PublicSite] Properties fetch failed (non-blocking):', propsErr);
-                        }
+                        // Already filtered at DB level
+                        const activeProps = props || [];
 
                         const result: PublicSiteData = {
                             type: 'personal',
@@ -255,80 +187,57 @@ export async function getSiteByDomain(domain: string): Promise<PublicSiteData | 
         if (offices) {
             for (const office of offices) {
                 const config = office.site_config as WebSiteConfig | null;
-                // isActive !== false: site is active by default unless explicitly disabled
-                if (config?.domain && config.isActive !== false) {
+                if (config?.domain && config.isActive) {
                     const configDomain = cleanDomainString(config.domain);
                     if (configDomain === cleanDomain) {
                         console.log('[PublicSite] ✓ Office site:', office.name);
 
-                        // Fetch properties with retry logic for slow connections
-                        let allProps: Property[] = [];
-                        const fetchOfficeProps = async (attempt: number = 1): Promise<Property[]> => {
-                            try {
-                                const { data, error } = await supabase
-                                    .from('properties')
-                                    .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                    .eq('office_id', office.id)
-                                    .or('listing_status.eq.Aktif,listing_status.is.null')
-                                    .limit(24);
+                        // Get office members
+                        const { data: members } = await supabase
+                            .from('profiles')
+                            .select('id')
+                            .eq('office_id', office.id)
+                            .limit(20);
 
-                                if (error) throw error;
-                                return data || [];
-                            } catch (err) {
-                                console.warn(`[PublicSite] Office properties fetch attempt ${attempt} failed:`, err);
-                                if (attempt < 3) {
-                                    await new Promise(r => setTimeout(r, 1000 * attempt));
-                                    return fetchOfficeProps(attempt + 1);
-                                }
-                                return [];
-                            }
-                        };
+                        const memberIds = members?.map(m => m.id) || [];
 
-                        try {
-                            // Get office members
-                            const { data: members } = await supabase
-                                .from('profiles')
-                                .select('id')
-                                .eq('office_id', office.id)
-                                .limit(20);
+                        // Get properties (office_id based) - optimized query
+                        const { data: officeProps } = await supabase
+                            .from('properties')
+                            .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                            .eq('office_id', office.id)
+                            .or('listing_status.eq.Aktif,listing_status.is.null')
+                            .limit(50);
 
-                            const memberIds = members?.map(m => m.id) || [];
+                        let allProps = officeProps || [];
 
-                            // Get properties (office_id based) with retry
-                            allProps = await fetchOfficeProps();
-                            console.log('[PublicSite] Office properties found:', allProps.length);
+                        // Also get member properties if any - optimized query
+                        if (memberIds.length > 0) {
+                            const { data: memberProps } = await supabase
+                                .from('properties')
+                                .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
+                                .in('user_id', memberIds)
+                                .or('listing_status.eq.Aktif,listing_status.is.null')
+                                .limit(50);
 
-                            // Also get member properties if any
-                            if (memberIds.length > 0 && allProps.length < 24) {
-                                try {
-                                    const { data: memberProps } = await supabase
-                                        .from('properties')
-                                        .select('id, title, status, location, price, currency, rooms, bathrooms, area, images, description, buildingAge, currentFloor, listing_status, type, heating, coordinates')
-                                        .in('user_id', memberIds)
-                                        .or('listing_status.eq.Aktif,listing_status.is.null')
-                                        .limit(24);
-
-                                    if (memberProps) {
-                                        const existingIds = new Set(allProps.map(p => p.id));
-                                        for (const p of memberProps) {
-                                            if (!existingIds.has(p.id)) {
-                                                allProps.push(p);
-                                            }
-                                        }
+                            if (memberProps) {
+                                const existingIds = new Set(allProps.map(p => p.id));
+                                for (const p of memberProps) {
+                                    if (!existingIds.has(p.id)) {
+                                        allProps.push(p);
                                     }
-                                } catch (memberPropsErr) {
-                                    console.warn('[PublicSite] Member properties fetch failed (non-blocking):', memberPropsErr);
                                 }
                             }
-                        } catch (propsErr) {
-                            console.warn('[PublicSite] Office properties fetch failed (non-blocking):', propsErr);
                         }
+
+                        // Already filtered at DB level
+                        const activeProps = allProps;
 
                         const result: PublicSiteData = {
                             type: 'office',
                             officeId: office.id,
                             siteConfig: config,
-                            properties: allProps,
+                            properties: activeProps,
                             officeName: office.name
                         };
 
@@ -363,4 +272,3 @@ export function clearSiteCache(domain?: string) {
         siteCache.clear();
     }
 }
-

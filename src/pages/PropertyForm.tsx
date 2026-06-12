@@ -6,11 +6,8 @@ import {
   List, Image, Home, Briefcase, Map, Save, Search, Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import heic2any from 'heic2any';
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
 import { useData } from '../context/DataContext';
-import { Property, Customer, Site } from '../types';
+import { Property, Customer } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import {
@@ -45,58 +42,19 @@ import {
   WORKPLACE_FEATURES,
 } from '../constants/propertyConstants';
 import { PROVINCES, getDistricts, getProvinceCoordinates } from '../constants/turkeyLocations';
-
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
-
-const DraggableLocationMarker: React.FC<{
-  position: [number, number];
-  onChange: (lat: number, lng: number) => void;
-}> = ({ position, onChange }) => {
-  useMapEvents({
-    click: (e) => {
-      onChange(e.latlng.lat, e.latlng.lng);
-    }
-  });
-
-  return (
-    <Marker
-      position={position}
-      draggable
-      eventHandlers={{
-        dragend: (event) => {
-          const marker = event.target as L.Marker;
-          const next = marker.getLatLng();
-          onChange(next.lat, next.lng);
-        }
-      }}
-    />
-  );
-};
+import { uploadMultipleToCloudinary, isCloudinaryConfigured } from '../services/cloudinaryService';
 
 const PropertyForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { addProperty, updateProperty, properties, customers, addCustomer, session, sites, addSite } = useData();
+  const { addProperty, updateProperty, properties, customers, addCustomer, session } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const NEW_LOCAL_DRAFT_KEY = 'propertyFormDraft:new';
-  const NEW_SESSION_DRAFT_KEY = 'property-form-draft-new';
-  const JUST_SAVED_MARKER_KEY = 'property-form-just-saved-at';
-  const draftKey = id
-    ? `propertyFormDraft:edit:${id}`
-    : NEW_LOCAL_DRAFT_KEY;
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [draftHydrated, setDraftHydrated] = useState(false);
+  // ⚡ Cloudinary upload sayacı — kaç fotoğraf yükleniyor
+  const [uploadingCount, setUploadingCount] = useState(0);
 
   // AI states
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
@@ -117,8 +75,6 @@ const PropertyForm: React.FC = () => {
   const [loadingNeighborhoods, setLoadingNeighborhoods] = useState(false);
   const [addressSearch, setAddressSearch] = useState('');
   const [searchingAddress, setSearchingAddress] = useState(false);
-  const [quickSiteName, setQuickSiteName] = useState('');
-  const [isAddingQuickSite, setIsAddingQuickSite] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<Property>>({
@@ -180,134 +136,19 @@ const PropertyForm: React.FC = () => {
     listingDate: new Date().toISOString().split('T')[0],
   });
 
-  const getFloorLabel = (value?: number) => {
-    if (value === undefined || value === null) return '';
-    const match = FLOOR_OPTIONS.find(opt => opt.value === value);
-    return match?.label ?? String(value);
-  };
-
-  // Restore draft (new or edit) or load existing property
+  // Load existing property for edit mode
   useEffect(() => {
-    const justSavedAt = Number(sessionStorage.getItem(JUST_SAVED_MARKER_KEY) || 0);
-    const justSavedRecently = !id && Number.isFinite(justSavedAt) && (Date.now() - justSavedAt) < 2 * 60 * 1000;
-
-    if (justSavedRecently) {
-      localStorage.removeItem(NEW_LOCAL_DRAFT_KEY);
-      sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
-      sessionStorage.removeItem(JUST_SAVED_MARKER_KEY);
-    }
-
-    const loadEditProperty = async () => {
-      if (!id) return;
-      const { data } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (data) {
+    if (id) {
+      const existingProperty = properties.find(p => p.id === id);
+      if (existingProperty) {
         setFormData({
-          ...data,
-          category: data.category || 'KONUT',
-          subCategory: data.subCategory || data.status || 'Satılık',
+          ...existingProperty,
+          category: existingProperty.category || 'KONUT',
+          subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
         });
-        return true;
-      }
-      return false;
-    };
-
-    let restoredFromLocalDraft = false;
-    const raw = justSavedRecently ? null : localStorage.getItem(draftKey);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed?.formData) {
-          setFormData(prev => ({ ...prev, ...parsed.formData }));
-        }
-        if (typeof parsed?.currentStep === 'number') {
-          setCurrentStep(parsed.currentStep);
-        }
-        restoredFromLocalDraft = true;
-      } catch {
-        // Ignore bad draft data
       }
     }
-
-    const finalize = async () => {
-      if (!restoredFromLocalDraft && id) {
-        const loaded = await loadEditProperty();
-        if (!loaded) {
-          const existingProperty = properties.find(p => p.id === id);
-          if (existingProperty) {
-            setFormData({
-              ...existingProperty,
-              category: existingProperty.category || 'KONUT',
-              subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
-            });
-          }
-        }
-      } else if (!restoredFromLocalDraft) {
-        // New property: try to restore draft from sessionStorage
-        const savedDraft = sessionStorage.getItem(NEW_SESSION_DRAFT_KEY);
-        if (savedDraft) {
-          try {
-            const draftData = JSON.parse(savedDraft);
-            if (draftData?.formData) {
-              setFormData(prev => ({ ...prev, ...draftData.formData }));
-            }
-            setCurrentStep(draftData?.currentStep || 0);
-            toast.success('Taslak geri yüklendi', { duration: 3000 });
-          } catch (error) {
-            console.error('Draft restore error:', error);
-            sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
-          }
-        }
-      }
-
-      setDraftHydrated(true);
-    };
-
-    void finalize();
-  }, [id, properties, draftKey]);
-
-  // Persist draft for new and edit
-  useEffect(() => {
-    if (!draftHydrated) return;
-    const { images, ...formDataNoImages } = formData;
-    try {
-      localStorage.setItem(draftKey, JSON.stringify({
-        formData: formDataNoImages,
-        currentStep,
-        savedAt: new Date().toISOString()
-      }));
-    } catch {
-      // Fallback without images if storage quota is exceeded
-      try {
-        localStorage.setItem(draftKey, JSON.stringify({
-          formData: formDataNoImages,
-          currentStep,
-          savedAt: new Date().toISOString(),
-          imagesDropped: true
-        }));
-      } catch {
-        // Ignore storage errors
-      }
-    }
-  }, [draftKey, formData, currentStep, draftHydrated]);
-
-  // Auto-save draft to sessionStorage
-  useEffect(() => {
-    if (!draftHydrated) return;
-    if (!id && formData.title) { // Only save drafts for new properties with some content
-      const { images, ...formDataNoImages } = formData;
-      const draftData = {
-        formData: formDataNoImages,
-        currentStep,
-        timestamp: Date.now()
-      };
-      sessionStorage.setItem(NEW_SESSION_DRAFT_KEY, JSON.stringify(draftData));
-    }
-  }, [formData, currentStep, id, draftHydrated, NEW_SESSION_DRAFT_KEY]);
+  }, [id, properties]);
 
   // Fetch neighborhoods when city and district change
   useEffect(() => {
@@ -436,149 +277,6 @@ const PropertyForm: React.FC = () => {
     }
   };
 
-  const readFileAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-
-  const isHeicLikeFile = (file: File) => {
-    const lowerName = file.name.toLowerCase();
-    return (
-      file.type === 'image/heic' ||
-      file.type === 'image/heif' ||
-      lowerName.endsWith('.heic') ||
-      lowerName.endsWith('.heif')
-    );
-  };
-
-  const isImageByExtension = (fileName: string) => {
-    const lowerName = fileName.toLowerCase();
-    return ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif', '.heic', '.heif'].some(ext => lowerName.endsWith(ext));
-  };
-
-  const convertHeicToJpegFile = async (file: File): Promise<File> => {
-    const converted = await heic2any({
-      blob: file,
-      toType: 'image/jpeg',
-      quality: 0.85
-    });
-    const blob = (Array.isArray(converted) ? converted[0] : converted) as Blob;
-    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-    return new File([blob], newName, { type: 'image/jpeg' });
-  };
-
-  const uploadImageToStorage = async (file: File): Promise<string> => {
-    const storageBuckets = ['property-images', 'property_images', 'avatars'];
-    const extension = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const userId = session?.user?.id || 'anonymous';
-    const filePath = `properties/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-
-    let lastError: any = null;
-
-    for (const bucket of storageBuckets) {
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, file, {
-          upsert: false,
-          contentType: file.type || 'image/jpeg'
-        });
-
-      if (!uploadError) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-        if (data?.publicUrl) return data.publicUrl;
-      } else {
-        lastError = uploadError;
-      }
-    }
-
-    throw lastError || new Error('Storage upload failed');
-  };
-
-  const dataUrlToFile = (dataUrl: string, fileName: string): File => {
-    const [header, base64] = dataUrl.split(',');
-    const mimeMatch = header.match(/data:(.*?);base64/);
-    const mimeType = mimeMatch?.[1] || 'image/jpeg';
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-    const normalizedName = fileName.replace(/\.[^.]+$/, '') + `.${ext}`;
-    return new File([bytes], normalizedName, { type: mimeType });
-  };
-
-  const resizeImageToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          let maxDimension = 1600;
-          const minDimension = 900;
-          const maxDataUrlLength = 6_000_000; // ~4.5MB
-          let quality = 0.85;
-
-          const getDimensions = () => {
-            const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-            return {
-              width: Math.max(1, Math.round(img.width * scale)),
-              height: Math.max(1, Math.round(img.height * scale))
-            };
-          };
-
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas context unavailable'));
-            return;
-          }
-
-          let lastDataUrl = '';
-
-          for (let attempt = 0; attempt < 12; attempt += 1) {
-            const dims = getDimensions();
-            canvas.width = dims.width;
-            canvas.height = dims.height;
-            ctx.clearRect(0, 0, dims.width, dims.height);
-            ctx.drawImage(img, 0, 0, dims.width, dims.height);
-
-            const dataUrl = canvas.toDataURL('image/jpeg', quality);
-            lastDataUrl = dataUrl;
-            if (dataUrl.length <= maxDataUrlLength) {
-              resolve(dataUrl);
-              return;
-            }
-
-            if (quality > 0.5) {
-              quality = Math.max(0.5, quality - 0.08);
-              continue;
-            }
-
-            if (maxDimension > minDimension) {
-              maxDimension = Math.max(minDimension, Math.round(maxDimension * 0.85));
-              quality = 0.8;
-              continue;
-            }
-            break;
-          }
-
-          if (!lastDataUrl) {
-            reject(new Error('Image too large after resize'));
-            return;
-          }
-          resolve(lastDataUrl);
-        };
-        img.onerror = () => reject(new Error('Image load failed'));
-        img.src = reader.result as string;
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-
   // AI Description Generator
   const handleGenerateDescription = async () => {
     if (!formData.type && !formData.city) {
@@ -599,7 +297,7 @@ const PropertyForm: React.FC = () => {
         formData.city && formData.district && `Konum: ${formData.district}, ${formData.city}`,
         formData.neighborhood && `Mahalle: ${formData.neighborhood}`,
         formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor !== undefined && formData.floorCount && `Kat: ${getFloorLabel(formData.currentFloor)}/${formData.floorCount}`,
+        formData.currentFloor && formData.floorCount && `Kat: ${formData.currentFloor}/${formData.floorCount}`,
         formData.heating && `Isıtma: ${formData.heating}`,
         formData.furnished && `Eşya: Eşyalı`,
         formData.parking && `Otopark: ${formData.parking}`,
@@ -647,7 +345,7 @@ ${propertyInfo}`;
         formData.city && `Şehir: ${formData.city}`,
         formData.district && `İlçe: ${formData.district}`,
         formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor !== undefined && `Bulunduğu Kat: ${getFloorLabel(formData.currentFloor)}`,
+        formData.currentFloor && `Bulunduğu Kat: ${formData.currentFloor}`,
         formData.heating && `Isıtma: ${formData.heating}`,
         formData.elevator === 'Var' && `Asansör: Var`,
       ].filter(Boolean).join('\n');
@@ -677,21 +375,14 @@ ${propertyInfo}`;
 
   // URL Import
   const handleImportFromUrl = async () => {
-    if (!importUrl.trim()) {
-      toast.error('Lütfen bir URL girin');
-      return;
-    }
+    if (!importUrl.trim()) return;
 
     setIsAnalyzing(true);
     try {
-      // Note: AI cannot directly fetch web pages, so we ask it to extract from URL pattern
-      // This works best with well-structured URLs (e.g., sahibinden.com, hepsiemlak.com)
-      const prompt = `Aşağıdaki emlak ilan URL'sini analiz et. URL yapısından ve pattern'den bilgi çıkarabilirsen JSON formatında döndür.
-Eğer URL'den bilgi çıkaramazsan, kullanıcıya "Bu URL'den otomatik bilgi çıkarılamıyor. Lütfen ilan bilgilerini manuel olarak kopyalayıp yapıştırın." mesajını döndür.
-
+      const prompt = `Aşağıdaki emlak ilan URL'sini analiz et ve bilgileri JSON formatında çıkar.
 URL: ${importUrl}
 
-Başarılı olursan sadece JSON döndür:
+Sadece JSON döndür:
 {
   "title": "İlan başlığı",
   "description": "Açıklama",
@@ -705,33 +396,14 @@ Başarılı olursan sadece JSON döndür:
   "floorCount": 0,
   "city": "İl",
   "district": "İlçe"
-}
-
-Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
+}`;
 
       const result = await generateRealEstateAdvice(prompt);
       if (result) {
-        // Check if manual import is needed
-        if (result.includes('MANUAL_IMPORT_NEEDED') || result.includes('otomatik bilgi çıkarılamıyor')) {
-          toast.error('Bu URL\'den otomatik veri çekilemiyor. Lütfen ilan bilgilerini manuel olarak girin.', {
-            duration: 5000
-          });
-          setShowImportModal(false);
-          setImportUrl('');
-          setIsAnalyzing(false);
-          return;
-        }
-
         try {
           const jsonMatch = result.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const data = JSON.parse(jsonMatch[0]);
-
-            // Validate that we got useful data
-            if (!data.title && !data.price && !data.type) {
-              throw new Error('Yetersiz veri');
-            }
-
             setFormData(prev => ({
               ...prev,
               title: data.title || prev.title,
@@ -750,26 +422,19 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
             toast.success('İlan bilgileri içe aktarıldı!');
             setShowImportModal(false);
             setImportUrl('');
-          } else {
-            throw new Error('JSON bulunamadı');
           }
-        } catch (parseError) {
-          console.error('Parse error:', parseError);
-          toast.error('URL\'den veri çıkarılamadı. Lütfen ilan bilgilerini manuel olarak girin.', {
-            duration: 5000
-          });
-          setShowImportModal(false);
-          setImportUrl('');
+        } catch {
+          toast.error('JSON parse hatası');
         }
       }
     } catch (err: any) {
-      console.error('Import error:', err);
-      toast.error('İçe aktarma başarısız. Lütfen ilan bilgilerini manuel olarak girin.');
+      toast.error('İçe aktarma başarısız');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  // ⚡ Image handling — Cloudinary CDN'e yükler (varsa), yoksa base64 fallback
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -780,74 +445,58 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       return;
     }
 
-    for (const file of Array.from(files) as File[]) {
-      try {
-        let workingFile = file;
-
-        if (isHeicLikeFile(workingFile)) {
-          try {
-            workingFile = await convertHeicToJpegFile(workingFile);
-          } catch (heicError) {
-            console.error('HEIC conversion failed:', file.name, heicError);
-            toast.error(`${file.name} dönüştürülemedi (HEIC/HEIF desteklenemedi)`);
-            continue;
-          }
-        }
-
-        if (!workingFile.type.startsWith('image/') && !isImageByExtension(workingFile.name)) {
-          toast.error(`${file.name} geçersiz dosya türü`);
-          continue;
-        }
-
-        const isLargeImage = workingFile.size > 5 * 1024 * 1024;
-        let dataUrl: string;
-
-        if (isLargeImage) {
-          try {
-            const directUrl = await uploadImageToStorage(workingFile);
-            setFormData(prev => ({
-              ...prev,
-              images: [...(prev.images || []), directUrl]
-            }));
-            continue;
-          } catch (directStorageError) {
-            console.warn('Direct storage upload failed for large image:', workingFile.name, directStorageError);
-          }
-
-          try {
-            dataUrl = await resizeImageToDataUrl(workingFile);
-            const optimizedFile = dataUrlToFile(dataUrl, workingFile.name);
-            const storageUrl = await uploadImageToStorage(optimizedFile);
-            setFormData(prev => ({
-              ...prev,
-              images: [...(prev.images || []), storageUrl]
-            }));
-            continue;
-          } catch (storageError) {
-            console.warn('Optimized storage upload failed, using local fallback:', workingFile.name, storageError);
-            try {
-              dataUrl = await resizeImageToDataUrl(workingFile);
-            } catch (resizeError) {
-              console.warn('Resize failed, using original image:', workingFile.name, resizeError);
-              dataUrl = await readFileAsDataUrl(workingFile);
-              toast(`${workingFile.name} orijinal boyutta eklendi`, { icon: 'ℹ️' });
-            }
-          }
-        } else {
-          dataUrl = await readFileAsDataUrl(workingFile);
-        }
-
-        setFormData(prev => ({
-          ...prev,
-          images: [...(prev.images || []), dataUrl]
-        }));
-      } catch (error: any) {
-        console.error('Image upload failed:', file.name, error);
-        toast.error(`${file.name} yüklenemedi (${error?.message || 'bilinmeyen hata'})`);
+    // Boyut filtresi
+    const validFiles = (Array.from(files) as File[]).filter((file: File) => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} 5MB'dan büyük, atlandı`);
+        return false;
       }
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    // ── Cloudinary yolu ──────────────────────────────────────────────
+    if (isCloudinaryConfigured()) {
+      setUploadingCount((n) => n + validFiles.length);
+      toast.loading(`${validFiles.length} fotoğraf yükleniyor...`, { id: 'img-upload' });
+
+      const results = await uploadMultipleToCloudinary(
+        validFiles,
+        'emlak-crm/properties',
+        (url) => {
+          // Her fotoğraf yüklenince anlık ekle
+          setFormData((prev) => ({
+            ...prev,
+            images: [...(prev.images || []), url],
+          }));
+          setUploadingCount((n) => Math.max(0, n - 1));
+        }
+      );
+
+      const errorCount = results.filter((r) => r.error).length;
+      toast.dismiss('img-upload');
+
+      if (errorCount > 0) {
+        toast.error(`${errorCount} fotoğraf yüklenemedi. Lütfen tekrar deneyin.`);
+      } else {
+        toast.success(`${validFiles.length} fotoğraf yüklendi`);
+      }
+      return;
     }
 
-    e.target.value = '';
+    // ── Fallback: Cloudinary yoksa base64 (eski davranış) ────────────
+    console.warn('[PropertyForm] Cloudinary yapılandırılmamış, base64 kullanılıyor.');
+    for (const file of validFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData((prev) => ({
+          ...prev,
+          images: [...(prev.images || []), reader.result as string],
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const removeImage = (index: number) => {
@@ -870,25 +519,12 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       setCurrentStep(1);
       return;
     }
-    if (formData.isInSite && !formData.siteName?.trim()) {
-      toast.error('Site içerisindeyse lütfen bir site seçin veya yeni site ekleyin');
-      setCurrentStep(steps.findIndex((s) => s.id === 'location'));
-      return;
-    }
 
     setIsSubmitting(true);
     try {
-      // Clear draft from sessionStorage before submitting
-      if (!id) {
-        sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
-      }
-
-      // Always generate a fresh ID for new properties to avoid duplicate key errors
-      const propertyId = id ? formData.id : `PRT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
       const propertyData: Property = {
         ...formData,
-        id: propertyId,
+        id: formData.id || `PRT-${Date.now()}`,
         location: `${formData.district || ''}, ${formData.city || ''}`.trim() || 'Belirtilmemiş',
         area: formData.netArea || formData.grossArea || 0,
         status: formData.subCategory || 'Satılık',
@@ -905,50 +541,12 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
         await addProperty(propertyData);
         toast.success('İlan oluşturuldu!');
       }
-      if (!id) {
-        sessionStorage.setItem(JUST_SAVED_MARKER_KEY, String(Date.now()));
-        localStorage.removeItem(NEW_LOCAL_DRAFT_KEY);
-        sessionStorage.removeItem(NEW_SESSION_DRAFT_KEY);
-      }
-      localStorage.removeItem(draftKey);
       navigate('/properties');
     } catch (err: any) {
       toast.error('İşlem başarısız: ' + (err.message || 'Bilinmeyen hata'));
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleQuickAddSite = async () => {
-    const normalizedName = quickSiteName.trim();
-    if (!normalizedName) {
-      toast.error('Site adı giriniz');
-      return;
-    }
-
-    const existing = sites.find(s => s.name.toLowerCase() === normalizedName.toLowerCase());
-    if (existing) {
-      handleChange('siteName', existing.name);
-      setQuickSiteName('');
-      setIsAddingQuickSite(false);
-      toast.success('Mevcut site seçildi');
-      return;
-    }
-
-    const site: Site = {
-      id: Date.now().toString(),
-      name: normalizedName,
-      region: [formData.district, formData.city].filter(Boolean).join(', ') || 'Belirtilmedi',
-      address: formData.address || '',
-      status: 'Aktif',
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-
-    await addSite(site);
-    handleChange('siteName', site.name);
-    setQuickSiteName('');
-    setIsAddingQuickSite(false);
-    toast.success('Yeni site eklendi ve seçildi');
   };
 
   // Quick add owner
@@ -967,18 +565,15 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
       interactions: [],
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newOwnerName)}&background=random`
     };
-    try {
-      const created = await addCustomer(customer);
-      handleChange('ownerId', created.id);
-      handleChange('ownerName', created.name);
-      handleChange('ownerPhone', created.phone);
-      setShowOwnerModal(false);
-      setNewOwnerName('');
-      setNewOwnerPhone('');
-      toast.success('Mülk sahibi eklendi');
-    } catch (error: any) {
-      toast.error(error?.message || 'Mülk sahibi kaydedilemedi');
-    }
+
+    await addCustomer(customer);
+    handleChange('ownerId', customer.id);
+    handleChange('ownerName', customer.name);
+    handleChange('ownerPhone', customer.phone);
+    setShowOwnerModal(false);
+    setNewOwnerName('');
+    setNewOwnerPhone('');
+    toast.success('Mülk sahibi eklendi');
   };
 
   // Render step content
@@ -1022,10 +617,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
               handleChange('subCategory', cat.subCategories[0]);
               handleChange('status', cat.subCategories[0]);
             }}
-            className={`p-6 rounded-xl border-2 transition-all text-left ${formData.category === key
-              ? 'border-[#1193d4] bg-sky-50 dark:bg-sky-900/20'
-              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-              }`}
+            className={`p-6 rounded-xl border-2 transition-all text-left ${
+              formData.category === key
+                ? 'border-[#1193d4] bg-sky-50 dark:bg-sky-900/20'
+                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+            }`}
           >
             <div className="flex items-center gap-3 mb-3">
               {key === 'KONUT' && <Home className={`w-8 h-8 ${formData.category === key ? 'text-[#1193d4]' : 'text-gray-400'}`} />}
@@ -1239,7 +835,7 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
             value={formData.currentFloor}
-            onChange={e => handleChange('currentFloor', parseInt(e.target.value))}
+            onChange={e => handleChange('currentFloor', parseFloat(e.target.value))}
           >
             {FLOOR_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1505,8 +1101,8 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">KAKS (Emsal)</label>
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.kaks || ''}
-            onChange={e => handleChange('kaks', e.target.value || undefined)}
+            value={formData.kaks}
+            onChange={e => handleChange('kaks', e.target.value)}
           >
             {KAKS_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1519,8 +1115,8 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Gabari</label>
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-            value={formData.gabari || ''}
-            onChange={e => handleChange('gabari', e.target.value || undefined)}
+            value={formData.gabari}
+            onChange={e => handleChange('gabari', e.target.value)}
           >
             {GABARI_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1548,366 +1144,317 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
   // Step: Location
   const renderLocationStep = () => {
     const districts = formData.city ? getDistricts(formData.city) : [];
+    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${(formData.coordinates?.lng || 32.8597) - 0.05}%2C${(formData.coordinates?.lat || 39.9334) - 0.03}%2C${(formData.coordinates?.lng || 32.8597) + 0.05}%2C${(formData.coordinates?.lat || 39.9334) + 0.03}&layer=mapnik&marker=${formData.coordinates?.lat || 39.9334}%2C${formData.coordinates?.lng || 32.8597}`;
     const googleMapsPickerUrl = `https://www.google.com/maps/search/?api=1&query=${formData.coordinates?.lat || 39.9334},${formData.coordinates?.lng || 32.8597}`;
-    const activeSites = sites.filter(s => s.status === 'Aktif').sort((a, b) => a.name.localeCompare(b.name, 'tr'));
-    const lat = formData.coordinates?.lat || 39.9334;
-    const lng = formData.coordinates?.lng || 32.8597;
-    const markerPosition: [number, number] = [lat, lng];
 
     return (
-      <div className="space-y-6">
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Konum Bilgileri</h3>
+    <div className="space-y-6">
+      <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Konum Bilgileri</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* City */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              İl <span className="text-red-500">*</span>
-            </label>
-            <select
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.city}
-              onChange={e => {
-                const newCity = e.target.value;
-                handleChange('city', newCity);
-                handleChange('district', ''); // Reset district when city changes
-                // Update coordinates to city center
-                if (newCity) {
-                  const coords = getProvinceCoordinates(newCity);
-                  handleChange('coordinates', coords);
-                }
-              }}
-            >
-              <option value="">İl Seçiniz</option>
-              {PROVINCES.map(city => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* City */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            İl <span className="text-red-500">*</span>
+          </label>
+          <select
+            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+            value={formData.city}
+            onChange={e => {
+              const newCity = e.target.value;
+              handleChange('city', newCity);
+              handleChange('district', ''); // Reset district when city changes
+              // Update coordinates to city center
+              if (newCity) {
+                const coords = getProvinceCoordinates(newCity);
+                handleChange('coordinates', coords);
+              }
+            }}
+          >
+            <option value="">İl Seçiniz</option>
+            {PROVINCES.map(city => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
+        </div>
 
-          {/* District - Cascading dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              İlçe <span className="text-red-500">*</span>
-            </label>
+        {/* District - Cascading dropdown */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            İlçe <span className="text-red-500">*</span>
+          </label>
+          <select
+            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+            value={formData.district}
+            onChange={e => {
+              handleChange('district', e.target.value);
+              handleChange('neighborhood', ''); // Reset neighborhood when district changes
+            }}
+            disabled={!formData.city}
+          >
+            <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
+            {districts.map(district => (
+              <option key={district} value={district}>{district}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Neighborhood - Cascading dropdown */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            Mahalle / Köy
+            {loadingNeighborhoods && <Loader2 className="w-3 h-3 inline ml-2 animate-spin text-blue-500" />}
+          </label>
+          {neighborhoods.length > 0 ? (
             <select
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-              value={formData.district}
-              onChange={e => {
-                handleChange('district', e.target.value);
-                handleChange('neighborhood', ''); // Reset neighborhood when district changes
-              }}
-              disabled={!formData.city}
+              value={formData.neighborhood}
+              onChange={e => handleChange('neighborhood', e.target.value)}
+              disabled={!formData.district || loadingNeighborhoods}
             >
-              <option value="">{formData.city ? 'İlçe Seçiniz' : 'Önce İl Seçiniz'}</option>
-              {districts.map(district => (
-                <option key={district} value={district}>{district}</option>
+              <option value="">{loadingNeighborhoods ? 'Yükleniyor...' : 'Mahalle Seçiniz'}</option>
+              {neighborhoods.map(neighborhood => (
+                <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
               ))}
             </select>
-          </div>
-
-          {/* Neighborhood - Cascading dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-              Mahalle / Köy
-              {loadingNeighborhoods && <Loader2 className="w-3 h-3 inline ml-2 animate-spin text-blue-500" />}
-            </label>
-            {neighborhoods.length > 0 ? (
-              <select
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-                value={formData.neighborhood}
-                onChange={e => handleChange('neighborhood', e.target.value)}
-                disabled={!formData.district || loadingNeighborhoods}
-              >
-                <option value="">{loadingNeighborhoods ? 'Yükleniyor...' : 'Mahalle Seçiniz'}</option>
-                {neighborhoods.map(neighborhood => (
-                  <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                placeholder={formData.district ? 'Mahalle adı yazın' : 'Önce ilçe seçin'}
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
-                value={formData.neighborhood}
-                onChange={e => handleChange('neighborhood', e.target.value)}
-                disabled={!formData.district}
-              />
-            )}
-            {formData.district && neighborhoods.length === 0 && !loadingNeighborhoods && (
-              <p className="text-xs text-gray-400 mt-1">API'den mahalle bulunamadı, manuel yazabilirsiniz</p>
-            )}
-          </div>
-
-          {/* Is In Site */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site İçerisinde mi?</label>
-            <select
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.isInSite ? 'Evet' : 'Hayır'}
-              onChange={e => {
-                const isInSite = e.target.value === 'Evet';
-                handleChange('isInSite', isInSite);
-                if (!isInSite) handleChange('siteName', '');
-              }}
-            >
-              <option value="Hayır">Hayır</option>
-              <option value="Evet">Evet</option>
-            </select>
-          </div>
-
-          {/* Site Name */}
-          {formData.isInSite && (
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                  value={formData.siteName || ''}
-                  onChange={e => handleChange('siteName', e.target.value)}
-                >
-                  <option value="">Site seçiniz</option>
-                  {activeSites.map(site => (
-                    <option key={site.id} value={site.name}>{site.name}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="px-3 py-2 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-200 dark:border-emerald-800"
-                  onClick={() => setIsAddingQuickSite(prev => !prev)}
-                >
-                  Yeni Site
-                </button>
-              </div>
-              {isAddingQuickSite && (
-                <div className="mt-2 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Yeni site adı"
-                    className="flex-1 p-2.5 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                    value={quickSiteName}
-                    onChange={e => setQuickSiteName(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="px-3 py-2 bg-[#1193d4] text-white rounded-lg text-sm"
-                    onClick={handleQuickAddSite}
-                  >
-                    Ekle
-                  </button>
-                </div>
-              )}
-              <input
-                type="hidden"
-                value={formData.siteName}
-              />
-            </div>
+          ) : (
+            <input
+              type="text"
+              placeholder={formData.district ? 'Mahalle adı yazın' : 'Önce ilçe seçin'}
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white disabled:opacity-50"
+              value={formData.neighborhood}
+              onChange={e => handleChange('neighborhood', e.target.value)}
+              disabled={!formData.district}
+            />
           )}
+          {formData.district && neighborhoods.length === 0 && !loadingNeighborhoods && (
+            <p className="text-xs text-gray-400 mt-1">API'den mahalle bulunamadı, manuel yazabilirsiniz</p>
+          )}
+        </div>
 
-          {/* Address */}
-          <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Açık Adres</label>
-            <textarea
-              rows={2}
-              placeholder="Detaylı adres bilgisi..."
+        {/* Is In Site */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site İçerisinde mi?</label>
+          <select
+            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+            value={formData.isInSite ? 'Evet' : 'Hayır'}
+            onChange={e => handleChange('isInSite', e.target.value === 'Evet')}
+          >
+            <option value="Hayır">Hayır</option>
+            <option value="Evet">Evet</option>
+          </select>
+        </div>
+
+        {/* Site Name */}
+        {formData.isInSite && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
+            <input
+              type="text"
+              placeholder="Site adı"
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.address}
-              onChange={e => handleChange('address', e.target.value)}
+              value={formData.siteName}
+              onChange={e => handleChange('siteName', e.target.value)}
             />
           </div>
+        )}
+
+        {/* Address */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Açık Adres</label>
+          <textarea
+            rows={2}
+            placeholder="Detaylı adres bilgisi..."
+            className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+            value={formData.address}
+            onChange={e => handleChange('address', e.target.value)}
+          />
         </div>
+      </div>
 
-        {/* Map Section */}
-        <div className="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
-          <div className="bg-gray-50 dark:bg-slate-700/50 px-4 py-3 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-red-500" />
-              <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  // Use current location from address fields to search
-                  const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
-                  if (searchText) {
-                    setAddressSearch(searchText);
-                    handleAddressSearch();
-                  }
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
-              >
-                <Navigation className="w-4 h-4" />
-                Adresten Bul
-              </button>
-              <a
-                href={googleMapsPickerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
-              >
-                <MapPin className="w-4 h-4" />
-                Google Maps
-              </a>
-            </div>
+      {/* Map Section */}
+      <div className="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
+        <div className="bg-gray-50 dark:bg-slate-700/50 px-4 py-3 border-b border-gray-200 dark:border-slate-600 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-red-500" />
+            <span className="font-medium text-slate-800 dark:text-white">Harita Konumu</span>
           </div>
-
-          {/* Address Search */}
-          <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-              Adres Ara (Konum Bulmak İçin)
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Örn: Bağdat Caddesi, Kadıköy, İstanbul"
-                className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={addressSearch}
-                onChange={e => setAddressSearch(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
-              />
-              <button
-                type="button"
-                onClick={handleAddressSearch}
-                disabled={searchingAddress || !addressSearch.trim()}
-                className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
-              >
-                {searchingAddress ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Search className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Adres yazıp arayın veya "Adresten Bul" butonuna tıklayın. Konum haritada işaretlenecektir.
-            </p>
-          </div>
-
-          {/* Map Preview */}
-          <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
-            <MapContainer
-              key={`${lat}-${lng}`}
-              center={markerPosition}
-              zoom={16}
-              scrollWheelZoom
-              className="h-full w-full"
-            >
-              <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <DraggableLocationMarker
-                position={markerPosition}
-                onChange={(nextLat, nextLng) => handleChange('coordinates', { lat: nextLat, lng: nextLng })}
-              />
-            </MapContainer>
-            {formData.coordinates?.lat && formData.coordinates?.lng && (
-              <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
-                {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
-              </div>
-            )}
-          </div>
-
-          {/* Coordinate Inputs */}
-          <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
-              Koordinatları manuel girebilir veya Google Maps'ten kopyalayabilirsiniz (sağ tık → koordinatları kopyala)
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Enlem (Latitude)</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  placeholder="Örn: 41.0082"
-                  className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                  value={formData.coordinates?.lat || ''}
-                  onChange={e => handleChange('coordinates', {
-                    ...formData.coordinates,
-                    lat: parseFloat(e.target.value) || 0
-                  })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Boylam (Longitude)</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  placeholder="Örn: 28.9784"
-                  className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                  value={formData.coordinates?.lng || ''}
-                  onChange={e => handleChange('coordinates', {
-                    ...formData.coordinates,
-                    lng: parseFloat(e.target.value) || 0
-                  })}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Owner Info */}
-        <div className="border-t border-gray-200 dark:border-slate-600 pt-6 mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-semibold text-slate-800 dark:text-white">Mülk Sahibi Bilgileri</h4>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowOwnerModal(true)}
+              onClick={() => {
+                // Use current location from address fields to search
+                const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
+                if (searchText) {
+                  setAddressSearch(searchText);
+                  handleAddressSearch();
+                }
+              }}
               className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
             >
-              <UserPlus className="w-4 h-4" />
-              Yeni Ekle
+              <Navigation className="w-4 h-4" />
+              Adresten Bul
+            </button>
+            <a
+              href={googleMapsPickerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
+            >
+              <MapPin className="w-4 h-4" />
+              Google Maps
+            </a>
+          </div>
+        </div>
+
+        {/* Address Search */}
+        <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+            Adres Ara (Konum Bulmak İçin)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Örn: Bağdat Caddesi, Kadıköy, İstanbul"
+              className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={addressSearch}
+              onChange={e => setAddressSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
+            />
+            <button
+              type="button"
+              onClick={handleAddressSearch}
+              disabled={searchingAddress || !addressSearch.trim()}
+              className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {searchingAddress ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Search className="w-5 h-5" />
+              )}
             </button>
           </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Adres yazıp arayın veya "Adresten Bul" butonuna tıklayın. Konum haritada işaretlenecektir.
+          </p>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mülk Sahibi</label>
-              <select
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={formData.ownerId || ''}
-                onChange={e => {
-                  const customer = customers.find(c => c.id === e.target.value);
-                  handleChange('ownerId', e.target.value);
-                  handleChange('ownerName', customer?.name || '');
-                  handleChange('ownerPhone', customer?.phone || '');
-                }}
-              >
-                <option value="">Seçiniz</option>
-                {customers.filter(c => c.customerType === 'Mal Sahibi' || c.customerType === 'Satıcı').map(c => (
-                  <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
-                ))}
-              </select>
+        {/* Map Preview */}
+        <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
+          <iframe
+            key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
+            width="100%"
+            height="100%"
+            src={mapUrl}
+            title="Konum Haritası"
+            className="border-0"
+          />
+          {formData.coordinates?.lat && formData.coordinates?.lng && (
+            <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
+              {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
             </div>
+          )}
+        </div>
 
+        {/* Coordinate Inputs */}
+        <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
+            Koordinatları manuel girebilir veya Google Maps'ten kopyalayabilirsiniz (sağ tık → koordinatları kopyala)
+          </p>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Sahiplik Türü</label>
-              <select
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={formData.ownerType}
-                onChange={e => handleChange('ownerType', e.target.value)}
-              >
-                {OWNER_TYPE_OPTIONS.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Taşınmaz No</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Enlem (Latitude)</label>
               <input
-                type="text"
-                placeholder="Taşınmaz numarası"
-                className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                value={formData.propertyNumber}
-                onChange={e => handleChange('propertyNumber', e.target.value)}
+                type="number"
+                step="0.0001"
+                placeholder="Örn: 41.0082"
+                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.coordinates?.lat || ''}
+                onChange={e => handleChange('coordinates', {
+                  ...formData.coordinates,
+                  lat: parseFloat(e.target.value) || 0
+                })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Boylam (Longitude)</label>
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="Örn: 28.9784"
+                className="w-full p-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                value={formData.coordinates?.lng || ''}
+                onChange={e => handleChange('coordinates', {
+                  ...formData.coordinates,
+                  lng: parseFloat(e.target.value) || 0
+                })}
               />
             </div>
           </div>
         </div>
       </div>
-    );
+
+      {/* Owner Info */}
+      <div className="border-t border-gray-200 dark:border-slate-600 pt-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-semibold text-slate-800 dark:text-white">Mülk Sahibi Bilgileri</h4>
+          <button
+            type="button"
+            onClick={() => setShowOwnerModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
+          >
+            <UserPlus className="w-4 h-4" />
+            Yeni Ekle
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Mülk Sahibi</label>
+            <select
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={formData.ownerId || ''}
+              onChange={e => {
+                const customer = customers.find(c => c.id === e.target.value);
+                handleChange('ownerId', e.target.value);
+                handleChange('ownerName', customer?.name || '');
+                handleChange('ownerPhone', customer?.phone || '');
+              }}
+            >
+              <option value="">Seçiniz</option>
+              {customers.filter(c => c.customerType === 'Mal Sahibi' || c.customerType === 'Satıcı').map(c => (
+                <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Sahiplik Türü</label>
+            <select
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={formData.ownerType}
+              onChange={e => handleChange('ownerType', e.target.value)}
+            >
+              {OWNER_TYPE_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Taşınmaz No</label>
+            <input
+              type="text"
+              placeholder="Taşınmaz numarası"
+              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+              value={formData.propertyNumber}
+              onChange={e => handleChange('propertyNumber', e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
   };
 
   // Step: Features
@@ -1959,10 +1506,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
                       key={opt}
                       type="button"
                       onClick={() => handleArrayToggle(section.field, opt)}
-                      className={`px-3 py-1.5 text-sm rounded-full border transition-all ${isSelected
-                        ? 'bg-[#1193d4] text-white border-[#1193d4]'
-                        : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-[#1193d4]'
-                        }`}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                        isSelected
+                          ? 'bg-[#1193d4] text-white border-[#1193d4]'
+                          : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-[#1193d4]'
+                      }`}
                     >
                       {isSelected && <Check className="w-3 h-3 inline mr-1" />}
                       {opt}
@@ -1990,12 +1538,26 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
       {/* Upload Area */}
       <div
-        onClick={() => fileInputRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-10 text-center cursor-pointer hover:border-[#1193d4] transition-colors"
+        onClick={() => uploadingCount === 0 && fileInputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors ${
+          uploadingCount > 0
+            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 cursor-wait'
+            : 'border-gray-300 dark:border-slate-600 cursor-pointer hover:border-[#1193d4]'
+        }`}
       >
-        <ImagePlus className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-        <p className="text-gray-600 dark:text-slate-400 mb-2">Fotoğraf yüklemek için tıklayın veya sürükleyin</p>
-        <p className="text-sm text-gray-400">PNG, JPG, WEBP (max 5MB)</p>
+        {uploadingCount > 0 ? (
+          <>
+            <Loader2 className="w-12 h-12 mx-auto text-blue-400 mb-4 animate-spin" />
+            <p className="text-blue-600 dark:text-blue-400 font-medium">{uploadingCount} fotoğraf yükleniyor...</p>
+            <p className="text-sm text-gray-400 mt-1">Lütfen bekleyin</p>
+          </>
+        ) : (
+          <>
+            <ImagePlus className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-600 dark:text-slate-400 mb-2">Fotoğraf yüklemek için tıklayın veya sürükleyin</p>
+            <p className="text-sm text-gray-400">PNG, JPG, WEBP (max 5MB)</p>
+          </>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -2067,10 +1629,11 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
                   onClick={() => idx <= currentStep && setCurrentStep(idx)}
                   className={`flex flex-col items-center gap-1 ${idx <= currentStep ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-[#1193d4] text-white' :
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                    isActive ? 'bg-[#1193d4] text-white' :
                     isCompleted ? 'bg-emerald-500 text-white' :
-                      'bg-gray-100 dark:bg-slate-700 text-gray-400'
-                    }`}>
+                    'bg-gray-100 dark:bg-slate-700 text-gray-400'
+                  }`}>
                     {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
                   </div>
                   <span className={`text-xs font-medium hidden md:block ${isActive ? 'text-[#1193d4]' : 'text-gray-500'}`}>
@@ -2144,51 +1707,30 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Warning Message */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
-              <p className="text-xs text-amber-800 dark:text-amber-300">
-                ⚠️ <strong>Not:</strong> Bu özellik deneyseldir. Bazı sitelerden otomatik veri çekilemeyebilir.
-                Başarısız olursa lütfen ilan bilgilerini manuel olarak girin.
-              </p>
-            </div>
-
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
-              Sahibinden, Hepsiemlak, Emlakjet gibi sitelerdeki ilan linkini yapıştırın:
+            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+              Sahibinden, Hepsiemlak gibi sitelerdeki ilan linkini yapıştırın.
             </p>
-
             <input
               type="url"
-              placeholder="https://www.sahibinden.com/ilan/..."
+              placeholder="https://..."
               className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white mb-4"
               value={importUrl}
               onChange={e => setImportUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleImportFromUrl()}
             />
-
             <div className="flex gap-3">
               <button
                 onClick={() => setShowImportModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700"
+                className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-white"
               >
                 İptal
               </button>
               <button
                 onClick={handleImportFromUrl}
-                disabled={isAnalyzing || !importUrl.trim()}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={isAnalyzing || !importUrl}
+                className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analiz ediliyor...
-                  </>
-                ) : (
-                  <>
-                    <Link className="w-4 h-4" />
-                    İçe Aktar
-                  </>
-                )}
+                {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
+                {isAnalyzing ? 'Analiz Ediliyor...' : 'İçe Aktar'}
               </button>
             </div>
           </div>
@@ -2197,8 +1739,8 @@ Başarısız olursan: "MANUAL_IMPORT_NEEDED"`;
 
       {/* Owner Modal */}
       {showOwnerModal && (
-        <div className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center bg-black/60 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto my-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">Yeni Mülk Sahibi</h3>
               <button onClick={() => setShowOwnerModal(false)} className="text-gray-400 hover:text-gray-600">

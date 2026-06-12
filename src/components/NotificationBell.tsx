@@ -18,9 +18,9 @@ const NotificationBell: React.FC = () => {
   // Fetch notifications from database
   useEffect(() => {
     if (session?.user) {
-      fetchNotifications(session.user.id);
+      fetchNotifications();
 
-      // Subscribe to realtime notifications
+      // ⚡ OPTİMİZE: userId ile sadece bu kullanıcının bildirimleri gelir (server-side filtre)
       const unsubscribe = subscribeToNotifications(session.user.id, (newNotification) => {
         setNotifications(prev => [newNotification, ...prev]);
       });
@@ -29,8 +29,8 @@ const NotificationBell: React.FC = () => {
     }
   }, [session?.user?.id]);
 
-  const fetchNotifications = async (userId: string) => {
-    const data = await getNotifications(20, false, userId);
+  const fetchNotifications = async () => {
+    const data = await getNotifications(20);
     setNotifications(data);
   };
 
@@ -70,9 +70,7 @@ const NotificationBell: React.FC = () => {
     setDismissedMatches(prev => [...prev, ...allMatchIds]);
 
     // Mark all notifications as read
-    if (session?.user?.id) {
-      await markAllAsRead(session.user.id);
-    }
+    await markAllAsRead();
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setIsOpen(false);
   };

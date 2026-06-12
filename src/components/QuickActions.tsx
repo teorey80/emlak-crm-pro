@@ -84,7 +84,6 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerType, setNewCustomerType] = useState<'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer'>('Alıcı');
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,7 +109,6 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
-      setNewCustomerType('Alıcı');
       setCallDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
@@ -184,7 +182,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: newCustomerType,
+          customerType: 'Alıcı',
           source: 'Telefon',
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -375,20 +373,8 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="Müşteri adını giriniz..."
-                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm mb-2"
-                />
-                <select
-                  value={newCustomerType}
-                  onChange={(e) => setNewCustomerType(e.target.value as any)}
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
-                >
-                  <option value="Alıcı">Alıcı</option>
-                  <option value="Alıcı Adayı">Alıcı Adayı</option>
-                  <option value="Satıcı">Satıcı</option>
-                  <option value="Kiracı Adayı">Kiracı Adayı</option>
-                  <option value="Mal Sahibi">Mal Sahibi</option>
-                  <option value="Diğer">Diğer</option>
-                </select>
+                />
               </div>
             )}
           </div>
@@ -586,7 +572,7 @@ interface QuickMessageModalProps {
 export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, onClose }) => {
   const { customers, properties, addActivity, addCustomer } = useData();
   const [phone, setPhone] = useState('');
-  const [channel, setChannel] = useState<'WhatsApp' | 'SMS' | 'Email' | 'Sahibinden.com'>('WhatsApp');
+  const [channel, setChannel] = useState<'WhatsApp' | 'SMS' | 'Email'>('WhatsApp');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [propertySearch, setPropertySearch] = useState('');
   const [topic, setTopic] = useState('');
@@ -598,7 +584,6 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerType, setNewCustomerType] = useState<'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer'>('Alıcı');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when modal opens
@@ -623,7 +608,6 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
-      setNewCustomerType('Alıcı');
     }
   }, [isOpen]);
 
@@ -694,7 +678,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: newCustomerType,
+          customerType: 'Alıcı',
           source: channel,
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -756,26 +740,24 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
               Kanal
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { value: 'WhatsApp', label: 'WhatsApp', icon: '💬', color: 'green' },
-                { value: 'SMS', label: 'SMS', icon: '📱', color: 'blue' },
-                { value: 'Email', label: 'Email', icon: '📧', color: 'purple' },
-                { value: 'Sahibinden.com', label: 'Sahibinden', icon: '🏠', color: 'orange' }
+                { value: 'WhatsApp', icon: '💬', color: 'green' },
+                { value: 'SMS', icon: '📱', color: 'blue' },
+                { value: 'Email', icon: '📧', color: 'purple' }
               ].map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setChannel(opt.value as any)}
-                  className={`min-h-[52px] py-2 px-2 rounded-xl text-xs sm:text-sm font-medium leading-tight transition-all ${channel === opt.value
+                  className={`py-3 px-3 rounded-xl text-sm font-medium transition-all ${channel === opt.value
                     ? opt.color === 'green' ? 'bg-green-500 text-white' :
                       opt.color === 'blue' ? 'bg-blue-500 text-white' :
-                      opt.color === 'orange' ? 'bg-orange-500 text-white' :
                         'bg-purple-500 text-white'
                     : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
                     }`}
                 >
                   <span className="mr-1">{opt.icon}</span>
-                  {opt.label}
+                  {opt.value}
                 </button>
               ))}
             </div>
@@ -834,20 +816,8 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="Müşteri adını giriniz..."
-                  className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm mb-2"
-                />
-                <select
-                  value={newCustomerType}
-                  onChange={(e) => setNewCustomerType(e.target.value as any)}
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
-                >
-                  <option value="Alıcı">Alıcı</option>
-                  <option value="Alıcı Adayı">Alıcı Adayı</option>
-                  <option value="Satıcı">Satıcı</option>
-                  <option value="Kiracı Adayı">Kiracı Adayı</option>
-                  <option value="Mal Sahibi">Mal Sahibi</option>
-                  <option value="Diğer">Diğer</option>
-                </select>
+                />
               </div>
             )}
           </div>

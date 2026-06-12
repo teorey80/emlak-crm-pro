@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft, Percent, Building2, Handshake } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft, CheckCircle, UserPlus, Wallet } from 'lucide-react';
 import { Property, Sale, SaleExpense, Customer } from '../types';
 import { useData } from '../context/DataContext';
+import toast from 'react-hot-toast';
 
 interface SaleFormProps {
     property: Property;
-    initialData?: Sale; // Added for editing
     onClose: () => void;
     onSave: (sale: Sale) => void;
 }
@@ -20,25 +20,7 @@ const EXPENSE_TYPES = [
     'Diger'
 ];
 
-// Helper function to format number with thousand separators (no decimals)
-const formatMoney = (value: number): string => {
-    return Math.round(value).toLocaleString('tr-TR');
-};
-
-// Helper function to parse formatted money string to number
-const parseMoney = (value: string): number => {
-    // Remove thousand separators (.) and any non-numeric chars except comma
-    const cleaned = value.replace(/\./g, '').replace(/[^0-9]/g, '');
-    return parseInt(cleaned) || 0;
-};
-
-// Format input value with thousand separators while typing
-const formatInputMoney = (value: string): string => {
-    const num = parseMoney(value);
-    return num > 0 ? num.toLocaleString('tr-TR') : '';
-};
-
-const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onSave }) => {
+const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
     const { customers, session, userProfile, teamMembers } = useData();
 
     // Detect if this is a cross-consultant sale (property owner != selling consultant)
@@ -48,93 +30,51 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
     }, [property.user_id, teamMembers]);
 
     const isCrossConsultant = propertyOwner && propertyOwner.id !== session?.user?.id;
-
-    // Initialize form with initialData if available
     const [formData, setFormData] = useState({
-        salePrice: initialData?.salePrice || property.price || 0,
-        saleDate: initialData?.saleDate || new Date().toISOString().split('T')[0],
-        buyerId: initialData?.buyerId || '',
-        buyerName: initialData?.buyerName || '',
-        consultantId: initialData?.consultantId || session?.user?.id || '',
-        consultantName: initialData?.consultantName || userProfile?.name || '',
-        officeShareRate: initialData?.officeShareRate || 50, // Default 50%
-        notes: initialData?.notes || '',
+        salePrice: property.price || 0,
+        saleDate: new Date().toISOString().split('T')[0],
+        buyerId: '',
+        buyerName: '',
+        consultantId: session?.user?.id || '',
+        consultantName: userProfile?.name || '',
+        // Ayrı komisyon tutarları (manuel giriş)
+        buyerCommissionAmount: 0, // Alıcıdan alınan
+        sellerCommissionAmount: 0, // Satıcıdan alınan
+        officeShareRate: 50, // Default 50%
+        notes: '',
         // Cross-commission fields
-        enableCrossCommission: isCrossConsultant && (initialData ? !!initialData.sellerCommissionAmount : false) || (isCrossConsultant || false),
-        propertyOwnerShareRate: initialData?.propertyOwnerShareRate ?? 30,
+        enableCrossCommission: isCrossConsultant || false,
+        propertyOwnerShareRate: 30, // Property owner gets 30% of consultant share by default
     });
 
-    // Separate commission states for buyer and seller
-    const [buyerCommissionAmount, setBuyerCommissionAmount] = useState<number>(initialData?.buyerCommissionAmount || 0);
-    const [sellerCommissionAmount, setSellerCommissionAmount] = useState<number>(initialData?.sellerCommissionAmount || 0);
+    // Kaydetme durumu
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saving, setSaving] = useState(false);
 
-    // Display values for inputs (formatted strings)
-    const [buyerCommissionDisplay, setBuyerCommissionDisplay] = useState<string>(
-        initialData?.buyerCommissionAmount ? formatMoney(initialData.buyerCommissionAmount) : ''
-    );
-    const [sellerCommissionDisplay, setSellerCommissionDisplay] = useState<string>(
-        initialData?.sellerCommissionAmount ? formatMoney(initialData.sellerCommissionAmount) : ''
-    );
-
-    const [expenses, setExpenses] = useState<SaleExpense[]>(initialData?.expenses || []);
+    const [expenses, setExpenses] = useState<SaleExpense[]>([]);
     const [newExpenseType, setNewExpenseType] = useState('');
     const [newExpenseAmount, setNewExpenseAmount] = useState(0);
 
-    // Partner Office (Ortak Satış) states
-    const [hasPartnerOffice, setHasPartnerOffice] = useState<boolean>(initialData?.hasPartnerOffice || false);
-    const [partnerOfficeName, setPartnerOfficeName] = useState<string>(initialData?.partnerOfficeName || '');
-    const [partnerOfficeContact, setPartnerOfficeContact] = useState<string>(initialData?.partnerOfficeContact || '');
-    const [partnerShareType, setPartnerShareType] = useState<'buyer_commission' | 'total_commission'>(
-        initialData?.partnerShareType || 'buyer_commission'
-    );
-    const [partnerShareAmount, setPartnerShareAmount] = useState<number>(initialData?.partnerShareAmount || 0);
-    const [partnerShareDisplay, setPartnerShareDisplay] = useState<string>(
-        initialData?.partnerShareAmount ? formatMoney(initialData.partnerShareAmount) : ''
-    );
+    // Otomatik hesaplanan komisyon oranları
+    const buyerCommissionRate = formData.salePrice > 0
+        ? (formData.buyerCommissionAmount / formData.salePrice) * 100
+        : 0;
+    const sellerCommissionRate = formData.salePrice > 0
+        ? (formData.sellerCommissionAmount / formData.salePrice) * 100
+        : 0;
 
-    // KDV (VAT) states
-    const [kdvIncluded, setKdvIncluded] = useState<boolean>(initialData?.kdvIncluded || false);
-    const [kdvRate, setKdvRate] = useState<number>(initialData?.kdvRate ?? 20);
-
-    // Handle partner share input - format while typing
-    const handlePartnerShareChange = (value: string) => {
-        const numValue = parseMoney(value);
-        setPartnerShareAmount(numValue);
-        setPartnerShareDisplay(formatInputMoney(value));
-    };
-
-    // Calculate commission rates from amounts
-    const buyerCommissionRate = formData.salePrice > 0 ? (buyerCommissionAmount / formData.salePrice) * 100 : 0;
-    const sellerCommissionRate = formData.salePrice > 0 ? (sellerCommissionAmount / formData.salePrice) * 100 : 0;
-
-    // Total commission
-    const totalCommissionAmount = buyerCommissionAmount + sellerCommissionAmount;
-    const totalCommissionRate = buyerCommissionRate + sellerCommissionRate;
-
-    // Calculate partner share percentage based on type
-    const partnerShareRate = useMemo(() => {
-        if (!hasPartnerOffice || partnerShareAmount <= 0) return 0;
-        if (partnerShareType === 'buyer_commission') {
-            return buyerCommissionAmount > 0 ? (partnerShareAmount / buyerCommissionAmount) * 100 : 0;
-        } else {
-            return totalCommissionAmount > 0 ? (partnerShareAmount / totalCommissionAmount) * 100 : 0;
-        }
-    }, [hasPartnerOffice, partnerShareAmount, partnerShareType, buyerCommissionAmount, totalCommissionAmount]);
+    // Toplam komisyon
+    const commissionAmount = formData.buyerCommissionAmount + formData.sellerCommissionAmount;
+    const commissionRate = formData.salePrice > 0
+        ? (commissionAmount / formData.salePrice) * 100
+        : 0;
 
     // Calculated values
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const grossProfit = totalCommissionAmount - totalExpenses;
-    // Net profit after partner share (if applicable)
-    const effectivePartnerShare = hasPartnerOffice ? partnerShareAmount : 0;
-    const netProfit = grossProfit - effectivePartnerShare;
+    const netProfit = commissionAmount - totalExpenses;
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
     const consultantShareRate = 100 - formData.officeShareRate;
     const totalConsultantShare = netProfit - officeShareAmount;
-
-    // KDV calculations
-    const kdvAmount = kdvIncluded ? (totalCommissionAmount * kdvRate) / 100 : 0;
-    const grossAmountWithKdv = totalCommissionAmount + kdvAmount;
-    const netCommissionExKdv = totalCommissionAmount; // Komisyon KDV hariç net tutar
 
     // Cross-commission calculation
     const propertyOwnerShareAmount = formData.enableCrossCommission
@@ -143,20 +83,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
     const sellingConsultantShareAmount = totalConsultantShare - propertyOwnerShareAmount;
     const consultantShareAmount = formData.enableCrossCommission ? sellingConsultantShareAmount : totalConsultantShare;
 
-    // Handle buyer commission input - format while typing
-    const handleBuyerCommissionChange = (value: string) => {
-        const numValue = parseMoney(value);
-        setBuyerCommissionAmount(numValue);
-        setBuyerCommissionDisplay(formatInputMoney(value));
-    };
-
-    // Handle seller commission input - format while typing
-    const handleSellerCommissionChange = (value: string) => {
-        const numValue = parseMoney(value);
-        setSellerCommissionAmount(numValue);
-        setSellerCommissionDisplay(formatInputMoney(value));
-    };
-
     // Add expense
     const addExpense = () => {
         if (!newExpenseType || newExpenseAmount <= 0) return;
@@ -164,7 +90,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
         setExpenses([
             ...expenses,
             {
-                id: crypto.randomUUID(),
+                id: Date.now().toString(),
                 type: newExpenseType,
                 amount: newExpenseAmount,
             }
@@ -189,11 +115,18 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
     };
 
     // Submit
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (commissionAmount <= 0) {
+            toast.error('Lütfen en az bir komisyon tutarı girin');
+            return;
+        }
+
+        setSaving(true);
+
         const sale: Sale = {
-            id: initialData?.id || crypto.randomUUID(),
+            id: Date.now().toString(),
             propertyId: property.id,
             transactionType: 'sale',
             consultantId: formData.consultantId,
@@ -202,8 +135,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             saleDate: formData.saleDate,
             buyerId: formData.buyerId,
             buyerName: formData.buyerName,
-            commissionRate: totalCommissionRate,
-            commissionAmount: totalCommissionAmount,
+            // Yeni komisyon alanları
+            buyerCommissionAmount: formData.buyerCommissionAmount,
+            buyerCommissionRate,
+            sellerCommissionAmount: formData.sellerCommissionAmount,
+            sellerCommissionRate,
+            commissionRate,
+            commissionAmount,
             expenses,
             totalExpenses,
             officeShareRate: formData.officeShareRate,
@@ -211,33 +149,18 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
             officeShareAmount,
             consultantShareAmount,
             netProfit,
-            propertyOwnerShareRate: formData.enableCrossCommission ? formData.propertyOwnerShareRate : undefined,
             notes: formData.notes,
-            propertyTitle: property.title,
-
-            // Split commission details
-            buyerCommissionAmount: buyerCommissionAmount,
-            buyerCommissionRate: buyerCommissionRate,
-            sellerCommissionAmount: sellerCommissionAmount,
-            sellerCommissionRate: sellerCommissionRate,
-
-            // Partner Office (Ortak Satış)
-            hasPartnerOffice: hasPartnerOffice,
-            partnerOfficeName: hasPartnerOffice ? partnerOfficeName : undefined,
-            partnerOfficeContact: hasPartnerOffice ? partnerOfficeContact : undefined,
-            partnerShareType: hasPartnerOffice ? partnerShareType : undefined,
-            partnerShareAmount: hasPartnerOffice ? partnerShareAmount : undefined,
-            partnerShareRate: hasPartnerOffice ? partnerShareRate : undefined,
-
-            // KDV (VAT)
-            kdvIncluded,
-            kdvRate: kdvIncluded ? kdvRate : 0,
-            kdvAmount: kdvIncluded ? kdvAmount : 0,
-            grossAmountWithKdv: kdvIncluded ? grossAmountWithKdv : totalCommissionAmount,
-            netCommissionExKdv: netCommissionExKdv,
+            propertyTitle: property.title
         };
 
-        onSave(sale);
+        try {
+            await onSave(sale);
+            // PropertyDetail'daki onSave tüm işlemleri yapıp toast gösterecek
+            // Burada ekstra bir şey yapmaya gerek yok
+        } catch (error) {
+            console.error('SaleForm error:', error);
+            setSaving(false);
+        }
     };
 
     return (
@@ -250,7 +173,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                 <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 rounded-t-2xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <h2 className="text-2xl font-bold text-white">{initialData ? '📝 Satışı Düzenle' : '🎉 Satış Kaydı'}</h2>
+                            <h2 className="text-2xl font-bold text-white">🎉 Satış Kaydı</h2>
                             <p className="text-green-100 text-sm mt-1">{property.title}</p>
                         </div>
                         <button onClick={onClose} className="text-white/80 hover:text-white">
@@ -269,10 +192,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-3 pl-8 text-gray-900 dark:text-white font-semibold"
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-3 pl-8 text-gray-900 dark:text-white"
                                     value={formData.salePrice.toLocaleString('tr-TR')}
                                     onChange={e => {
-                                        const raw = e.target.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+                                        const raw = e.target.value.replace(/\./g, '');
                                         setFormData({ ...formData, salePrice: parseInt(raw) || 0 });
                                     }}
                                 />
@@ -281,8 +204,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                                İşlem / Satış Tarihi
-                                <span className="ml-2 text-xs text-blue-500 font-normal">(Raporlarda bu tarih kullanılır)</span>
+                                Satış Tarihi
                             </label>
                             <input
                                 type="date"
@@ -311,207 +233,96 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         </select>
                     </div>
 
-                    {/* Commission - Buyer and Seller Separate */}
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
-                        <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-4 flex items-center gap-2">
-                            <DollarSign className="w-5 h-5" />
-                            Komisyon Girişi
+                    {/* Commission - Ayrı Alıcı/Satıcı */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 space-y-4">
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                            <Wallet className="w-5 h-5" />
+                            Komisyon Bilgileri
                         </h3>
 
-                        {/* Buyer Commission */}
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-                                Alıcıdan Alınan Komisyon
-                            </label>
-                            <div className="flex gap-3 items-center">
-                                <div className="flex-1 relative">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        placeholder="0,00"
-                                        className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
-                                        value={buyerCommissionDisplay}
-                                        onChange={e => handleBuyerCommissionChange(e.target.value)}
-                                    />
-                                    <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
+                        {/* Alıcıdan Alınan Komisyon */}
+                        <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                                    <UserPlus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                 </div>
-                                <div className="w-28 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                        <Percent className="w-4 h-4 text-blue-600 dark:text-blue-300" />
-                                        <span className="font-bold text-blue-800 dark:text-blue-200">
-                                            {buyerCommissionRate.toFixed(2)}
-                                        </span>
-                                    </div>
-                                </div>
+                                <span className="font-medium text-slate-700 dark:text-slate-300">Alıcıdan Alınan Komisyon</span>
                             </div>
-                        </div>
-
-                        {/* Seller Commission */}
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-                                Satıcıdan Alınan Komisyon
-                            </label>
-                            <div className="flex gap-3 items-center">
-                                <div className="flex-1 relative">
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        placeholder="0,00"
-                                        className="w-full rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
-                                        value={sellerCommissionDisplay}
-                                        onChange={e => handleSellerCommissionChange(e.target.value)}
-                                    />
-                                    <span className="absolute left-3 top-3.5 text-blue-400 font-medium">₺</span>
-                                </div>
-                                <div className="w-28 bg-blue-100 dark:bg-blue-800/50 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                        <Percent className="w-4 h-4 text-blue-600 dark:text-blue-300" />
-                                        <span className="font-bold text-blue-800 dark:text-blue-200">
-                                            {sellerCommissionRate.toFixed(2)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Total Commission Summary */}
-                        <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-600 dark:text-slate-400">Toplam Komisyon</span>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-bold text-blue-800 dark:text-blue-200 text-lg">
-                                        {formatMoney(totalCommissionAmount)} ₺
-                                    </span>
-                                    <span className="text-sm bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
-                                        %{totalCommissionRate.toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Partner Office - Ortak Satış */}
-                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                                <Handshake className="w-5 h-5" />
-                                Ortak Satış
-                            </h3>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={hasPartnerOffice}
-                                    onChange={e => setHasPartnerOffice(e.target.checked)}
-                                    className="w-4 h-4 text-orange-600 rounded"
-                                />
-                                <span className="text-sm text-orange-700 dark:text-orange-300">Ortak ofis var</span>
-                            </label>
-                        </div>
-
-                        {hasPartnerOffice && (
-                            <div className="space-y-4">
-                                {/* Partner Office Info */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm text-orange-700 dark:text-orange-300 mb-1">
-                                            <Building2 className="w-4 h-4 inline mr-1" />
-                                            Ortak Ofis Adı
-                                        </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Tutar (manuel giriş)</label>
+                                    <div className="relative">
                                         <input
                                             type="text"
-                                            placeholder="Örn: ABC Emlak"
-                                            className="w-full rounded-lg border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 border p-2 text-gray-900 dark:text-white"
-                                            value={partnerOfficeName}
-                                            onChange={e => setPartnerOfficeName(e.target.value)}
+                                            className="w-full rounded-lg border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-slate-700 border p-2.5 pl-7 text-gray-900 dark:text-white font-medium"
+                                            value={formData.buyerCommissionAmount > 0 ? formData.buyerCommissionAmount.toLocaleString('tr-TR') : ''}
+                                            placeholder="0"
+                                            onChange={e => {
+                                                const raw = e.target.value.replace(/\./g, '');
+                                                setFormData({ ...formData, buyerCommissionAmount: parseInt(raw) || 0 });
+                                            }}
                                         />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-orange-700 dark:text-orange-300 mb-1">
-                                            Yetkili Kişi (opsiyonel)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="Örn: Ahmet Bey"
-                                            className="w-full rounded-lg border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 border p-2 text-gray-900 dark:text-white"
-                                            value={partnerOfficeContact}
-                                            onChange={e => setPartnerOfficeContact(e.target.value)}
-                                        />
+                                        <span className="absolute left-2.5 top-3 text-gray-400 text-sm">₺</span>
                                     </div>
                                 </div>
-
-                                {/* Share Type Selection */}
                                 <div>
-                                    <label className="block text-sm text-orange-700 dark:text-orange-300 mb-2">
-                                        Paylaşım Türü
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPartnerShareType('buyer_commission')}
-                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${partnerShareType === 'buyer_commission'
-                                                    ? 'bg-orange-500 text-white'
-                                                    : 'bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'
-                                                }`}
-                                        >
-                                            Alıcı Komisyonundan
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPartnerShareType('total_commission')}
-                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${partnerShareType === 'total_commission'
-                                                    ? 'bg-orange-500 text-white'
-                                                    : 'bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'
-                                                }`}
-                                        >
-                                            Toplam Komisyondan
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Partner Share Amount */}
-                                <div>
-                                    <label className="block text-sm text-orange-700 dark:text-orange-300 mb-2">
-                                        Ortak Ofise Verilecek Tutar
-                                    </label>
-                                    <div className="flex gap-3 items-center">
-                                        <div className="flex-1 relative">
-                                            <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                placeholder="0,00"
-                                                className="w-full rounded-lg border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 border p-3 pl-8 text-gray-900 dark:text-white font-semibold text-lg"
-                                                value={partnerShareDisplay}
-                                                onChange={e => handlePartnerShareChange(e.target.value)}
-                                            />
-                                            <span className="absolute left-3 top-3.5 text-orange-400 font-medium">₺</span>
-                                        </div>
-                                        <div className="w-32 bg-orange-100 dark:bg-orange-800/50 rounded-lg p-3 text-center">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <Percent className="w-4 h-4 text-orange-600 dark:text-orange-300" />
-                                                <span className="font-bold text-orange-800 dark:text-orange-200">
-                                                    {partnerShareRate.toFixed(1)}
-                                                </span>
-                                            </div>
-                                            <div className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
-                                                {partnerShareType === 'buyer_commission' ? "alıcı kom." : "toplam kom."}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Partner Summary */}
-                                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-orange-200 dark:border-orange-700">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-600 dark:text-slate-400">
-                                            {partnerOfficeName || 'Ortak Ofis'}'e ödenecek
-                                        </span>
-                                        <span className="font-bold text-orange-600">
-                                            {formatMoney(partnerShareAmount)} ₺
-                                        </span>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Oran (otomatik)</label>
+                                    <div className="bg-blue-100 dark:bg-blue-800/50 rounded-lg p-2.5 text-center font-bold text-blue-700 dark:text-blue-300">
+                                        %{buyerCommissionRate.toFixed(2)}
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
+
+                        {/* Satıcıdan Alınan Komisyon */}
+                        <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center">
+                                    <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <span className="font-medium text-slate-700 dark:text-slate-300">Satıcıdan Alınan Komisyon</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Tutar (manuel giriş)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            className="w-full rounded-lg border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-slate-700 border p-2.5 pl-7 text-gray-900 dark:text-white font-medium"
+                                            value={formData.sellerCommissionAmount > 0 ? formData.sellerCommissionAmount.toLocaleString('tr-TR') : ''}
+                                            placeholder="0"
+                                            onChange={e => {
+                                                const raw = e.target.value.replace(/\./g, '');
+                                                setFormData({ ...formData, sellerCommissionAmount: parseInt(raw) || 0 });
+                                            }}
+                                        />
+                                        <span className="absolute left-2.5 top-3 text-gray-400 text-sm">₺</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Oran (otomatik)</label>
+                                    <div className="bg-purple-100 dark:bg-purple-800/50 rounded-lg p-2.5 text-center font-bold text-purple-700 dark:text-purple-300">
+                                        %{sellerCommissionRate.toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Toplam Komisyon */}
+                        <div className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                <span className="font-semibold text-green-800 dark:text-green-300">Toplam Komisyon</span>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xl font-bold text-green-700 dark:text-green-300">
+                                    {commissionAmount.toLocaleString('tr-TR')} ₺
+                                </div>
+                                <div className="text-sm text-green-600 dark:text-green-400">
+                                    %{commissionRate.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Expenses */}
@@ -538,7 +349,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 placeholder="Tutar"
                                 className="w-32 rounded-lg border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 border p-2 text-sm text-gray-900 dark:text-white"
                                 value={newExpenseAmount || ''}
-                                onChange={e => setNewExpenseAmount(parseFloat(e.target.value) || 0)}
+                                onChange={e => setNewExpenseAmount(parseInt(e.target.value) || 0)}
                             />
                             <button
                                 type="button"
@@ -557,7 +368,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                         <span className="text-gray-700 dark:text-slate-300">{exp.type}</span>
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium text-amber-700 dark:text-amber-300">
-                                                {formatMoney(exp.amount)} ₺
+                                                {exp.amount.toLocaleString('tr-TR')} ₺
                                             </span>
                                             <button
                                                 type="button"
@@ -572,7 +383,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="flex justify-between items-center border-t border-amber-200 dark:border-amber-800 pt-2 mt-2">
                                     <span className="font-semibold text-amber-800 dark:text-amber-300">Toplam Gider</span>
                                     <span className="font-bold text-amber-800 dark:text-amber-300">
-                                        {formatMoney(totalExpenses)} ₺
+                                        {totalExpenses.toLocaleString('tr-TR')} ₺
                                     </span>
                                 </div>
                             </div>
@@ -589,7 +400,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="font-semibold text-violet-800 dark:text-violet-300 flex items-center gap-2">
                                     <ArrowRightLeft className="w-5 h-5" />
-                                    Çapraz Komisyon
+                                    Capraz Komisyon
                                 </h3>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
@@ -606,7 +417,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="flex items-center gap-3">
                                     <img src={propertyOwner.avatar} alt={propertyOwner.name} className="w-10 h-10 rounded-full" />
                                     <div>
-                                        <p className="text-sm text-violet-600 dark:text-violet-400">Portföy Sahibi</p>
+                                        <p className="text-sm text-violet-600 dark:text-violet-400">Portfoy Sahibi</p>
                                         <p className="font-semibold text-violet-800 dark:text-violet-200">{propertyOwner.name}</p>
                                     </div>
                                 </div>
@@ -616,7 +427,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
-                                            Portföy Sahibi Payı (%)
+                                            Portfoy Sahibi Payi (%)
                                         </label>
                                         <input
                                             type="number"
@@ -629,10 +440,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                                     </div>
                                     <div>
                                         <label className="block text-sm text-violet-700 dark:text-violet-300 mb-1">
-                                            Portföy Sahibine
+                                            Portfoy Sahibine
                                         </label>
                                         <div className="bg-violet-200 dark:bg-violet-700/50 rounded-lg p-2 text-center font-bold text-violet-800 dark:text-violet-200">
-                                            {formatMoney(propertyOwnerShareAmount)} ₺
+                                            {propertyOwnerShareAmount.toLocaleString('tr-TR')} TL
                                         </div>
                                     </div>
                                 </div>
@@ -643,7 +454,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                     {/* Revenue Sharing */}
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
                         <h3 className="font-semibold text-green-800 dark:text-green-300 mb-3">
-                            Gelir Paylaşımı
+                            Gelir Paylasimi
                         </h3>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -668,116 +479,36 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         {/* Summary */}
                         <div className="bg-white dark:bg-slate-800 rounded-lg p-4 space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-slate-400">Alıcı Komisyonu</span>
-                                <span className="font-medium">{formatMoney(buyerCommissionAmount)} ₺ <span className="text-xs text-gray-400">(%{buyerCommissionRate.toFixed(2)})</span></span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-slate-400">Satıcı Komisyonu</span>
-                                <span className="font-medium">{formatMoney(sellerCommissionAmount)} ₺ <span className="text-xs text-gray-400">(%{sellerCommissionRate.toFixed(2)})</span></span>
-                            </div>
-                            <div className="flex justify-between text-sm border-t border-gray-100 dark:border-slate-700 pt-2">
                                 <span className="text-gray-600 dark:text-slate-400">Toplam Komisyon</span>
-                                <span className="font-medium">{formatMoney(totalCommissionAmount)} ₺</span>
+                                <span className="font-medium">{commissionAmount.toLocaleString('tr-TR')} ₺</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600 dark:text-slate-400">Toplam Gider</span>
-                                <span className="font-medium text-red-600">-{formatMoney(totalExpenses)} ₺</span>
+                                <span className="font-medium text-red-600">-{totalExpenses.toLocaleString('tr-TR')} ₺</span>
                             </div>
-                            {hasPartnerOffice && partnerShareAmount > 0 && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-slate-400">
-                                        {partnerOfficeName || 'Ortak Ofis'} Payı
-                                    </span>
-                                    <span className="font-medium text-orange-600">-{formatMoney(partnerShareAmount)} ₺</span>
-                                </div>
-                            )}
                             <div className="border-t border-gray-100 dark:border-slate-700 pt-2 flex justify-between">
                                 <span className="font-semibold text-gray-800 dark:text-white">Net Kâr</span>
-                                <span className="font-bold text-green-600">{formatMoney(netProfit)} ₺</span>
+                                <span className="font-bold text-green-600">{netProfit.toLocaleString('tr-TR')} ₺</span>
                             </div>
-
-                            {/* KDV Özeti */}
-                            {kdvIncluded && (
-                                <div className="border-t border-orange-100 dark:border-orange-900/30 pt-2 space-y-1 bg-orange-50 dark:bg-orange-900/10 rounded-lg p-2 mt-1">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-orange-700 dark:text-orange-300">KDV Tutarı (%{kdvRate})</span>
-                                        <span className="font-medium text-orange-600">+{formatMoney(kdvAmount)} ₺</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm font-semibold">
-                                        <span className="text-orange-800 dark:text-orange-200">KDV Dahil Toplam</span>
-                                        <span className="text-orange-700 dark:text-orange-300">{formatMoney(grossAmountWithKdv)} ₺</span>
-                                    </div>
-                                    <div className="text-xs text-orange-500 dark:text-orange-400">
-                                        ⚠️ KDV tutarı devlete ödenir — net gelir {formatMoney(netCommissionExKdv)} ₺
-                                    </div>
-                                </div>
-                            )}
-
                             <div className={`grid ${formData.enableCrossCommission ? 'grid-cols-3' : 'grid-cols-2'} gap-4 pt-2 border-t border-gray-100 dark:border-slate-700`}>
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">Ofise Kalan</div>
-                                    <div className="font-bold text-blue-600">{formatMoney(officeShareAmount)} ₺</div>
+                                    <div className="font-bold text-blue-600">{officeShareAmount.toLocaleString('tr-TR')} TL</div>
                                 </div>
                                 {formData.enableCrossCommission && propertyOwner && (
                                     <div className="text-center">
                                         <div className="text-xs text-gray-500 dark:text-slate-400">{propertyOwner.name}</div>
-                                        <div className="font-bold text-violet-600">{formatMoney(propertyOwnerShareAmount)} ₺</div>
+                                        <div className="font-bold text-violet-600">{propertyOwnerShareAmount.toLocaleString('tr-TR')} TL</div>
                                     </div>
                                 )}
                                 <div className="text-center">
                                     <div className="text-xs text-gray-500 dark:text-slate-400">
-                                        {formData.enableCrossCommission ? 'Satıcı Danışmana' : 'Danışmana Kalan'}
+                                        {formData.enableCrossCommission ? 'Satici Danismana' : 'Danismana Kalan'}
                                     </div>
-                                    <div className="font-bold text-purple-600">{formatMoney(consultantShareAmount)} ₺</div>
+                                    <div className="font-bold text-purple-600">{consultantShareAmount.toLocaleString('tr-TR')} TL</div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    {/* KDV Seçimi */}
-                    <div className="bg-orange-50 dark:bg-orange-900/10 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
-                        <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-3 flex items-center gap-2">
-                            🧾 KDV (Katma Değer Vergisi)
-                        </h3>
-                        <div className="flex items-center gap-3 mb-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={kdvIncluded}
-                                    onChange={e => setKdvIncluded(e.target.checked)}
-                                    className="w-4 h-4 rounded accent-orange-500"
-                                />
-                                <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
-                                    KDV'li fatura kesildi (+KDV)
-                                </span>
-                            </label>
-                        </div>
-                        {kdvIncluded && (
-                            <div className="grid grid-cols-2 gap-4 mt-2">
-                                <div>
-                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">KDV Oranı</label>
-                                    <select
-                                        value={kdvRate}
-                                        onChange={e => setKdvRate(Number(e.target.value))}
-                                        className="w-full rounded-lg border border-orange-300 dark:border-orange-700 bg-white dark:bg-slate-800 p-2 text-sm text-gray-900 dark:text-white"
-                                    >
-                                        <option value={10}>%10 KDV</option>
-                                        <option value={20}>%20 KDV</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-orange-700 dark:text-orange-300 mb-1">Hesaplanan KDV</label>
-                                    <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2 text-center font-bold text-orange-800 dark:text-orange-200 text-sm">
-                                        {formatMoney(kdvAmount)} ₺
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        {!kdvIncluded && (
-                            <p className="text-xs text-orange-500 dark:text-orange-400">
-                                KDV'siz işlem — komisyon net gelir olarak sayılır.
-                            </p>
-                        )}
                     </div>
 
                     {/* Notes */}
@@ -797,15 +528,24 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, initialData, onClose, onS
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-3 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg font-medium"
+                            disabled={saving}
+                            className="px-6 py-3 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg font-medium disabled:opacity-50"
                         >
                             İptal
                         </button>
                         <button
                             type="submit"
-                            className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex items-center gap-2"
+                            disabled={saving || commissionAmount <= 0}
+                            className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            🎉 Satışı Kaydet
+                            {saving ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Kaydediliyor...
+                                </>
+                            ) : (
+                                <>🎉 Satışı Kaydet</>
+                            )}
                         </button>
                     </div>
                 </form>

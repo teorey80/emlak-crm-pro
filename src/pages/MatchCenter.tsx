@@ -2,14 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { findMatches, MatchCriterion, MatchResult } from '../services/matchingService';
+import { findMatches, MatchResult } from '../services/matchingService';
 import { Sparkles, Users, CheckCircle, X, Phone, Mail, MapPin, Home, DollarSign, Filter, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const MatchCenter: React.FC = () => {
     const { properties, requests, teamMembers, userProfile } = useData();
     const navigate = useNavigate();
     const [showCrossOnly, setShowCrossOnly] = useState(false);
-    const [minScore, setMinScore] = useState(70);
+    const [minScore, setMinScore] = useState(60);
     const [dismissedMatches, setDismissedMatches] = useState<string[]>(() => {
         const saved = localStorage.getItem('dismissedMatches');
         return saved ? JSON.parse(saved) : [];
@@ -54,25 +54,6 @@ const MatchCenter: React.FC = () => {
         if (score >= 75) return 'bg-green-500';
         if (score >= 60) return 'bg-yellow-500';
         return 'bg-orange-500';
-    };
-
-    const criterionBadge = (criterion: MatchCriterion) => {
-        if (criterion.status === 'pass') return `✅ ${criterion.label}`;
-        if (criterion.status === 'partial') return `⚠️ ${criterion.label}`;
-        return `❌ ${criterion.label}`;
-    };
-
-    const criterionClass = (criterion: MatchCriterion) => {
-        if (criterion.status === 'pass') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400';
-        if (criterion.status === 'partial') return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400';
-        return 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400';
-    };
-
-    const scoreBadge = (score: number) => {
-        if (score >= 90) return { text: '🔥 Mükemmel Eşleşme', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
-        if (score >= 70) return { text: '⭐ İyi Eşleşme', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
-        if (score >= 50) return { text: '📊 Orta Eşleşme', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' };
-        return { text: 'Düşük Eşleşme', className: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200' };
     };
 
     return (
@@ -198,7 +179,7 @@ const MatchCenter: React.FC = () => {
                                         </p>
                                         <p className="flex items-center gap-2">
                                             <MapPin className="w-4 h-4" />
-                                            {[match.request.district, match.request.city].filter(Boolean).join(', ') || 'Belirtilmemiş'}
+                                            {match.request.preferredLocations?.join(', ') || 'Belirtilmemiş'}
                                         </p>
                                         <p className="flex items-center gap-2">
                                             <DollarSign className="w-4 h-4" />
@@ -212,9 +193,6 @@ const MatchCenter: React.FC = () => {
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
                                             PORTFÖY
-                                        </span>
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${scoreBadge(match.score).className}`}>
-                                            {scoreBadge(match.score).text}
                                         </span>
                                         {match.propertyOwnerName && (
                                             <span className="text-xs text-slate-500">
@@ -260,15 +238,15 @@ const MatchCenter: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Match Criteria */}
+                            {/* Match Reasons */}
                             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                                 <div className="flex flex-wrap gap-2">
-                                    {match.criteria.slice(0, 6).map((criterion) => (
+                                    {match.matchReasons?.map((reason, i) => (
                                         <span
-                                            key={criterion.key}
-                                            className={`text-xs px-2 py-1 rounded-full ${criterionClass(criterion)}`}
+                                            key={i}
+                                            className="text-xs px-2 py-1 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-full"
                                         >
-                                            {criterionBadge(criterion)}
+                                            ✓ {reason}
                                         </span>
                                     ))}
                                 </div>

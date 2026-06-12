@@ -1,30 +1,78 @@
 
-import React, { useState } from 'react';
-import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, Eye, EyeOff, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Database, Shield, FileSpreadsheet, CheckCircle, AlertCircle, User, Save, Upload, Building, Palette, Sun, Moon, Check, Users, Eye, EyeOff, TrendingUp, DollarSign, Target, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
+import { OfficePerformanceSettings, DEFAULT_PERFORMANCE_SETTINGS } from '../types';
+import { uploadToCloudinary, isCloudinaryConfigured } from '../services/cloudinaryService';
 
 const Settings: React.FC = () => {
-    const { properties, customers, activities, requests, userProfile, updateUserProfile, session, office, updateOfficeSettings } = useData();
+    const { properties, customers, activities, requests, userProfile, updateUserProfile, session } = useData();
     const { currentTheme, setTheme, allThemes, isDark, toggleDark } = useTheme();
 
     const [exportStatus, setExportStatus] = useState<string | null>(null);
     const [profileForm, setProfileForm] = useState(userProfile);
     const [savedStatus, setSavedStatus] = useState(false);
 
-    // NetGSM entegrasyon ayarları (localStorage'da saklanır)
-    const [netgsmUser, setNetgsmUser] = useState(() => localStorage.getItem('netgsm_user') || '');
-    const [netgsmPass, setNetgsmPass] = useState(() => localStorage.getItem('netgsm_pass') || '');
-    const [netgsmSaved, setNetgsmSaved] = useState(false);
+    // Performance Settings State (Broker only)
+    const [performanceSettings, setPerformanceSettings] = useState<OfficePerformanceSettings>(DEFAULT_PERFORMANCE_SETTINGS);
+    const [loadingSettings, setLoadingSettings] = useState(false);
+    const [savingSettings, setSavingSettings] = useState(false);
 
-    const handleSaveNetGSM = () => {
-        localStorage.setItem('netgsm_user', netgsmUser);
-        localStorage.setItem('netgsm_pass', netgsmPass);
-        setNetgsmSaved(true);
-        toast.success('NetGSM bilgileri kaydedildi.');
-        setTimeout(() => setNetgsmSaved(false), 2000);
+    // Fetch office performance settings on mount (for broker)
+    useEffect(() => {
+        if (userProfile.role === 'broker' && userProfile.officeId) {
+            fetchPerformanceSettings();
+        }
+    }, [userProfile.officeId, userProfile.role]);
+
+    const fetchPerformanceSettings = async () => {
+        if (!userProfile.officeId) return;
+        setLoadingSettings(true);
+        try {
+            const { data, error } = await supabase
+                .from('offices')
+                .select('performance_settings')
+                .eq('id', userProfile.officeId)
+                .single();
+
+            if (error) throw error;
+            if (data?.performance_settings) {
+                setPerformanceSettings(data.performance_settings);
+            }
+        } catch (error) {
+            console.error('Error fetching performance settings:', error);
+        } finally {
+            setLoadingSettings(false);
+        }
+    };
+
+    const savePerformanceSettings = async () => {
+        if (!userProfile.officeId) return;
+        setSavingSettings(true);
+        try {
+            const { error } = await supabase
+                .from('offices')
+                .update({ performance_settings: performanceSettings })
+                .eq('id', userProfile.officeId);
+
+            if (error) throw error;
+            toast.success('Performans görünürlük ayarları kaydedildi');
+        } catch (error: any) {
+            console.error('Error saving performance settings:', error);
+            toast.error('Ayarlar kaydedilemedi: ' + error.message);
+        } finally {
+            setSavingSettings(false);
+        }
+    };
+
+    const toggleSetting = (key: keyof OfficePerformanceSettings) => {
+        setPerformanceSettings(prev => ({
+            ...prev,
+            [key]: !prev[key]
+        }));
     };
 
     const handleSaveProfile = (e: React.FormEvent) => {
@@ -158,27 +206,31 @@ const Settings: React.FC = () => {
                                                 if (!file) return;
 
                                                 try {
-                                                    setExportStatus('Fotoğraf yükleniyor...'); // Reusing status state for UI feedback
+                                                    setExportStatus('Fotoğraf yükleniyor...');
 
-                                                    const fileExt = file.name.split('.').pop();
-                                                    const fileName = `${session?.user?.id}-${Date.now()}.${fileExt}`;
-                                                    const filePath = `${fileName}`;
+                                                    let avatarUrl: string;
 
-                                                    // 1. Upload to Supabase Storage
-                                                    const { error: uploadError } = await supabase.storage
-                                                        .from('avatars')
-                                                        .upload(filePath, file);
+                                                    if (isCloudinaryConfigured()) {
+                                                        // ⚡ Cloudinary'e yükle — Supabase Storage yükü azalır
+                                                        const result = await uploadToCloudinary(file, 'emlak-crm/avatars');
+                                                        avatarUrl = result.secureUrl;
+                                                    } else {
+                                                        // Fallback: Cloudinary yoksa Supabase Storage
+                                                        const fileExt = file.name.split('.').pop();
+                                                        const filePath = `${session?.user?.id}-${Date.now()}.${fileExt}`;
+                                                        const { error: uploadError } = await supabase.storage
+                                                            .from('avatars')
+                                                            .upload(filePath, file);
+                                                        if (uploadError) throw uploadError;
+                                                        const { data: { publicUrl } } = supabase.storage
+                                                            .from('avatars')
+                                                            .getPublicUrl(filePath);
+                                                        avatarUrl = publicUrl;
+                                                    }
 
-                                                    if (uploadError) throw uploadError;
-
-                                                    // 2. Get Public URL
-                                                    const { data: { publicUrl } } = supabase.storage
-                                                        .from('avatars')
-                                                        .getPublicUrl(filePath);
-
-                                                    // 3. Update State
-                                                    setProfileForm({ ...profileForm, avatar: publicUrl });
+                                                    setProfileForm({ ...profileForm, avatar: avatarUrl });
                                                     setExportStatus(null);
+                                                    toast.success('Fotoğraf yüklendi');
                                                 } catch (error: any) {
                                                     console.error('Upload Error:', error);
                                                     toast.error('Yükleme başarısız: ' + error.message);
@@ -204,7 +256,7 @@ const Settings: React.FC = () => {
                                         onChange={(e) => setProfileForm({ ...profileForm, avatar: e.target.value })}
                                     />
                                 </div>
-                                <p className="text-xs text-gray-500 mt-1">Supabase 'avatars' deposuna yüklenir.</p>
+                                <p className="text-xs text-gray-500 mt-1">Cloudinary CDN'e yüklenir (yapılandırılmışsa), aksi halde Supabase'e.</p>
                             </div>
 
                             <div className="pt-2 flex items-center gap-3">
@@ -225,73 +277,6 @@ const Settings: React.FC = () => {
                     </form>
                 </div>
             </div>
-
-            {/* Office Visual Settings - BROKER ONLY */}
-            {userProfile.role === 'broker' && (
-                !office ? (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700 mb-6">
-                        <h3 className="text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
-                            <AlertCircle className="w-5 h-5" />
-                            Ofis Verisi Yüklenemedi
-                        </h3>
-                        <p className="text-amber-700 dark:text-amber-300 text-sm mt-1">
-                            Broker yetkisine sahipsiniz ancak ofis verilerine erişilemedi. Ofis kaydınızın silinmiş veya RLS kuralları tarafından engellenmiş olması muhtemeldir.
-                            <br />
-                            <span className="font-mono text-xs mt-1 block">Ofis ID: {userProfile.officeId || 'Tanımsız'}</span>
-                        </p>
-                    </div>
-                ) : (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
-                        <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                            <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-                                <Eye className="w-5 h-5 text-indigo-600" />
-                                Ekip Performans Görünürlüğü
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                                Danışmanların ekip sayfasında birbirlerinin hangi metriklerini görebileceğini belirleyin.
-                            </p>
-                        </div>
-
-                        <div className="p-6">
-                            <div className="space-y-4">
-                                {[
-                                    { key: 'showListingCount', label: 'İlan Sayısı', desc: 'Danışmanlar birbirlerinin ilan sayılarını görebilir' },
-                                    { key: 'showSalesCount', label: 'Satış Sayısı', desc: 'Danışmanlar birbirlerinin satış sayılarını görebilir' },
-                                    { key: 'showRentalCount', label: 'Kiralama Sayısı', desc: 'Danışmanlar birbirlerinin kiralama sayılarını görebilir' },
-                                    { key: 'showRevenue', label: 'Ciro / Hasılat', desc: 'Danışmanlar birbirlerinin cirosunu görebilir (Hassas Veri)' },
-                                    { key: 'showCommission', label: 'Komisyon', desc: 'Danışmanlar birbirlerinin ne kadar kazandığını görebilir (Hassas Veri)' }
-                                ].map((item) => {
-                                    const settings = office.performance_settings || {
-                                        showListingCount: true,
-                                        showSalesCount: true,
-                                        showRentalCount: true,
-                                        showRevenue: false,
-                                        showCommission: false
-                                    };
-                                    const isEnabled = settings[item.key as keyof typeof settings];
-
-                                    return (
-                                        <div key={item.key} className="flex items-start justify-between p-4 border border-gray-100 dark:border-slate-700 rounded-lg bg-gray-50/50 dark:bg-slate-800/50">
-                                            <div>
-                                                <h4 className="font-medium text-slate-800 dark:text-white">{item.label}</h4>
-                                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{item.desc}</p>
-                                            </div>
-                                            <button
-                                                onClick={() => updateOfficeSettings && updateOfficeSettings({ ...settings, [item.key]: !isEnabled })}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${isEnabled ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-slate-600'}`}
-                                            >
-                                                <span
-                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                                                />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                )
-            )}
 
             {/* Office Membership Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
@@ -385,64 +370,164 @@ const Settings: React.FC = () => {
                 </div>
             </div>
 
+            {/* Performance Visibility Settings (Broker Only) */}
+            {userProfile.role === 'broker' && userProfile.officeId && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
+                    <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800">
+                        <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                            <Users className="w-5 h-5 text-violet-600" />
+                            Ekip Performans Görünürlüğü
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                            Danışmanların birbirlerinin performans verilerini görüp göremeyeceğini kontrol edin.
+                        </p>
+                    </div>
 
-            {/* Entegrasyon Ayarları - NetGSM */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
-                <div className="p-6 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-                        <Smartphone className="w-5 h-5 text-blue-600" />
-                        Entegrasyonlar
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                        SMS gönderimi için NetGSM API bilgilerinizi girin.
-                    </p>
-                </div>
-                <div className="p-6">
-                    <div className="max-w-lg space-y-4">
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-700 dark:text-blue-300">
-                            📱 <strong>NetGSM SMS Entegrasyonu</strong><br />
-                            <span className="text-xs text-blue-600 dark:text-blue-400">
-                                netgsm.com.tr üzerinden hesap oluşturun. Kullanıcı adı ve şifrenizi girerek Mesajlaşma sayfasından SMS gönderebilirsiniz.
-                            </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">NetGSM Kullanıcı Adı</label>
-                                <input
-                                    type="text"
-                                    value={netgsmUser}
-                                    onChange={e => setNetgsmUser(e.target.value)}
-                                    placeholder="05xx veya kullanıcı adı"
-                                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                />
+                    <div className="p-6">
+                        {loadingSettings ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="w-8 h-8 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin"></div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">NetGSM Şifre</label>
-                                <input
-                                    type="password"
-                                    value={netgsmPass}
-                                    onChange={e => setNetgsmPass(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                />
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Toggle: Show Team Performance */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/30 rounded-lg flex items-center justify-center">
+                                            <TrendingUp className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-800 dark:text-white">Performans Tablosu</div>
+                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                Danışmanlar birbirinin ilan/aktivite sayısını görsün
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleSetting('showTeamPerformance')}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${performanceSettings.showTeamPerformance ? 'bg-violet-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${performanceSettings.showTeamPerformance ? 'translate-x-8' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Toggle: Show Sales */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                                            <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-800 dark:text-white">Satış Rakamları</div>
+                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                Danışmanlar birbirinin satış adetini ve cirosunu görsün
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleSetting('showTeamSales')}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${performanceSettings.showTeamSales ? 'bg-green-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${performanceSettings.showTeamSales ? 'translate-x-8' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Toggle: Show Commissions */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
+                                            <Award className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-800 dark:text-white">Komisyon Tutarları</div>
+                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                Danışmanlar birbirinin komisyon kazancını görsün
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleSetting('showTeamCommissions')}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${performanceSettings.showTeamCommissions ? 'bg-amber-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${performanceSettings.showTeamCommissions ? 'translate-x-8' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Toggle: Show Targets */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                                            <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-800 dark:text-white">Hedef İlerlemesi</div>
+                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                Danışmanlar birbirinin aylık hedef durumunu görsün
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleSetting('showTeamTargets')}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${performanceSettings.showTeamTargets ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${performanceSettings.showTeamTargets ? 'translate-x-8' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Toggle: Show Ranking */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-gray-100 dark:border-slate-600">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-lg flex items-center justify-center">
+                                            <Award className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-slate-800 dark:text-white">Performans Sıralaması</div>
+                                            <div className="text-sm text-gray-500 dark:text-slate-400">
+                                                Danışmanlar sıralama tablosunu görsün (1., 2., 3....)
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleSetting('showPerformanceRanking')}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${performanceSettings.showPerformanceRanking ? 'bg-rose-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${performanceSettings.showPerformanceRanking ? 'translate-x-8' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Save Button */}
+                                <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
+                                    <button
+                                        onClick={savePerformanceSettings}
+                                        disabled={savingSettings}
+                                        className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        {savingSettings ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Kaydediliyor...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4" />
+                                                Ayarları Kaydet
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {/* Info Note */}
+                                <div className="bg-violet-50 dark:bg-violet-900/20 p-4 rounded-lg border border-violet-100 dark:border-violet-900/30">
+                                    <p className="text-sm text-violet-700 dark:text-violet-300">
+                                        <strong>Not:</strong> Bu ayarlar sadece danışmanların birbirini görmesini etkiler.
+                                        Broker olarak siz her zaman tüm verileri görebilirsiniz.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <button
-                            onClick={handleSaveNetGSM}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                        >
-                            {netgsmSaved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                            {netgsmSaved ? 'Kaydedildi!' : 'Kaydet'}
-                        </button>
-                        {netgsmUser && (
-                            <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                NetGSM bağlı — Mesajlaşma sayfasından SMS gönderebilirsiniz.
-                            </p>
                         )}
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Theme Settings Section */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">

@@ -32,6 +32,7 @@ const emptyForm: Partial<ProjectReview> = {
     hero_image_url: '',
     gallery: [],
     video_url: '',
+    sahibinden_url: '',
     quick_answer: '',
     location_intro: '',
     distances: [],
@@ -137,6 +138,70 @@ const ProjectReviewForm: React.FC = () => {
                         <ImageIcon className="w-3 h-3" /> Cloudinary kurulumu için <code className="bg-amber-50 dark:bg-amber-900/30 px-1 rounded">.env.local</code> dosyasına env değişkenleri ekle.
                     </p>
                 )}
+            </div>
+        );
+    };
+
+    // Galeri yükleyici — çoklu dosya seçimi, her biri Cloudinary'a yüklenir
+    type GalleryItem = { url: string; caption?: string };
+    const GalleryUpload: React.FC<{ value: GalleryItem[]; onChange: (v: GalleryItem[]) => void; folder?: string }> = ({ value, onChange, folder = 'project-reviews' }) => {
+        const [uploading, setUploading] = useState(false);
+        const [progress, setProgress] = useState('');
+
+        const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            if (!isCloudinaryConfigured()) {
+                toast.error('Cloudinary yapılandırılmamış. .env.local\'a VITE_CLOUDINARY_CLOUD_NAME ve VITE_CLOUDINARY_UPLOAD_PRESET ekle.');
+                return;
+            }
+            setUploading(true);
+            const added: GalleryItem[] = [];
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    setProgress(`${i + 1}/${files.length} yükleniyor...`);
+                    const result = await uploadToCloudinary(files[i], folder);
+                    added.push({ url: result.secureUrl, caption: '' });
+                }
+                onChange([...value, ...added]);
+                toast.success(`${added.length} görsel yüklendi`);
+            } catch (err: any) {
+                if (added.length) onChange([...value, ...added]); // yüklenenleri kaybetme
+                toast.error('Upload hatası: ' + (err?.message || ''));
+            } finally {
+                setUploading(false);
+                setProgress('');
+                e.target.value = '';
+            }
+        };
+
+        return (
+            <div className="space-y-3">
+                {value.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {value.map((g, i) => (
+                            <div key={i} className="relative group">
+                                <img src={g.url} alt="" className="h-28 w-full rounded-lg border border-gray-200 dark:border-slate-700 object-cover" />
+                                <button type="button" title="Kaldır"
+                                    onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+                                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                                    ×
+                                </button>
+                                <input type="text" value={g.caption || ''} placeholder="Açıklama (opsiyonel)"
+                                    onChange={(e) => {
+                                        const next = [...value]; next[i] = { ...next[i], caption: e.target.value }; onChange(next);
+                                    }}
+                                    className="mt-1 w-full px-2 py-1 text-xs border border-gray-200 dark:border-slate-700 rounded bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <label className="px-4 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg cursor-pointer inline-flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    {uploading ? progress || 'Yükleniyor...' : 'Fotoğraf Seç (çoklu seçim yapabilirsin)'}
+                    <input type="file" accept="image/*" multiple onChange={handleFiles} className="hidden" disabled={uploading} />
+                </label>
+                <p className="text-xs text-gray-500 dark:text-slate-500">İpucu: Dosya penceresinde Cmd (⌘) tuşuna basılı tutarak birden fazla fotoğraf seçebilirsin.</p>
             </div>
         );
     };
@@ -323,6 +388,12 @@ const ProjectReviewForm: React.FC = () => {
                     </Field>
                     <Field label="YouTube Video Linki" hint="Watch URL'i yapıştır (jv66EZrUduo formatı). Sayfaya otomatik embed olur.">
                         <input className={inputCls} value={form.video_url || ''} onChange={(e) => set('video_url', e.target.value)} placeholder="https://youtu.be/jv66EZrUduo" />
+                    </Field>
+                    <Field label="Galeri Fotoğrafları" hint="Site içi, sosyal donatı, daire fotoğrafları. Sitede 'Galeri' bölümünde görünür.">
+                        <GalleryUpload value={(form.gallery || []) as { url: string; caption?: string }[]} onChange={(v) => set('gallery', v)} />
+                    </Field>
+                    <Field label="Sahibinden İlanları Linki" hint="Projenin sahibinden.com ilan listesi sayfası. Her Pazartesi otomatik okunur; ortalama fiyat ve kira verileri sitedeki Yatırım bölümüne işlenir.">
+                        <input className={inputCls} value={form.sahibinden_url || ''} onChange={(e) => set('sahibinden_url', e.target.value)} placeholder="https://www.sahibinden.com/emlak-konut/..." />
                     </Field>
                 </section>
 

@@ -23,14 +23,6 @@ export default defineConfig(({ mode }) => {
     build: {
       // Increase chunk size warning limit since we're doing code splitting
       chunkSizeWarningLimit: 600,
-      // Enable terser minification
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: false, // Temporarily enabled for debugging public site issue
-          drop_debugger: true
-        }
-      },
       rollupOptions: {
         output: {
           // Manual chunks for better code splitting

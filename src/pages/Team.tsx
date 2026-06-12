@@ -4,14 +4,13 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
 import { changeUserRole, createInviteLink, getOfficeInvitations, OfficeInvitation } from '../services/officeService';
-import { UserProfile } from '../types';
-import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar, MoreVertical, UserCog, ChevronDown, Copy, Link as LinkIcon, X, Clock, Users } from 'lucide-react';
+import { UserProfile, OfficePerformanceSettings, DEFAULT_PERFORMANCE_SETTINGS } from '../types';
+import { User, Shield, Briefcase, Mail, Phone, Search, Plus, TrendingUp, Home, DollarSign, Activity, Target, Award, Calendar, MoreVertical, UserCog, ChevronDown, Copy, Link as LinkIcon, X, Clock, Users, EyeOff } from 'lucide-react';
 
 interface TeamMemberWithStats extends UserProfile {
     propertyCount: number;
     activityCount: number;
     saleCount: number;
-    rentalCount: number;
     totalSalesValue: number;
     // Monthly stats
     monthlySaleCount: number;
@@ -20,7 +19,7 @@ interface TeamMemberWithStats extends UserProfile {
 }
 
 const Team: React.FC = () => {
-    const { userProfile, session, properties, activities, sales, office, teamMembers: contextTeamMembers } = useData();
+    const { userProfile, session, properties, activities, sales } = useData();
     const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -39,29 +38,18 @@ const Team: React.FC = () => {
     const [creatingInvite, setCreatingInvite] = useState(false);
     const [existingInvites, setExistingInvites] = useState<OfficeInvitation[]>([]);
 
-    // Visibility Settings (Default: Show All)
-    const showSettings = useMemo(() => {
-        // Broker always sees everything
-        if (userProfile.role === 'broker') {
-            return {
-                showListingCount: true,
-                showSalesCount: true,
-                showRentalCount: true,
-                showRevenue: true,
-                showCommission: true
-            };
-        }
-        // Consultants see what's allowed in office settings
-        return office?.performance_settings || {
-            showListingCount: true,
-            showSalesCount: true,
-            showRentalCount: true,
-            showRevenue: false, // Default hidden for consultants
-            showCommission: false // Default hidden for consultants
-        };
-    }, [userProfile.role, office]);
+    // Performance visibility settings (fetched from office)
+    const [performanceSettings, setPerformanceSettings] = useState<OfficePerformanceSettings>(DEFAULT_PERFORMANCE_SETTINGS);
 
-    // Get current month range
+    // Check if current user is broker (brokers always see everything)
+    const isBroker = userProfile.role === 'broker';
+
+    // Visibility helpers - broker sees all, consultants see based on settings
+    const canSeePerformance = isBroker || performanceSettings.showTeamPerformance;
+    const canSeeSales = isBroker || performanceSettings.showTeamSales;
+    const canSeeCommissions = isBroker || performanceSettings.showTeamCommissions;
+    const canSeeTargets = isBroker || performanceSettings.showTeamTargets;
+    const canSeeRanking = isBroker || performanceSettings.showPerformanceRanking;
 
     // Get current month range
     const currentMonthRange = useMemo(() => {
@@ -73,69 +61,53 @@ const Team: React.FC = () => {
 
     useEffect(() => {
         fetchTeam();
-    }, [userProfile.officeId, userProfile.name, userProfile.title, userProfile.avatar, userProfile.email, userProfile.role, session?.user?.id, contextTeamMembers]);
+        fetchPerformanceSettings();
+    }, [userProfile.officeId]);
+
+    const fetchPerformanceSettings = async () => {
+        if (!userProfile.officeId) return;
+        try {
+            const { data, error } = await supabase
+                .from('offices')
+                .select('performance_settings')
+                .eq('id', userProfile.officeId)
+                .single();
+
+            if (error) throw error;
+            if (data?.performance_settings) {
+                setPerformanceSettings(data.performance_settings);
+            }
+        } catch (error) {
+            console.error('Error fetching performance settings:', error);
+        }
+    };
 
     const fetchTeam = async () => {
-        if (contextTeamMembers.length > 0) {
-            setTeamMembers(contextTeamMembers);
-            setLoading(false);
-            return;
-        }
-
-        if (!userProfile.officeId) {
-            if (session?.user?.id) {
-                setTeamMembers([{
-                    id: session.user.id,
-                    name: userProfile.name || session.user.email || 'Danışman',
-                    title: userProfile.title || 'Danışman',
-                    avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session.user.email || 'Danışman')}`,
-                    email: userProfile.email || session.user.email,
-                    role: userProfile.role || 'consultant',
-                    officeId: userProfile.officeId
-                }]);
-            }
-            setLoading(false);
-            return;
-        }
+        if (!userProfile.officeId) return;
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id,full_name,title,avatar_url,email,phone,role,office_id')
+                .select('*')
                 .eq('office_id', userProfile.officeId);
 
             if (error) throw error;
 
-            if (data && data.length > 0) {
+            if (data) {
                 const members: UserProfile[] = data.map((p: any) => ({
                     id: p.id,
                     name: p.full_name,
-                    title: p.title || (p.role === 'broker' ? 'Ofis Yöneticisi' : 'Danışman'),
+                    title: p.title || 'Danışman',
                     avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`,
-                    email: p.email,
+                    email: p.email, // Assuming email is in profile or we fetch from auth? usually profile copies it.
                     phone: p.phone,
                     role: p.role,
                     officeId: p.office_id
                 }));
                 setTeamMembers(members);
-            } else if (contextTeamMembers.length > 0) {
-                setTeamMembers(contextTeamMembers);
-            } else if (session?.user?.id) {
-                setTeamMembers([{
-                    id: session.user.id,
-                    name: userProfile.name || session.user.email || 'Danışman',
-                    title: userProfile.title || 'Danışman',
-                    avatar: userProfile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || session.user.email || 'Danışman')}`,
-                    email: userProfile.email || session.user.email,
-                    role: userProfile.role || 'consultant',
-                    officeId: userProfile.officeId
-                }]);
             }
         } catch (error) {
             console.error('Error fetching team:', error);
-            if (contextTeamMembers.length > 0) {
-                setTeamMembers(contextTeamMembers);
-            }
         } finally {
             setLoading(false);
         }
@@ -147,13 +119,12 @@ const Team: React.FC = () => {
 
         return teamMembers.map(member => {
             const memberProperties = properties.filter(p => p.user_id === member.id);
-            const memberActivities = activities.filter(a => a.user_id === member.id);
-
+            const memberActivities = activities.filter(a => {
+                // Try to match by activity's assigned user if available
+                return memberProperties.some(p => p.id === a.propertyId);
+            });
             const memberSales = sales?.filter(s => s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id) || [];
             const totalSalesValue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
-
-            const saleCount = memberSales.filter(s => s.transactionType !== 'rental').length;
-            const rentalCount = memberSales.filter(s => s.transactionType === 'rental').length;
 
             // Monthly calculations
             const monthlySales = memberSales.filter(s => {
@@ -168,8 +139,7 @@ const Team: React.FC = () => {
                 ...member,
                 propertyCount: memberProperties.length,
                 activityCount: memberActivities.length,
-                saleCount,
-                rentalCount,
+                saleCount: memberSales.length,
                 totalSalesValue,
                 monthlySaleCount,
                 monthlyCommission,
@@ -179,8 +149,8 @@ const Team: React.FC = () => {
     }, [teamMembers, properties, activities, sales, currentMonthRange]);
 
     const filteredTeam = teamWithStats.filter(member =>
-        (member.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (member.title?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+        member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        member.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     // Sort by performance for ranking
@@ -197,8 +167,11 @@ const Team: React.FC = () => {
             return;
         }
 
+        // Detect if using HashRouter or BrowserRouter based on current URL
         const isHashRouter = window.location.hash.length > 0;
         const baseUrl = window.location.origin;
+        // Construct link dynamically. If currently on /#/team, register is at /#/register
+        // If on /team, register is at /register
         const registerPath = isHashRouter ? '/#/register' : '/register';
         const inviteLink = `${baseUrl}${registerPath}?officeId=${userProfile.officeId}`;
 
@@ -207,6 +180,7 @@ const Team: React.FC = () => {
             toast.success("Davet linki kopyalandı!");
         } catch (err) {
             console.error('Clipboard failed', err);
+            // Fallback for browsers blocking clipboard or non-secure contexts
             prompt("Otomatik kopyalama yapılamadı. Lütfen linki aşağıdan kopyalayın:", inviteLink);
         }
     };
@@ -279,7 +253,7 @@ const Team: React.FC = () => {
         }
     };
 
-    if (!userProfile.officeId && teamMembers.length === 0 && contextTeamMembers.length === 0) {
+    if (!userProfile.officeId) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center h-[50vh]">
                 <div className="bg-orange-100 p-4 rounded-full mb-4">
@@ -290,6 +264,8 @@ const Team: React.FC = () => {
             </div>
         );
     }
+
+    // Only Broker can manage, but all can view? Let's assume view for now.
 
     return (
         <div className="space-y-6 pb-20">
@@ -341,7 +317,7 @@ const Team: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4">
                 <div className="relative">
                     <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -363,81 +339,91 @@ const Team: React.FC = () => {
                             Performans Sıralaması
                         </h2>
                     </div>
-                    <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                        {rankedTeam.map((member, index) => (
-                            <div key={member.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                                {/* Rank */}
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                    index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
-                                        index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                            'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                                    }`}>
-                                    {index + 1}
-                                </div>
 
-                                {/* Avatar & Name */}
-                                <div className="flex items-center gap-3 flex-1">
-                                    <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
-                                    <div>
-                                        <div className="flex items-center gap-2">
+                    {/* Check if user can see performance data */}
+                    {!canSeePerformance ? (
+                        <div className="p-12 text-center">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <EyeOff className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Performans Verileri Gizli</h3>
+                            <p className="text-sm text-gray-500 dark:text-slate-400">
+                                Broker bu görünümü danışmanlar için kapatmış durumda.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {rankedTeam.map((member, index) => (
+                                <div key={member.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                    {/* Rank - only show if ranking is enabled */}
+                                    {canSeeRanking ? (
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                            index === 1 ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' :
+                                                index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                                                    'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                                            }`}>
+                                            {index + 1}
+                                        </div>
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700">
+                                            <User className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                    )}
+
+                                    {/* Avatar & Name */}
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
+                                        <div>
                                             <h3 className="font-semibold text-slate-800 dark:text-white">{member.name}</h3>
-                                            {member.role === 'broker' && (
-                                                <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded font-bold border border-amber-200 dark:border-amber-800">
-                                                    Yönetici
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <span>{member.title}</span>
-                                            <span className="text-gray-300">•</span>
-                                            <span className="text-[#1193d4] font-medium">
-                                                {showSettings.showSalesCount ? `${member.saleCount} Satış` : ''}
-                                                {(showSettings.showSalesCount && showSettings.showRentalCount) ? ', ' : ''}
-                                                {showSettings.showRentalCount ? `${member.rentalCount} Kiralama` : ''}
-                                                {!showSettings.showSalesCount && !showSettings.showRentalCount ? 'Performans Gizli' : ''}
-                                            </span>
+                                            <p className="text-xs text-slate-500">{member.title}</p>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Stats */}
-                                <div className="flex items-center gap-6 text-center">
-                                    <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
-                                        <Home className="w-4 h-4" />
-                                        <span className="font-bold">{showSettings.showListingCount ? member.propertyCount : '-'}</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 uppercase">İlan</p>
-                                    <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                        <DollarSign className="w-4 h-4" />
-                                        <span className="font-bold">
-                                            {((showSettings.showSalesCount ? member.saleCount : 0) + (showSettings.showRentalCount ? member.rentalCount : 0))}
-                                        </span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
-                                    <div className="hidden sm:block">
-                                        <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
-                                            <Activity className="w-4 h-4" />
-                                            <span className="font-bold">{member.activityCount}</span>
+                                    {/* Stats */}
+                                    <div className="flex items-center gap-6 text-center">
+                                        <div>
+                                            <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                                                <Home className="w-4 h-4" />
+                                                <span className="font-bold">{member.propertyCount}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 uppercase">İlan</p>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
-                                    </div>
-                                    <div className="min-w-[80px] text-right">
-                                        <p className="font-bold text-slate-800 dark:text-white">
-                                            {showSettings.showRevenue && member.totalSalesValue > 0
-                                                ? `${(member.totalSalesValue / 1000000).toFixed(1)}M`
-                                                : showSettings.showRevenue ? '0' : '-'}
-                                        </p>
-                                        <p className="text-[10px] text-slate-400 uppercase">Ciro (TL)</p>
+                                        {canSeeSales && (
+                                            <>
+                                                <div>
+                                                    <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                                        <DollarSign className="w-4 h-4" />
+                                                        <span className="font-bold">{member.saleCount}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 uppercase">Satış</p>
+                                                </div>
+                                                <div className="min-w-[80px] text-right">
+                                                    <p className="font-bold text-slate-800 dark:text-white">
+                                                        {member.totalSalesValue > 0
+                                                            ? `${(member.totalSalesValue / 1000000).toFixed(1)}M`
+                                                            : '0'}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 uppercase">Ciro (TL)</p>
+                                                </div>
+                                            </>
+                                        )}
+                                        <div className="hidden sm:block">
+                                            <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
+                                                <Activity className="w-4 h-4" />
+                                                <span className="font-bold">{member.activityCount}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                        {rankedTeam.length === 0 && (
-                            <div className="p-8 text-center text-slate-400">
-                                Henüz ekip üyesi bulunmuyor.
-                            </div>
-                        )}
-                    </div>
+                            ))}
+                            {rankedTeam.length === 0 && (
+                                <div className="p-8 text-center text-slate-400">
+                                    Henüz ekip üyesi bulunmuyor.
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -453,12 +439,25 @@ const Team: React.FC = () => {
                         <p className="text-emerald-100 text-sm">Aylik hedef takibi ve ilerleme durumu</p>
                     </div>
 
+                    {/* Check if user can see targets data */}
+                    {!canSeeTargets ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-12 text-center border border-gray-200 dark:border-slate-700">
+                            <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <EyeOff className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Hedef Verileri Gizli</h3>
+                            <p className="text-sm text-gray-500 dark:text-slate-400">
+                                Broker bu görünümü danışmanlar için kapatmış durumda.
+                            </p>
+                        </div>
+                    ) : (
+                    <>
                     {/* Team Targets */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {rankedTeam.map((member) => {
-                            const salesTarget = (member as any).monthlyTargets?.salesTarget || targetValues.salesTarget;
-                            const revenueTarget = (member as any).monthlyTargets?.revenueTarget || targetValues.revenueTarget;
-                            const commissionTarget = (member as any).monthlyTargets?.commissionTarget || targetValues.commissionTarget;
+                            const salesTarget = member.monthlyTargets?.salesTarget || targetValues.salesTarget;
+                            const revenueTarget = member.monthlyTargets?.revenueTarget || targetValues.revenueTarget;
+                            const commissionTarget = member.monthlyTargets?.commissionTarget || targetValues.commissionTarget;
 
                             const salesProgress = Math.min((member.monthlySaleCount / salesTarget) * 100, 100);
                             const revenueProgress = Math.min((member.monthlyRevenue / revenueTarget) * 100, 100);
@@ -486,45 +485,41 @@ const Team: React.FC = () => {
                                     {/* Progress Bars */}
                                     <div className="p-4 space-y-4">
                                         {/* Sales Target */}
-                                        {showSettings.showSalesCount && (
-                                            <div>
-                                                <div className="flex justify-between items-center mb-1.5">
-                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Satış Hedefi</span>
-                                                    <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                                        {member.monthlySaleCount} / {salesTarget}
-                                                    </span>
-                                                </div>
-                                                <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-500 ${salesProgress >= 100 ? 'bg-green-500' : salesProgress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                                        style={{ width: `${salesProgress}%` }}
-                                                    />
-                                                </div>
-                                                <p className="text-xs text-slate-400 mt-1">%{salesProgress.toFixed(0)} tamamlandı</p>
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Satis Hedefi</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {member.monthlySaleCount} / {salesTarget}
+                                                </span>
                                             </div>
-                                        )}
+                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${salesProgress >= 100 ? 'bg-green-500' : salesProgress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                                    style={{ width: `${salesProgress}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">%{salesProgress.toFixed(0)} tamamlandi</p>
+                                        </div>
 
                                         {/* Revenue Target */}
-                                        {showSettings.showRevenue && (
-                                            <div>
-                                                <div className="flex justify-between items-center mb-1.5">
-                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Ciro Hedefi</span>
-                                                    <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                                        {(member.monthlyRevenue / 1000000).toFixed(1)}M / {(revenueTarget / 1000000).toFixed(1)}M TL
-                                                    </span>
-                                                </div>
-                                                <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-500 ${revenueProgress >= 100 ? 'bg-green-500' : revenueProgress >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
-                                                        style={{ width: `${revenueProgress}%` }}
-                                                    />
-                                                </div>
-                                                <p className="text-xs text-slate-400 mt-1">%{revenueProgress.toFixed(0)} tamamlandı</p>
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Ciro Hedefi</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {(member.monthlyRevenue / 1000000).toFixed(1)}M / {(revenueTarget / 1000000).toFixed(1)}M TL
+                                                </span>
                                             </div>
-                                        )}
+                                            <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-500 ${revenueProgress >= 100 ? 'bg-green-500' : revenueProgress >= 50 ? 'bg-indigo-500' : 'bg-orange-500'}`}
+                                                    style={{ width: `${revenueProgress}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">%{revenueProgress.toFixed(0)} tamamlandi</p>
+                                        </div>
 
-                                        {/* Commission Target */}
-                                        {showSettings.showCommission && (
+                                        {/* Commission Target - only show if commissions are visible */}
+                                        {canSeeCommissions && (
                                             <div>
                                                 <div className="flex justify-between items-center mb-1.5">
                                                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Komisyon Hedefi</span>
@@ -538,7 +533,7 @@ const Team: React.FC = () => {
                                                         style={{ width: `${commissionProgress}%` }}
                                                     />
                                                 </div>
-                                                <p className="text-xs text-slate-400 mt-1">%{commissionProgress.toFixed(0)} tamamlandı</p>
+                                                <p className="text-xs text-slate-400 mt-1">%{commissionProgress.toFixed(0)} tamamlandi</p>
                                             </div>
                                         )}
                                     </div>
@@ -552,6 +547,8 @@ const Team: React.FC = () => {
                             <Target className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
                             <p className="text-slate-500">Henuz ekip uyesi bulunmuyor.</p>
                         </div>
+                    )}
+                    </>
                     )}
                 </div>
             )}
@@ -576,54 +573,44 @@ const Team: React.FC = () => {
                                     </span>
                                 )}
                             </div>
-                            {/* Performance Stats */}
-                            <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-slate-700 text-center py-3 bg-slate-50 dark:bg-slate-700/30">
-                                <Link
-                                    to={`/properties?user=${member.id}`}
-                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
-                                    title={`${member.name} ilanlarını görüntüle`}
-                                >
-                                    <p className="font-bold text-indigo-600 dark:text-indigo-400">{showSettings.showListingCount ? member.propertyCount : '-'}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase">İlan</p>
-                                </Link>
-                                <Link
-                                    to={`/sales?user=${member.id}`}
-                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block relative group"
-                                    title={`${member.name} satışlarını görüntüle`}
-                                >
-                                    <p className="font-bold text-green-600 dark:text-green-400">
-                                        {((showSettings.showSalesCount ? member.saleCount : 0) + (showSettings.showRentalCount ? member.rentalCount : 0))}
+                            {/* Performance Stats - respects visibility settings */}
+                            {canSeePerformance ? (
+                                <div className={`grid ${canSeeSales ? 'grid-cols-3' : 'grid-cols-2'} divide-x divide-gray-100 dark:divide-slate-700 text-center py-3 bg-slate-50 dark:bg-slate-700/30`}>
+                                    <Link
+                                        to={`/properties?user=${member.id}`}
+                                        className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                        title={`${member.name} ilanlarını görüntüle`}
+                                    >
+                                        <p className="font-bold text-indigo-600 dark:text-indigo-400">{member.propertyCount}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase">İlan</p>
+                                    </Link>
+                                    {canSeeSales && (
+                                        <Link
+                                            to={`/sales?user=${member.id}`}
+                                            className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                            title={`${member.name} satışlarını görüntüle`}
+                                        >
+                                            <p className="font-bold text-green-600 dark:text-green-400">{member.saleCount}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase">Satış</p>
+                                        </Link>
+                                    )}
+                                    <Link
+                                        to={`/activities?user=${member.id}`}
+                                        className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
+                                        title={`${member.name} aktivitelerini görüntüle`}
+                                    >
+                                        <p className="font-bold text-sky-600 dark:text-sky-400">{member.activityCount}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="py-4 text-center bg-slate-50 dark:bg-slate-700/30">
+                                    <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
+                                        <EyeOff className="w-3 h-3" />
+                                        Performans verileri gizli
                                     </p>
-                                    <p className="text-[10px] text-slate-400 uppercase">İşlem</p>
-
-                                    {/* Hover Details */}
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-slate-800 text-white text-xs rounded-lg py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                        {showSettings.showSalesCount && (
-                                            <div className="flex justify-between">
-                                                <span>Satış:</span>
-                                                <span>{member.saleCount}</span>
-                                            </div>
-                                        )}
-                                        {showSettings.showRentalCount && (
-                                            <div className="flex justify-between">
-                                                <span>Kiralama:</span>
-                                                <span>{member.rentalCount}</span>
-                                            </div>
-                                        )}
-                                        {!showSettings.showSalesCount && !showSettings.showRentalCount && (
-                                            <div className="text-center text-gray-400">Gizli</div>
-                                        )}
-                                    </div>
-                                </Link>
-                                <Link
-                                    to={`/activities?user=${member.id}`}
-                                    className="hover:bg-slate-100 dark:hover:bg-slate-600 py-2 rounded transition-colors cursor-pointer block"
-                                    title={`${member.name} aktivitelerini görüntüle`}
-                                >
-                                    <p className="font-bold text-sky-600 dark:text-sky-400">{member.activityCount}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase">Aktivite</p>
-                                </Link>
-                            </div>
+                                </div>
+                            )}
                             <div className="bg-gray-50 dark:bg-slate-700/30 p-4 flex justify-between text-sm">
                                 <button className="flex items-center text-slate-600 dark:text-slate-300 hover:text-[#1193d4] transition-colors">
                                     <Mail className="w-4 h-4 mr-2" />
@@ -681,132 +668,131 @@ const Team: React.FC = () => {
             )}
 
             {/* Invite Modal */}
-            {
-                showInviteModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl">
-                            <div className="p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                    <LinkIcon className="w-5 h-5 text-[#1193d4]" />
-                                    Davet Linki Oluştur
-                                </h3>
-                                <button
-                                    onClick={() => setShowInviteModal(false)}
-                                    className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
+            {showInviteModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl">
+                        <div className="p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <LinkIcon className="w-5 h-5 text-[#1193d4]" />
+                                Davet Linki Oluştur
+                            </h3>
+                            <button
+                                onClick={() => setShowInviteModal(false)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {/* Role Selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Davet Rolü
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setInviteRole('consultant')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'consultant'
+                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600'
+                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        <Briefcase className="w-4 h-4" />
+                                        Danışman
+                                    </button>
+                                    <button
+                                        onClick={() => setInviteRole('broker')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'broker'
+                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-600'
+                                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
+                                            }`}
+                                    >
+                                        <Shield className="w-4 h-4" />
+                                        Broker
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="p-6 space-y-4">
-                                {/* Role Selector */}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                        Davet Rolü
-                                    </label>
+                            {/* Generated Link */}
+                            {inviteLink ? (
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-green-600 font-medium text-sm">Link Hazır!</span>
+                                        <span className="text-xs text-green-500">7 gün geçerli</span>
+                                    </div>
                                     <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={inviteLink}
+                                            readOnly
+                                            className="flex-1 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm"
+                                        />
                                         <button
-                                            onClick={() => setInviteRole('consultant')}
-                                            className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'consultant'
-                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600'
-                                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                                                }`}
+                                            onClick={() => copyToClipboard(inviteLink)}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-1"
                                         >
-                                            <Briefcase className="w-4 h-4" />
-                                            Danışman
-                                        </button>
-                                        <button
-                                            onClick={() => setInviteRole('broker')}
-                                            className={`flex-1 py-2.5 px-4 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 ${inviteRole === 'broker'
-                                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-600'
-                                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <Shield className="w-4 h-4" />
-                                            Broker
+                                            <Copy className="w-4 h-4" />
+                                            Kopyala
                                         </button>
                                     </div>
                                 </div>
+                            ) : (
+                                <button
+                                    onClick={handleCreateInvite}
+                                    disabled={creatingInvite}
+                                    className="w-full bg-[#1193d4] hover:bg-[#0e7db5] text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {creatingInvite ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Oluşturuluyor...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-5 h-5" />
+                                            Link Oluştur
+                                        </>
+                                    )}
+                                </button>
+                            )}
 
-                                {/* Generated Link */}
-                                {inviteLink ? (
-                                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-green-600 font-medium text-sm">Link Hazır!</span>
-                                            <span className="text-xs text-green-500">7 gün geçerli</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={inviteLink}
-                                                readOnly
-                                                className="flex-1 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm"
-                                            />
-                                            <button
-                                                onClick={() => copyToClipboard(inviteLink)}
-                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-1"
-                                            >
-                                                <Copy className="w-4 h-4" />
-                                                Kopyala
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={handleCreateInvite}
-                                        disabled={creatingInvite}
-                                        className="w-full bg-[#1193d4] hover:bg-[#0e7db5] text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        {creatingInvite ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                Oluşturuluyor...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus className="w-5 h-5" />
-                                                Link Oluştur
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-
-                                {/* Existing Invites */}
-                                {existingInvites.length > 0 && (
-                                    <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
-                                        <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
-                                            <Clock className="w-4 h-4" />
-                                            Aktif Davetler
-                                        </h4>
-                                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                                            {existingInvites.map(inv => (
-                                                <div key={inv.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${inv.role === 'broker' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                            {inv.role === 'broker' ? 'Broker' : 'Danışman'}
-                                                        </span>
-                                                        <span className="text-slate-500">
-                                                            {inv.current_uses}/{inv.max_uses} kullanım
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            const link = `${window.location.origin}${window.location.hash ? '/#' : ''}/join/${inv.token}`;
-                                                            copyToClipboard(link);
-                                                        }}
-                                                        className="text-[#1193d4] hover:text-[#0e7db5]"
-                                                    >
-                                                        <Copy className="w-4 h-4" />
-                                                    </button>
+                            {/* Existing Invites */}
+                            {existingInvites.length > 0 && (
+                                <div className="pt-4 border-t border-gray-200 dark:border-slate-700">
+                                    <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        Aktif Davetler
+                                    </h4>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                        {existingInvites.map(inv => (
+                                            <div key={inv.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${inv.role === 'broker' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {inv.role === 'broker' ? 'Broker' : 'Danışman'}
+                                                    </span>
+                                                    <span className="text-slate-500">
+                                                        {inv.current_uses}/{inv.max_uses} kullanım
+                                                    </span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const link = `${window.location.origin}${window.location.hash ? '/#' : ''}/join/${inv.token}`;
+                                                        copyToClipboard(link);
+                                                    }}
+                                                    className="text-[#1193d4] hover:text-[#0e7db5]"
+                                                >
+                                                    <Copy className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     </div>
-                )}
+                </div>
+            )}
         </div>
     );
 };

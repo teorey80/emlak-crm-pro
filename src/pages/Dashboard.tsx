@@ -1,19 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign, Filter, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
 import { generateRealEstateAdvice } from '../services/geminiService';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { findMatches } from '../services/matchingService';
 
 const Dashboard: React.FC = () => {
-  const { customers, properties, activities, requests, sales, userProfile, teamMembers } = useData();
+  const { customers, properties, activities, requests, sales } = useData();
   const navigate = useNavigate();
-
-  // Broker role check - brokers can see all team members' schedules
-  const isBroker = ['broker', 'ofis_broker', 'admin', 'owner'].includes(userProfile?.role || '');
-
-  // Filter state for daily schedule (only for brokers)
-  const [selectedUserId, setSelectedUserId] = useState<string>('all');
 
   // Calculate real statistics
   const stats = useMemo(() => {
@@ -49,17 +43,14 @@ const Dashboard: React.FC = () => {
       ? Math.round(((currentMonthCustomers - previousMonthCustomers) / previousMonthCustomers) * 100)
       : currentMonthCustomers > 0 ? 100 : 0;
 
-    // Sales and Rentals this month
-    const monthlySalesData = sales?.filter(s => {
-      if (!s.saleDate && !s.sale_date) return false;
-      const saleDate = new Date(s.saleDate || s.sale_date || '');
+    // Sales this month
+    const monthlySales = sales?.filter(s => {
+      if (!s.saleDate) return false;
+      const saleDate = new Date(s.saleDate);
       return saleDate >= thirtyDaysAgo;
     }) || [];
 
-    const monthlySaleTx = monthlySalesData.filter(s => s.transactionType !== 'rental').length;
-    const monthlyRentalTx = monthlySalesData.filter(s => s.transactionType === 'rental').length;
-
-    const totalMonthlySalesValue = monthlySalesData.reduce((sum, s) => sum + (s.salePrice || s.sale_price || s.monthlyRent || 0), 0);
+    const totalMonthlySalesValue = monthlySales.reduce((sum, s) => sum + (s.salePrice || 0), 0);
 
     // Properties for sale
     const forSaleProperties = properties.filter(p => p.listingStatus !== 'Satıldı' && p.listingStatus !== 'Kiralandı').length;
@@ -80,9 +71,7 @@ const Dashboard: React.FC = () => {
       customerTrend,
       totalPortfolioValue,
       forSaleProperties,
-      monthlyTotalTx: monthlySalesData.length,
-      monthlySaleTx,
-      monthlyRentalTx,
+      monthlySalesCount: monthlySales.length,
       totalMonthlySalesValue,
       completedActivities
     };
@@ -92,56 +81,6 @@ const Dashboard: React.FC = () => {
   const smartMatches = React.useMemo(() => {
     return findMatches(properties, requests).slice(0, 3);
   }, [properties, requests]);
-
-  // Calculate customers about to become passive (45-60 days without activity)
-  const customersAtRisk = useMemo(() => {
-    const today = new Date();
-    const fortyFiveDaysAgo = new Date(today.getTime() - 45 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
-
-    return customers
-      .filter(customer => {
-        if (customer.status === 'Pasif') return false;
-
-        // Find the most recent activity date for this customer
-        const customerActivities = activities.filter(a => a.customerId === customer.id);
-        const lastActivityDate = customerActivities.length > 0
-          ? new Date(Math.max(...customerActivities.map(a => new Date(a.date).getTime())))
-          : null;
-
-        // Use last activity date or customer creation date
-        const referenceDate = lastActivityDate || (customer.createdAt ? new Date(customer.createdAt) : null);
-        if (!referenceDate) return false;
-
-        // Check if between 45-60 days
-        return referenceDate <= fortyFiveDaysAgo && referenceDate > sixtyDaysAgo;
-      })
-      .map(customer => {
-        const customerActivities = activities.filter(a => a.customerId === customer.id);
-        const lastActivityDate = customerActivities.length > 0
-          ? new Date(Math.max(...customerActivities.map(a => new Date(a.date).getTime())))
-          : (customer.createdAt ? new Date(customer.createdAt) : new Date());
-
-        const daysSinceActivity = Math.floor((today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24));
-        const daysUntilPassive = 60 - daysSinceActivity;
-
-        return {
-          ...customer,
-          lastActivityDate: lastActivityDate.toISOString().split('T')[0],
-          daysSinceActivity,
-          daysUntilPassive
-        };
-      })
-      .sort((a, b) => a.daysUntilPassive - b.daysUntilPassive) // Sort by urgency
-      .slice(0, 5);
-  }, [customers, activities]);
-
-  // Get user name from teamMembers
-  const getUserName = (userId: string | undefined) => {
-    if (!userId) return '';
-    const member = teamMembers.find(m => m.id === userId);
-    return member?.name || '';
-  };
 
   // Combined Schedule: Upcoming appointments + Today's requests
   const dailySchedule = React.useMemo(() => {
@@ -155,14 +94,8 @@ const Dashboard: React.FC = () => {
 
     const todayStr = getLocalDateString(new Date());
 
-    // Filter activities by selected user if not 'all'
-    let filteredActivities = activities;
-    if (selectedUserId !== 'all') {
-      filteredActivities = activities.filter(a => a.user_id === selectedUserId);
-    }
-
     // 1. Map Appointments
-    const appointments = filteredActivities
+    const appointments = activities
       .filter(a => a.status === 'Planlandı' && new Date(a.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
       .map(a => ({
         id: a.id,
@@ -172,20 +105,12 @@ const Dashboard: React.FC = () => {
         date: a.date,
         time: a.time,
         customerId: a.customerId,
-        description: a.description,
-        userId: a.user_id,
-        userName: getUserName(a.user_id)
+        description: a.description
       }));
-
-    // Filter requests by selected user if not 'all'
-    let filteredRequests = requests;
-    if (selectedUserId !== 'all') {
-      filteredRequests = requests.filter(r => r.user_id === selectedUserId);
-    }
 
     // 2. Map Today's Requests
     // Compare dates robustly (handle 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm:ss...')
-    const todayRequests = filteredRequests
+    const todayRequests = requests
       .filter(r => (r.date && r.date.startsWith(todayStr)))
       .map(r => ({
         id: r.id,
@@ -195,9 +120,7 @@ const Dashboard: React.FC = () => {
         date: r.date,
         time: 'Yeni',
         customerId: r.customerId,
-        description: `${r.requestType} ${r.type} - Max ${r.maxPrice.toLocaleString()} ₺`,
-        userId: r.user_id,
-        userName: getUserName(r.user_id)
+        description: `${r.requestType} ${r.type} - Max ${r.maxPrice.toLocaleString()} ₺`
       }));
 
     // Combine and sort by date/time
@@ -208,7 +131,7 @@ const Dashboard: React.FC = () => {
         return dateA - dateB;
       })
       .slice(0, 6);
-  }, [activities, requests, selectedUserId, teamMembers]);
+  }, [activities, requests]);
 
   const [aiInput, setAiInput] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -287,85 +210,25 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Aylık İşlemler */}
+        {/* Aylık Satış */}
         <div
           onClick={() => navigate('/reports')}
           className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-800 hover:scale-[1.02]"
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık İşlemler</p>
-              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlyTotalTx}</h3>
+              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık Satış</p>
+              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlySalesCount}</h3>
             </div>
             <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg text-green-600 dark:text-green-400">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
-          <div className="flex flex-col gap-1 text-xs font-medium">
-            <div className="flex gap-2 text-gray-500 dark:text-slate-400">
-              <span>🏠 {stats.monthlySaleTx} Satış</span>
-              <span>•</span>
-              <span>🔑 {stats.monthlyRentalTx} Kiralama</span>
-            </div>
-            <span className="text-green-600 dark:text-green-400 mt-1">{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL Hacim` : 'İşlem bekleniyor'}</span>
+          <div className="flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
+            <span>{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL` : 'Satış bekleniyor'}</span>
           </div>
         </div>
       </div>
-
-      {/* Warning Card: Customers About to Become Passive */}
-      {customersAtRisk.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-100 dark:bg-amber-800/50 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-amber-800 dark:text-amber-200">Pasife Düşmek Üzere Müşteriler</h3>
-                <p className="text-xs text-amber-600 dark:text-amber-400">{customersAtRisk.length} müşteri 60 gün içinde pasif olacak</p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate('/customers')}
-              className="text-sm text-amber-700 dark:text-amber-300 hover:underline font-medium"
-            >
-              Tümünü Gör
-            </button>
-          </div>
-          <div className="space-y-2">
-            {customersAtRisk.map((customer) => (
-              <div
-                key={customer.id}
-                onClick={() => navigate(`/customers/${customer.id}`)}
-                className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-amber-100 dark:border-amber-900 cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <img
-                    src={customer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}`}
-                    className="w-10 h-10 rounded-full border-2 border-amber-200 dark:border-amber-700"
-                    alt={customer.name}
-                  />
-                  <div>
-                    <p className="font-semibold text-slate-800 dark:text-white text-sm">{customer.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400">
-                      Son aktivite: {customer.lastActivityDate}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${
-                    customer.daysUntilPassive <= 5
-                      ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                  }`}>
-                    {customer.daysUntilPassive} gün kaldı
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 animate-fade-in">
 
@@ -410,27 +273,7 @@ const Dashboard: React.FC = () => {
           {/* Schedule Section - Takes up 2 cols */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 transition-colors">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
-                {/* Broker filter dropdown */}
-                {isBroker && teamMembers.length > 1 && (
-                  <div className="relative">
-                    <select
-                      value={selectedUserId}
-                      onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="appearance-none bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 pr-8 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 cursor-pointer"
-                    >
-                      <option value="all">Tüm Ekip</option>
-                      {teamMembers.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
-                    <Filter className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
-                )}
-              </div>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
               <button className="text-sky-600 dark:text-sky-400 text-sm font-medium hover:underline">Tümünü Gör</button>
             </div>
 
@@ -461,15 +304,7 @@ const Dashboard: React.FC = () => {
                             <Calendar className="w-5 h-5" />}
                     </div>
                     <div className="ml-4 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4>
-                        {/* Show consultant name when broker views all team */}
-                        {isBroker && selectedUserId === 'all' && item.userName && (
-                          <span className="text-xs bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
-                            {item.userName}
-                          </span>
-                        )}
-                      </div>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         {item.date} • {item.time === 'Yeni' ? <span className="text-orange-600 dark:text-orange-400 font-bold">YENİ TALEP</span> : item.time || 'Saat Yok'}
                         {item.description ? ` • ${item.description}` : ''}

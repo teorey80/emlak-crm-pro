@@ -1,12 +1,4 @@
 
-export interface OfficePerformanceSettings {
-  showListingCount: boolean;
-  showSalesCount: boolean;
-  showRentalCount: boolean;
-  showRevenue: boolean;
-  showCommission: boolean;
-}
-
 export interface Property {
   id: string;
   title: string;
@@ -150,7 +142,7 @@ export interface Customer {
   email: string;
   phone: string;
   status: 'Aktif' | 'Potansiyel' | 'Pasif';
-  customerType?: 'Alıcı' | 'Alıcı Adayı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Diğer';
+  customerType?: 'Alıcı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi';
   source: string;
   createdAt: string;
   interactions: Interaction[]; // Kept for backward compatibility but will use global Activities
@@ -191,11 +183,6 @@ export interface Request {
   date: string;
   notes?: string;
   minRooms?: string; // e.g. "2+1"
-  minArea?: number;
-  maxArea?: number;
-  maxFloor?: number;
-  balconyRequired?: boolean;
-  neighborhood?: string;
   siteId?: string; // Requested specific site
   siteName?: string; // For display
 
@@ -214,7 +201,7 @@ export interface Interaction {
 
 export interface Activity {
   id: string;
-  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kira Kontratı' | 'Kapora Alındı' | 'Diğer';
+  type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kapora Alındı' | 'Diğer';
   customerId: string;
   customerName: string;
   propertyId?: string;
@@ -253,8 +240,6 @@ export interface WebSiteConfig {
   phone: string;
   email: string;
   logoUrl?: string;
-  profilePhotoUrl?: string;
-  brokerTitle?: string;
   isActive: boolean;
   layout: 'standard' | 'map' | 'grid';
 }
@@ -294,7 +279,8 @@ export interface Office {
   address?: string;
   phone?: string;
   siteConfig?: WebSiteConfig;
-  performance_settings?: OfficePerformanceSettings;
+  performanceSettings?: OfficePerformanceSettings;
+  performance_settings?: any; // DB field (JSONB)
 }
 
 // Sale/Income Tracking
@@ -341,24 +327,26 @@ export interface Sale {
   deposit_amount?: number; // DB field
   leaseDuration?: number; // Kira süresi (ay)
   lease_duration?: number; // DB field
-  leaseStartDate?: string; // Kira başlangıç tarihi (sözleşmedeki tarih)
-  lease_start_date?: string; // DB field
   leaseEndDate?: string; // Kira bitiş tarihi
   lease_end_date?: string; // DB field
 
-  // Commission
-  commissionRate: number;  // Percentage (e.g., 3)
-  commission_rate?: number; // DB field
-  commissionAmount: number;
-  commission_amount?: number; // DB field
-  buyerCommissionAmount?: number;
+  // Commission - Alıcıdan Alınan
+  buyerCommissionAmount: number;  // Alıcıdan alınan tutar (manuel giriş)
   buyer_commission_amount?: number; // DB field
-  buyerCommissionRate?: number;
+  buyerCommissionRate: number;  // Alıcı komisyon oranı (otomatik hesaplanan)
   buyer_commission_rate?: number; // DB field
-  sellerCommissionAmount?: number;
+
+  // Commission - Satıcıdan Alınan
+  sellerCommissionAmount: number;  // Satıcıdan alınan tutar (manuel giriş)
   seller_commission_amount?: number; // DB field
-  sellerCommissionRate?: number;
+  sellerCommissionRate: number;  // Satıcı komisyon oranı (otomatik hesaplanan)
   seller_commission_rate?: number; // DB field
+
+  // Commission - Toplam (hesaplanmış)
+  commissionRate: number;  // Toplam oran (%)
+  commission_rate?: number; // DB field
+  commissionAmount: number;  // Toplam tutar
+  commission_amount?: number; // DB field
 
   // Expenses
   expenses: SaleExpense[];
@@ -376,40 +364,12 @@ export interface Sale {
   consultant_share_amount?: number; // DB field
   netProfit: number;
   net_profit?: number; // DB field
-  propertyOwnerShareRate?: number; // Cross-commission split %
-  property_owner_share_rate?: number; // DB field (optional/future)
 
   // Notes
   notes?: string;
 
   // Joined data
   propertyTitle?: string;
-
-  // Partner Office (Ortak Satış)
-  hasPartnerOffice?: boolean;
-  has_partner_office?: boolean; // DB field
-  partnerOfficeName?: string;
-  partner_office_name?: string; // DB field
-  partnerOfficeContact?: string;
-  partner_office_contact?: string; // DB field
-  partnerShareType?: 'buyer_commission' | 'total_commission';
-  partner_share_type?: string; // DB field
-  partnerShareAmount?: number;
-  partner_share_amount?: number; // DB field
-  partnerShareRate?: number; // Calculated percentage
-  partner_share_rate?: number; // DB field
-
-  // KDV (VAT) fields
-  kdvIncluded?: boolean;           // KDV dahil mi?
-  kdv_included?: boolean;          // DB field
-  kdvRate?: number;                // KDV oranı: 0, 10, 20
-  kdv_rate?: number;               // DB field
-  kdvAmount?: number;              // KDV tutarı (TL)
-  kdv_amount?: number;             // DB field
-  grossAmountWithKdv?: number;     // KDV dahil brüt tutar
-  gross_amount_with_kdv?: number;  // DB field
-  netCommissionExKdv?: number;     // KDV hariç net komisyon
-  net_commission_ex_kdv?: number;  // DB field
 }
 
 // Document Management
@@ -491,179 +451,25 @@ export interface AdminUser {
   created_at?: string;
 }
 
-// ==================== ANALYTICS SYSTEM ====================
+// ==================== OFFICE PERFORMANCE SETTINGS ====================
 
-export interface DailyStats {
-  id: string;
-  userId: string;
-  user_id?: string;
-  officeId?: string;
-  office_id?: string;
-  statDate: string;
-  stat_date?: string;
-
-  // Activity counters
-  totalActivities: number;
-  total_activities?: number;
-  phoneCalls: number;
-  phone_calls?: number;
-  showings: number;
-  appointments: number;
-
-  // New records
-  newProperties: number;
-  new_properties?: number;
-  newCustomers: number;
-  new_customers?: number;
-
-  // Results
-  salesClosed: number;
-  sales_closed?: number;
-  rentalsClosed: number;
-  rentals_closed?: number;
-  depositsTaken: number;
-  deposits_taken?: number;
-
-  // Revenue
-  totalCommission: number;
-  total_commission?: number;
-  totalRevenue: number;
-  total_revenue?: number;
-
-  createdAt?: string;
-  created_at?: string;
-  updatedAt?: string;
-  updated_at?: string;
+export interface OfficePerformanceSettings {
+  // Danışmanların birbirinin performansını görmesi
+  showTeamPerformance: boolean;
+  // Danışmanların birbirinin satış rakamlarını görmesi
+  showTeamSales: boolean;
+  // Danışmanların birbirinin komisyonlarını görmesi
+  showTeamCommissions: boolean;
+  // Danışmanların birbirinin hedef ilerlemesini görmesi
+  showTeamTargets: boolean;
+  // Performans sıralamasını göster
+  showPerformanceRanking: boolean;
 }
 
-export type GoalMetricType =
-  | 'sales_count'
-  | 'rental_count'
-  | 'total_commission'
-  | 'total_revenue'
-  | 'new_properties'
-  | 'new_customers'
-  | 'activities_count'
-  | 'showings_count';
-
-export type GoalPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-
-export type GoalStatus = 'active' | 'completed' | 'cancelled' | 'expired';
-
-export interface Goal {
-  id: string;
-  userId: string;
-  user_id?: string;
-  officeId?: string;
-  office_id?: string;
-
-  metricType: GoalMetricType;
-  metric_type?: string;
-  targetValue: number;
-  target_value?: number;
-  actualValue: number;
-  actual_value?: number;
-
-  period: GoalPeriod;
-  periodStart: string;
-  period_start?: string;
-  periodEnd: string;
-  period_end?: string;
-
-  autoCalculated: boolean;
-  auto_calculated?: boolean;
-  insightText?: string;
-  insight_text?: string;
-
-  status: GoalStatus;
-
-  createdAt?: string;
-  created_at?: string;
-  updatedAt?: string;
-  updated_at?: string;
-}
-
-// RPC Response Types
-export interface ActivityTrendData {
-  period_label: string;
-  period_start: string;
-  total_activities: number;
-  phone_calls: number;
-  showings: number;
-  appointments: number;
-  positive_outcomes: number;
-  negative_outcomes: number;
-}
-
-export interface ConversionFunnelData {
-  stage: string;
-  stage_order: number;
-  count: number;
-  percentage: number;
-  from_previous_percentage: number;
-}
-
-export interface PerformanceInsight {
-  metric_name: string;
-  metric_value: number;
-  metric_unit: string;
-  change_from_previous: number;
-  insight_text: string;
-}
-
-export interface GoalProgress {
-  goal_id: string;
-  metric_type: GoalMetricType;
-  target_value: number;
-  actual_value: number;
-  progress_percentage: number;
-  period: GoalPeriod;
-  period_start: string;
-  period_end: string;
-  days_remaining: number;
-  on_track: boolean;
-  status: GoalStatus;
-}
-
-// ==================== AI PERFORMANCE ANALYSIS ====================
-
-export interface AIPerformanceAnalysis {
-  summary: string;           // Genel özet
-  strengths: string[];       // Güçlü yönler
-  improvements: string[];    // Geliştirilecek alanlar
-  recommendations: string[]; // Öneriler
-  motivationalNote: string;  // Motivasyonel not
-  generatedAt: string;       // Oluşturulma zamanı
-}
-
-export interface AIInsightRequest {
-  totalActivities: number;
-  phoneCalls: number;
-  showings: number;
-  newProperties: number;
-  newCustomers: number;
-  salesClosed: number;
-  rentalsClosed: number;
-  conversionRate: number;
-  avgSalesDays: number;
-  activityChange: number;
-  topPerformingDay: string;
-  goalProgress: number;
-}
-
-// ==================== EXPENSE MANAGEMENT ====================
-
-export type ExpenseCategory = 'kira' | 'fatura' | 'maaş' | 'diğer';
-
-export interface Expense {
-  id: string;
-  title: string;
-  amount: number;
-  category: ExpenseCategory;
-  date: string;
-  description?: string;
-  createdBy?: string;
-  created_by?: string;
-  createdAt?: string;
-  created_at?: string;
-}
+export const DEFAULT_PERFORMANCE_SETTINGS: OfficePerformanceSettings = {
+  showTeamPerformance: true,
+  showTeamSales: true,
+  showTeamCommissions: false,
+  showTeamTargets: true,
+  showPerformanceRanking: true,
+};

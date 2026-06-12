@@ -4,6 +4,21 @@ import { Subscription, PlanLimits, PlanType, AdminUser } from '../types';
 // Plan limitleri cache
 let planLimitsCache: PlanLimits[] | null = null;
 
+// ⚡ OPTİMİZE: Subscription cache - 5 dakika geçerli
+const SUBSCRIPTION_CACHE_TTL = 5 * 60 * 1000; // 5 dakika
+const subscriptionCache = new Map<string, { data: Subscription | null; timestamp: number }>();
+
+/**
+ * Subscription cache'i temizle (örn. plan değişikliği sonrası)
+ */
+export function clearSubscriptionCache(userId?: string): void {
+  if (userId) {
+    subscriptionCache.delete(userId);
+  } else {
+    subscriptionCache.clear();
+  }
+}
+
 /**
  * Tüm plan limitlerini getir
  */
@@ -14,7 +29,7 @@ export async function getAllPlanLimits(): Promise<PlanLimits[]> {
 
   const { data, error } = await supabase
     .from('plan_limits')
-    .select('plan,max_properties,max_customers,price_monthly,description');
+    .select('*');
 
   if (error) {
     console.error('Plan limits fetch error:', error);
@@ -53,22 +68,34 @@ export async function getPlanLimits(plan: PlanType): Promise<PlanLimits> {
 
 /**
  * Kullanıcının aboneliğini getir
+ * ⚡ OPTİMİZE: 5 dakikalık in-memory cache kullanır
  */
 export async function getSubscription(userId: string): Promise<Subscription | null> {
+  // Cache kontrolü
+  const cached = subscriptionCache.get(userId);
+  if (cached && Date.now() - cached.timestamp < SUBSCRIPTION_CACHE_TTL) {
+    return cached.data;
+  }
+
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('id,user_id,office_id,plan,status,started_at,expires_at,admin_notes,created_at,updated_at')
+    .select('*')
     .eq('user_id', userId)
     .single();
 
   if (error) {
     console.error('Subscription fetch error:', error);
+    // Hata durumunda da cache'e al (kısa süre) - sürekli DB çarpmasını önle
+    subscriptionCache.set(userId, { data: null, timestamp: Date.now() });
     return null;
   }
 
-  if (!data) return null;
+  if (!data) {
+    subscriptionCache.set(userId, { data: null, timestamp: Date.now() });
+    return null;
+  }
 
-  return {
+  const subscription: Subscription = {
     id: data.id,
     userId: data.user_id,
     officeId: data.office_id,
@@ -80,6 +107,10 @@ export async function getSubscription(userId: string): Promise<Subscription | nu
     createdAt: data.created_at,
     updatedAt: data.updated_at
   };
+
+  // Cache'e kaydet
+  subscriptionCache.set(userId, { data: subscription, timestamp: Date.now() });
+  return subscription;
 }
 
 /**
@@ -158,7 +189,7 @@ export async function createSubscription(
       plan,
       status: 'active'
     })
-    .select('id,user_id,office_id,plan,status,started_at,expires_at,admin_notes,created_at,updated_at')
+    .select()
     .single();
 
   if (error) {
@@ -199,7 +230,7 @@ export async function isAdmin(userId: string): Promise<boolean> {
 export async function getAdminUser(userId: string): Promise<AdminUser | null> {
   const { data, error } = await supabase
     .from('admin_users')
-    .select('id,user_id,role')
+    .select('*')
     .eq('user_id', userId)
     .single();
 
@@ -219,16 +250,7 @@ export async function getAllSubscriptions(): Promise<Subscription[]> {
   const { data, error } = await supabase
     .from('subscriptions')
     .select(`
-      id,
-      user_id,
-      office_id,
-      plan,
-      status,
-      started_at,
-      expires_at,
-      admin_notes,
-      created_at,
-      updated_at,
+      *,
       profiles:user_id (full_name, email)
     `)
     .order('created_at', { ascending: false });
@@ -323,6 +345,9 @@ export async function changeUserPlan(userId: string, newPlan: PlanType): Promise
     console.error('Plan change error:', error);
     return false;
   }
+
+  // ⚡ Plan değişti, cache'i temizle
+  clearSubscriptionCache(userId);
 
   // profiles tablosunu da güncelle
   await supabase
