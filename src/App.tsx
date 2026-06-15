@@ -23,6 +23,8 @@ import WebBuilder from './pages/WebBuilder';
 import WebPreview from './pages/WebPreview';
 import ProjectReviewsList from './pages/WebContent/ProjectReviewsList';
 import ProjectReviewForm from './pages/WebContent/ProjectReviewForm';
+import GuidesList from './pages/WebContent/GuidesList';
+import GuideForm from './pages/WebContent/GuideForm';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -210,6 +212,10 @@ const CRMApp: React.FC = () => {
             <Route path="web-content/projects" element={<ProjectReviewsList />} />
             <Route path="web-content/projects/new" element={<ProjectReviewForm />} />
             <Route path="web-content/projects/:id/edit" element={<ProjectReviewForm />} />
+
+            <Route path="web-content/guides" element={<GuidesList />} />
+            <Route path="web-content/guides/new" element={<GuideForm />} />
+            <Route path="web-content/guides/:id/edit" element={<GuideForm />} />
 
             <Route path="reports" element={<Reports />} />
             <Route path="team" element={<Team />} />
