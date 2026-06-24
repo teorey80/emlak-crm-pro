@@ -33,6 +33,78 @@ export function isCloudinaryConfigured(): boolean {
 }
 
 /**
+ * Görseli yüklemeden önce tarayıcıda küçült/sıkıştır.
+ * Telefon fotoğrafları çoğunlukla 5–12MB olur; bu fonksiyon uzun kenarı
+ * `maxDimension` pikselle sınırlar ve JPEG olarak yeniden kodlar.
+ * Böylece büyük dosyalar reddedilmez, yükleme de hızlanır.
+ *
+ * Hata olursa veya sıkıştırma faydasızsa orijinal dosya geri döner (güvenli fallback).
+ *
+ * @param file          Sıkıştırılacak dosya
+ * @param maxDimension  İzin verilen en uzun kenar (px) — varsayılan 1920
+ * @param quality       JPEG kalitesi 0–1 — varsayılan 0.8
+ */
+export async function compressImage(
+  file: File,
+  maxDimension = 1920,
+  quality = 0.8
+): Promise<File> {
+  // GIF ve görsel olmayan dosyalara dokunma
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+    return file;
+  }
+
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new window.Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+
+    let width = img.width;
+    let height = img.height;
+
+    if (width > maxDimension || height > maxDimension) {
+      if (width >= height) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', quality)
+    );
+    if (!blob) return file;
+
+    // Sıkıştırma faydasız olduysa orijinali koru
+    if (blob.size >= file.size) return file;
+
+    const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() });
+  } catch {
+    return file; // herhangi bir hatada orijinal dosyaya düş
+  }
+}
+
+/**
  * Tek bir dosyayı Cloudinary'e yükle.
  * @param file      Yüklenecek dosya (File objesi)
  * @param folder    Cloudinary klasörü (örn: "properties", "avatars")

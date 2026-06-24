@@ -42,7 +42,7 @@ import {
   WORKPLACE_FEATURES,
 } from '../constants/propertyConstants';
 import { PROVINCES, getDistricts, getProvinceCoordinates } from '../constants/turkeyLocations';
-import { uploadMultipleToCloudinary, isCloudinaryConfigured } from '../services/cloudinaryService';
+import { uploadMultipleToCloudinary, isCloudinaryConfigured, compressImage } from '../services/cloudinaryService';
 
 const PropertyForm: React.FC = () => {
   const navigate = useNavigate();
@@ -149,6 +149,68 @@ const PropertyForm: React.FC = () => {
       }
     }
   }, [id, properties]);
+
+  // ── Taslak (draft) otomatik kaydetme ─────────────────────────────
+  // Yeni ilan girişinde girilen veriler localStorage'a yedeklenir; böylece
+  // sekmeden çıkma, sayfa yenileme veya hata sonrası veri kaybı yaşanmaz.
+  const DRAFT_KEY = 'emlakcrm_property_draft_v1';
+
+  // Mount: kaydedilmiş taslağı geri yükle (yalnızca yeni ilan modunda)
+  useEffect(() => {
+    if (id) return; // düzenleme modunda taslak kullanma
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved?.formData) {
+        setFormData(saved.formData);
+        if (typeof saved.currentStep === 'number') setCurrentStep(saved.currentStep);
+        toast.success('Kaydedilmemiş taslağınız geri yüklendi', { duration: 4000 });
+      }
+    } catch (err) {
+      console.warn('[PropertyForm] Taslak geri yüklenemedi:', err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Değişiklikleri debounce ile otomatik kaydet
+  useEffect(() => {
+    if (id) return; // düzenleme modunda kaydetme
+    const handle = setTimeout(() => {
+      try {
+        // base64 görseller localStorage kotasını aşabilir — yalnızca CDN URL'lerini sakla
+        const slimImages = (formData.images || []).filter(
+          (u) => typeof u === 'string' && u.startsWith('http')
+        );
+        const draft = {
+          formData: { ...formData, images: slimImages },
+          currentStep,
+          savedAt: Date.now(),
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch (err) {
+        console.warn('[PropertyForm] Taslak kaydedilemedi:', err);
+      }
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [formData, currentStep, id]);
+
+  // Sekmeden/sayfadan ayrılırken kaydedilmemiş veri varsa uyar
+  useEffect(() => {
+    if (id) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      const hasContent =
+        !!formData.title?.trim() ||
+        (formData.images?.length ?? 0) > 0 ||
+        ((formData.price ?? 0) > 0);
+      if (hasContent) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [formData, id]);
 
   // Fetch neighborhoods when city and district change
   useEffect(() => {
@@ -436,25 +498,45 @@ Sadece JSON döndür:
 
   // ⚡ Image handling — Cloudinary CDN'e yükler (varsa), yoksa base64 fallback
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+    const input = e.target;
+    const files = input.files;
+    if (!files || files.length === 0) return;
 
     const currentImages = formData.images || [];
     if (currentImages.length + files.length > 60) {
       toast.error('Maksimum 60 fotoğraf yükleyebilirsiniz');
+      input.value = '';
       return;
     }
 
-    // Boyut filtresi
-    const validFiles = (Array.from(files) as File[]).filter((file: File) => {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`${file.name} 5MB'dan büyük, atlandı`);
+    // Çok büyük (bozuk olabilecek) dosyaları ele — normal telefon fotoğrafları geçer
+    const HARD_LIMIT = 25 * 1024 * 1024; // 25MB
+    const acceptedFiles = (Array.from(files) as File[]).filter((file: File) => {
+      if (file.size > HARD_LIMIT) {
+        toast.error(`${file.name} çok büyük (25MB üzeri), atlandı`);
         return false;
       }
       return true;
     });
 
-    if (validFiles.length === 0) return;
+    if (acceptedFiles.length === 0) {
+      input.value = '';
+      return;
+    }
+
+    // Yüklemeden önce tarayıcıda otomatik küçült/sıkıştır
+    let validFiles: File[];
+    try {
+      toast.loading('Fotoğraflar hazırlanıyor...', { id: 'img-compress' });
+      validFiles = await Promise.all(acceptedFiles.map((f) => compressImage(f)));
+      toast.dismiss('img-compress');
+    } catch (err) {
+      toast.dismiss('img-compress');
+      validFiles = acceptedFiles; // sıkıştırma başarısızsa orijinallerle devam
+    }
+
+    // Aynı dosyaların tekrar seçilebilmesi için input'u sıfırla
+    input.value = '';
 
     // ── Cloudinary yolu ──────────────────────────────────────────────
     if (isCloudinaryConfigured()) {
@@ -475,10 +557,14 @@ Sadece JSON döndür:
       );
 
       const errorCount = results.filter((r) => r.error).length;
+      // Hata sayacını sıfırla (başarısız yüklemeler onProgress'i tetiklemez)
+      setUploadingCount((n) => Math.max(0, n - errorCount));
       toast.dismiss('img-upload');
 
       if (errorCount > 0) {
         toast.error(`${errorCount} fotoğraf yüklenemedi. Lütfen tekrar deneyin.`);
+        const successCount = validFiles.length - errorCount;
+        if (successCount > 0) toast.success(`${successCount} fotoğraf yüklendi`);
       } else {
         toast.success(`${validFiles.length} fotoğraf yüklendi`);
       }
@@ -541,6 +627,10 @@ Sadece JSON döndür:
         await addProperty(propertyData);
         toast.success('İlan oluşturuldu!');
       }
+      // Başarılı kayıttan sonra taslağı temizle
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch { /* yok say */ }
       navigate('/properties');
     } catch (err: any) {
       toast.error('İşlem başarısız: ' + (err.message || 'Bilinmeyen hata'));
