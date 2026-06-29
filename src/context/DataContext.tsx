@@ -363,11 +363,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('LIMIT_REACHED');
     }
     // Attach current user ID and Office ID
-    const propertyWithUser = {
+    const propertyWithUser: Record<string, any> = {
       ...property,
       user_id: session?.user.id,
       office_id: userProfile.officeId || property.office_id // Preserve existing or use current
     };
+
+    // DB kolonu snake_case 'accessibility_features'; form camelCase gönderiyor → eşle.
+    if (propertyWithUser.accessibilityFeatures !== undefined) {
+      propertyWithUser.accessibility_features = propertyWithUser.accessibilityFeatures;
+      delete propertyWithUser.accessibilityFeatures;
+    }
 
     if (!propertyWithUser.office_id) {
       console.error("CRITICAL: Attempting to add property without office_id!", propertyWithUser);
@@ -432,6 +438,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       customerId: 'customer_id',
       listingStatus: 'listing_status',
       soldDate: 'sold_date',
+      accessibilityFeatures: 'accessibility_features',
       publishedOnPersonalSite: 'publishedOnPersonalSite',
       publishedOnMarketplace: 'publishedOnMarketplace'
     };
