@@ -23,6 +23,8 @@ interface DataContextType {
   userProfile: UserProfile;
   office: Office | null;
   loading: boolean;
+  propertiesLoadError: string | null;
+  refetchData: () => Promise<void>;
   // Subscription
   subscription: Subscription | null;
   planLimits: PlanLimits | null;
@@ -66,6 +68,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   // İlk veri yüklemesi yapıldı mı? Sonraki yenilemelerde tam ekran "Yükleniyor" gösterme.
   const dataInitializedRef = useRef(false);
+  // Aynı anda birden fazla fetchData çalışmasını engelle (DB'yi mükerrer istekle boğmamak için).
+  const fetchInProgressRef = useRef(false);
+  // Profil çekmenin de mükerrer çalışmasını engelle.
+  const profileFetchedForRef = useRef<string | null>(null);
+  // Portföy yükleme hatası (ör. statement timeout / 500) — UI'da banner + "Yenile" için.
+  const [propertiesLoadError, setPropertiesLoadError] = useState<string | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -154,6 +162,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
+    // Aynı kullanıcı için profil zaten çekildiyse tekrar çekme (mükerrer istek önleme).
+    if (profileFetchedForRef.current === userId) return;
+    profileFetchedForRef.current = userId;
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -230,6 +241,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [session]);
 
   const fetchData = async () => {
+    // Aynı anda ikinci bir fetchData çalışmasını engelle. Açılışta getSession ve
+    // onAuthStateChange birlikte tetiklenince DB'ye mükerrer (2x) istek gidiyordu;
+    // bu kilit yükü yarıya indirir ve statement-timeout/500 riskini azaltır.
+    if (fetchInProgressRef.current) return;
+    fetchInProgressRef.current = true;
+
     // Sadece ilk yüklemede tam ekran "Yükleniyor" göster. Sonraki yenilemeler
     // (ör. sekme geçişleri) arka planda sessizce yapılır, ekran kaybolmaz.
     if (!dataInitializedRef.current) setLoading(true);
@@ -245,9 +262,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('profiles').select('*') // RLS ensures we only see office members
       ]);
 
-      if (propsRes.data) {
+      if (propsRes.error) {
+        // Portföy sorgusu başarısız oldu (genelde aşırı yük altında statement timeout / 500).
+        // Diğer veriler boş gibi görünmesin; hatayı sakla, mevcut listeyi koru.
+        console.error('Error fetching properties:', propsRes.error);
+        setPropertiesLoadError(propsRes.error.message || 'Portföy yüklenemedi');
+      } else if (propsRes.data) {
         setProperties(propsRes.data);
         setHasMoreProperties(propsRes.data.length === PAGE_SIZE);
+        setPropertiesLoadError(null);
       }
       if (custRes.data) {
         setCustomers(custRes.data);
@@ -277,8 +300,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("Error fetching data from Supabase:", error);
     } finally {
       dataInitializedRef.current = true;
+      fetchInProgressRef.current = false;
       setLoading(false);
     }
+  };
+
+  // PropertyList'teki "Yenile" butonu ve hata banner'ı bunu kullanır.
+  // Tek seferde sadece portföyü (ve diğer verileri) yeniden çeker.
+  const refetchData = async () => {
+    await fetchData();
   };
 
   // --- Subscription Limit Checks ---
@@ -663,6 +693,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signOut = async () => {
     await supabase.auth.signOut();
     dataInitializedRef.current = false;
+    profileFetchedForRef.current = null;
     setSession(null);
     setProperties([]);
     setCustomers([]);
@@ -772,6 +803,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider value={{
       session, signOut,
       properties, customers, sites, activities, requests, sales, teamMembers, webConfig, userProfile, office, loading,
+      propertiesLoadError, refetchData,
       subscription, planLimits, canAddProperty, canAddCustomer, getUsageStats,
       hasMoreProperties, hasMoreCustomers, hasMoreActivities, loadingMore,
       addProperty, updateProperty, deleteProperty, addCustomer, updateCustomer, deleteCustomer,
