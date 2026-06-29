@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale, Subscription, PlanLimits } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { getSubscription, getPlanLimits } from '../services/subscriptionService';
@@ -64,6 +64,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // İlk veri yüklemesi yapıldı mı? Sonraki yenilemelerde tam ekran "Yükleniyor" gösterme.
+  const dataInitializedRef = useRef(false);
   const [properties, setProperties] = useState<Property[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -128,13 +130,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchUserProfile(session.user.id);
-      else {
-        setUserProfile({ id: '', name: '', title: '', avatar: '' });
-        setOffice(null);
-      }
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      // Sekme/pencere değişiminde Supabase TOKEN_REFRESHED tetikler ve yeni bir
+      // session nesnesi gönderir. Kullanıcı aynıysa session'ı DEĞİŞTİRME; aksi halde
+      // useEffect([session]) yeniden çalışır, tüm veriler baştan çekilir ve ekran kaybolur.
+      setSession((prev) => {
+        if (prev?.user?.id === newSession?.user?.id) return prev;
+
+        if (newSession) {
+          fetchUserProfile(newSession.user.id);
+        } else {
+          setUserProfile({ id: '', name: '', title: '', avatar: '' });
+          setOffice(null);
+        }
+        return newSession;
+      });
     });
 
     return () => {
@@ -220,7 +230,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [session]);
 
   const fetchData = async () => {
-    setLoading(true);
+    // Sadece ilk yüklemede tam ekran "Yükleniyor" göster. Sonraki yenilemeler
+    // (ör. sekme geçişleri) arka planda sessizce yapılır, ekran kaybolmaz.
+    if (!dataInitializedRef.current) setLoading(true);
     try {
       // Fetch in parallel with pagination (limit to PAGE_SIZE)
       const [propsRes, custRes, sitesRes, actRes, reqRes, salesRes, teamRes] = await Promise.all([
@@ -264,6 +276,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error("Error fetching data from Supabase:", error);
     } finally {
+      dataInitializedRef.current = true;
       setLoading(false);
     }
   };
@@ -649,6 +662,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    dataInitializedRef.current = false;
     setSession(null);
     setProperties([]);
     setCustomers([]);
