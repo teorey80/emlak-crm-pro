@@ -436,69 +436,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Update local state first - merge with existing property
     setProperties((prev) => prev.map(p => p.id === updatedProperty.id ? { ...p, ...updatedProperty } : p));
 
-    // Build DB update object - only include fields that are provided
-    const propertyForDB: Record<string, any> = {};
-    const prop = updatedProperty as any;
+    // DB payload: form alanlarını gerçek kolon adlarına çevir + tip dönüşümü.
+    // (addProperty ile AYNI mantık — "column not found" ve tip hatalarını önler.)
+    const dbPayload = buildPropertyDbPayload(updatedProperty as any);
+    // Kimlik/sahiplik alanları güncellemede değişmemeli.
+    ['id', 'user_id', 'office_id', 'created_at'].forEach(k => { delete dbPayload[k]; });
+    Object.keys(dbPayload).forEach(k => { if (dbPayload[k] === undefined) delete dbPayload[k]; });
 
-    // Direct snake_case fields (pass through as-is)
-    const snakeCaseFields = [
-      'listing_status', 'sold_date', 'deposit_amount', 'deposit_date',
-      'deposit_buyer_id', 'deposit_buyer_name', 'deposit_notes', 'inactive_reason'
-    ];
-    snakeCaseFields.forEach(field => {
-      if (prop[field] !== undefined) propertyForDB[field] = prop[field];
-    });
-
-    // Map camelCase to snake_case
-    const fieldMapping: Record<string, string> = {
-      title: 'title',
-      description: 'description',
-      price: 'price',
-      status: 'status',
-      propertyType: 'property_type',
-      listingType: 'listing_type',
-      address: 'address',
-      city: 'city',
-      district: 'district',
-      neighborhood: 'neighborhood',
-      squareMeters: 'square_meters',
-      rooms: 'rooms',
-      bathrooms: 'bathrooms',
-      floor: 'floor',
-      totalFloors: 'total_floors',
-      buildingAge: 'building_age',
-      heatingType: 'heating_type',
-      furnished: 'furnished',
-      features: 'features',
-      images: 'images',
-      videoUrl: 'video_url',
-      virtualTourUrl: 'virtual_tour_url',
-      ownerName: 'owner_name',
-      ownerPhone: 'owner_phone',
-      notes: 'notes',
-      listingDate: 'listing_date',
-      source: 'source',
-      customerId: 'customer_id',
-      listingStatus: 'listing_status',
-      soldDate: 'sold_date',
-      accessibilityFeatures: 'accessibility_features',
-      publishedOnPersonalSite: 'publishedOnPersonalSite',
-      publishedOnMarketplace: 'publishedOnMarketplace'
-    };
-
-    Object.entries(fieldMapping).forEach(([camelCase, snakeCase]) => {
-      if (prop[camelCase] !== undefined) propertyForDB[snakeCase] = prop[camelCase];
-    });
-
-    // If no fields to update, skip
-    if (Object.keys(propertyForDB).length === 0) {
-      console.log('No fields to update');
+    // Güncellenecek alan yoksa atla
+    if (Object.keys(dbPayload).length === 0) {
       return;
     }
 
-    console.log('Updating property in DB:', propertyForDB);
-
-    const { error } = await supabase.from('properties').update(propertyForDB).eq('id', updatedProperty.id);
+    const { error } = await supabase.from('properties').update(dbPayload).eq('id', updatedProperty.id);
     if (error) {
       console.error('Error updating property:', error);
       throw error;
