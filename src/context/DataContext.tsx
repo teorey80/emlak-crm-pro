@@ -355,6 +355,50 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Actions ---
 
+  // Form alan adlarını veritabanındaki gerçek kolon adlarına çevirir, tip
+  // uyumsuzluklarını düzeltir ve DB'de kolonu olmayan alanları çıkarır.
+  // (Form İngilizce/camelCase üretiyor, DB ise karışık camelCase + Türkçe.)
+  const buildPropertyDbPayload = (obj: Record<string, any>): Record<string, any> => {
+    // Form alanı -> DB kolonu (isim farklı olanlar)
+    const RENAME: Record<string, string> = {
+      balcony: 'balkon',
+      elevator: 'asansor',
+      creditEligible: 'krediyeUygunluk',
+      ownerType: 'kimden',
+      exchange: 'takas',
+      siteName: 'site',
+      accessibilityFeatures: 'accessibility_features',
+      zoningStatus: 'imarDurumu',
+      blockNo: 'adaNo',
+      parcelNo: 'parselNo',
+      sheetNo: 'paftaNo',
+    };
+    // DB'de karşılık kolonu olmayan alanlar (insert'e dahil edilmez, aksi halde
+    // "Could not find the '...' column" hatası verir).
+    const DROP = new Set([
+      'category', 'subCategory', 'propertyNumber', 'listingSource', 'facades',
+      'interiorFeatures', 'exteriorFeatures', 'neighborhoodFeatures',
+      'transportationFeatures', 'viewFeatures', 'residenceType',
+      'landInfrastructure', 'landLocation', 'landGeneralFeatures',
+      'workplaceFeatures', 'ownerPhone',
+    ]);
+    // Tamsayı (integer) kolonlar — ondalık/metin gelirse tabana yuvarla.
+    const INT_COLS = new Set(['currentFloor', 'floorCount', 'buildingAge', 'bathrooms']);
+
+    const out: Record<string, any> = {};
+    for (let [k, v] of Object.entries(obj)) {
+      if (DROP.has(k)) continue;
+      k = RENAME[k] || k;
+      if (v === '') {
+        v = null; // boş string sayısal/tarih kolonlarda hata verir → null
+      } else if (INT_COLS.has(k) && v != null && !Number.isInteger(Number(v)) && !isNaN(Number(v))) {
+        v = Math.floor(Number(v)); // ör. "Bahçe Katı" = 0.5 → 0
+      }
+      out[k] = v;
+    }
+    return out;
+  };
+
   const addProperty = async (property: Property) => {
     // Check limit before adding
     const { allowed, message } = await canAddProperty();
@@ -369,22 +413,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       office_id: userProfile.officeId || property.office_id // Preserve existing or use current
     };
 
-    // DB kolonu snake_case 'accessibility_features'; form camelCase gönderiyor → eşle.
-    if (propertyWithUser.accessibilityFeatures !== undefined) {
-      propertyWithUser.accessibility_features = propertyWithUser.accessibilityFeatures;
-      delete propertyWithUser.accessibilityFeatures;
-    }
-
     if (!propertyWithUser.office_id) {
       console.error("CRITICAL: Attempting to add property without office_id!", propertyWithUser);
     }
 
-    // Optimistic update
-    setProperties((prev) => [propertyWithUser, ...prev]);
+    // DB'ye gidecek temiz payload (alan eşleme + tip dönüşümü).
+    const dbPayload = buildPropertyDbPayload(propertyWithUser);
 
-    const { error } = await supabase.from('properties').insert([propertyWithUser]);
+    // Optimistic update — ekrana camelCase orijinali ekle.
+    setProperties((prev) => [propertyWithUser as Property, ...prev]);
+
+    const { error } = await supabase.from('properties').insert([dbPayload]);
     if (error) {
       console.error('Error adding property:', error);
+      // Hata olursa iyimser eklemeyi geri al — sahte kopya kalmasın.
+      setProperties((prev) => prev.filter(p => p.id !== propertyWithUser.id));
       throw error;
     }
   };
