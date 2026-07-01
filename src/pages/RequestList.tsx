@@ -85,7 +85,7 @@ const RequestList: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-semibold text-slate-700 dark:text-slate-300 w-16">Bütçe:</span>
-                                    <span>{req.minPrice.toLocaleString()} - {req.maxPrice.toLocaleString()} {req.currency}</span>
+                                    <span>{(req.minPrice ?? 0).toLocaleString()} - {(req.maxPrice ?? 0).toLocaleString()} {req.currency}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-semibold text-slate-700 dark:text-slate-300 w-16">Konum:</span>

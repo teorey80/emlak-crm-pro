@@ -120,7 +120,7 @@ const Dashboard: React.FC = () => {
         date: r.date,
         time: 'Yeni',
         customerId: r.customerId,
-        description: `${r.requestType} ${r.type} - Max ${r.maxPrice.toLocaleString()} ₺`
+        description: `${r.requestType} ${r.type} - Max ${(r.maxPrice ?? 0).toLocaleString()} ₺`
       }));
 
     // Combine and sort by date/time
@@ -255,7 +255,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-yellow-300">Bulundu: {match.property.title}</p>
-                        <p className="text-sm text-indigo-100">{match.property.price.toLocaleString()} ₺</p>
+                        <p className="text-sm text-indigo-100">{match.property.price != null ? `${match.property.price.toLocaleString()} ₺` : '—'}</p>
                       </div>
                       <button
                         onClick={() => navigate(`/properties/${match.property.id}`)}
@@ -381,7 +381,7 @@ const Dashboard: React.FC = () => {
                       <div className="bg-sky-600 dark:bg-sky-500 h-2 rounded-full" style={{ width: `${match.score}%` }}></div>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      {match.property.title} - {match.property.price.toLocaleString('tr-TR')} TL
+                      {match.property.title} - {match.property.price != null ? `${match.property.price.toLocaleString('tr-TR')} TL` : '—'}
                     </p>
                   </div>
                   <button

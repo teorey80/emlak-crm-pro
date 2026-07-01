@@ -45,7 +45,7 @@ const RequestDetail: React.FC = () => {
                 <div>
                     <span className="text-xs text-gray-400 dark:text-slate-500 block uppercase">Bütçe Aralığı</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {request.minPrice.toLocaleString()} - {request.maxPrice.toLocaleString()} {request.currency}
+                        {(request.minPrice ?? 0).toLocaleString()} - {(request.maxPrice ?? 0).toLocaleString()} {request.currency}
                     </span>
                 </div>
                 <div>
@@ -82,7 +82,7 @@ const RequestDetail: React.FC = () => {
                             <div className="h-48 overflow-hidden relative">
                                 <img src={prop.images[0]} alt={prop.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                                 <div className="absolute top-3 right-3 bg-white/90 dark:bg-slate-900/90 px-2 py-1 rounded shadow text-xs font-bold text-slate-800 dark:text-white">
-                                    {prop.price.toLocaleString()} {prop.currency}
+                                    {prop.price != null ? `${prop.price.toLocaleString()} ${prop.currency}` : '—'}
                                 </div>
                             </div>
                             <div className="p-4">

@@ -408,7 +408,7 @@ const PropertyList: React.FC = () => {
                                             </td>
                                             <td className="p-4 text-gray-600 dark:text-slate-400">{property.type}</td>
                                             <td className="p-4 font-medium text-slate-700 dark:text-slate-300">
-                                                {property.price.toLocaleString('tr-TR')} {property.currency}
+                                                {property.price != null ? `${property.price.toLocaleString('tr-TR')} ${property.currency}` : '—'}
                                             </td>
                                             <td className="p-4">
                                                 {(() => {

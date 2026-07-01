@@ -98,7 +98,7 @@ const CalendarPage: React.FC = () => {
             type: 'request',
             subtype: r.type,
             title: r.customerName,
-            description: `${r.requestType} ${r.type} - Bütçe: ${r.maxPrice.toLocaleString('tr-TR')} ${r.currency}`,
+            description: `${r.requestType} ${r.type} - Bütçe: ${(r.maxPrice ?? 0).toLocaleString('tr-TR')} ${r.currency}`,
             status: r.status,
             sourceData: r
         }));

@@ -214,7 +214,7 @@ const MatchCenter: React.FC = () => {
                                         </p>
                                         <p className="flex items-center gap-2 font-semibold text-emerald-600 dark:text-emerald-400">
                                             <DollarSign className="w-4 h-4" />
-                                            {match.property.price.toLocaleString('tr-TR')} ₺
+                                            {match.property.price != null ? `${match.property.price.toLocaleString('tr-TR')} ₺` : '—'}
                                         </p>
                                     </div>
                                 </div>

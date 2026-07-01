@@ -149,7 +149,7 @@ const CustomerDetail: React.FC = () => {
                                             <div className="relative h-32">
                                                 <img src={property.images[0] || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                                 <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-slate-800 dark:text-white">
-                                                    {property.price.toLocaleString()} {property.currency}
+                                                    {property.price != null ? `${property.price.toLocaleString()} ${property.currency}` : '—'}
                                                 </div>
                                             </div>
                                             <div className="p-3">

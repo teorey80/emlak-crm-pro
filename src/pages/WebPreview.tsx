@@ -326,7 +326,7 @@ const PropertyGrid: React.FC<{ properties: Property[], config: WebSiteConfig, co
 
                         <div className="flex justify-between items-center">
                             <div className="text-xl font-bold" style={{ color: config.primaryColor }}>
-                                {property.price.toLocaleString('tr-TR')} {property.currency}
+                                {property.price != null ? `${property.price.toLocaleString('tr-TR')} ${property.currency}` : '—'}
                             </div>
                             <button className="text-sm font-medium text-gray-500 hover:text-black">
                                 Detaylar &rarr;

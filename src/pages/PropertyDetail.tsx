@@ -117,7 +117,7 @@ const PropertyDetail: React.FC = () => {
                             <div className="text-right">
                                 <p className="text-xs text-gray-400 dark:text-slate-500">Emlak ID: {property.id}</p>
                                 <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">
-                                    {property.price.toLocaleString('tr-TR')} ₺
+                                    {property.price != null ? `${property.price.toLocaleString('tr-TR')} ₺` : '—'}
                                 </p>
                             </div>
                             {/* Status Badge */}
@@ -171,7 +171,7 @@ const PropertyDetail: React.FC = () => {
                                     <div key={req.id} className="bg-white dark:bg-slate-700/50 border border-indigo-100 dark:border-slate-600 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm hover:shadow-md transition-all">
                                         <div>
                                             <h4 className="font-bold text-slate-800 dark:text-white">{req.customerName}</h4>
-                                            <p className="text-sm text-gray-500 dark:text-slate-300">{req.type} • {req.minPrice.toLocaleString()} - {req.maxPrice.toLocaleString()} {req.currency}</p>
+                                            <p className="text-sm text-gray-500 dark:text-slate-300">{req.type} • {(req.minPrice ?? 0).toLocaleString()} - {(req.maxPrice ?? 0).toLocaleString()} {req.currency}</p>
                                             <p className="text-xs text-gray-400 dark:text-slate-400 mt-1">Not: {req.notes}</p>
                                         </div>
                                         <Link to={`/requests/${req.id}`} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
