@@ -571,18 +571,16 @@ Sadece JSON döndür:
       return;
     }
 
-    // ── Fallback: Cloudinary yoksa base64 (eski davranış) ────────────
-    console.warn('[PropertyForm] Cloudinary yapılandırılmamış, base64 kullanılıyor.');
-    for (const file of validFiles) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData((prev) => ({
-          ...prev,
-          images: [...(prev.images || []), reader.result as string],
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
+    // ── Cloudinary yoksa: base64'i DB'ye GÖMME ───────────────────────
+    // NOT: Eskiden burada base64 fallback vardı. Ancak base64 görseller
+    // properties.images kolonunu MB'larca şişirip "select *" sorgusunu
+    // 20+ sn'ye çıkararak tüm portföyün yüklenmesini kilitledi (canlı arıza).
+    // Bu yüzden artık base64'e düşmüyoruz; kullanıcıyı net biçimde uyarıyoruz.
+    console.error('[PropertyForm] Cloudinary yapılandırılmamış — fotoğraf yüklenemedi (base64 fallback devre dışı).');
+    toast.error(
+      'Fotoğraf yüklenemedi: görsel servisi (Cloudinary) yapılandırılmamış. ' +
+      'Yöneticinize bildirin (VITE_CLOUDINARY_CLOUD_NAME / VITE_CLOUDINARY_UPLOAD_PRESET).'
+    );
   };
 
   const removeImage = (index: number) => {
