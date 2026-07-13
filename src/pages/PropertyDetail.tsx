@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
 import RentalForm from '../components/RentalForm';
 import DocumentManager from '../components/DocumentManager';
 import { Sale } from '../types';
+import { compressImage, isCloudinaryConfigured, uploadMultipleToCloudinary } from '../services/cloudinaryService';
 
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -18,6 +19,8 @@ const PropertyDetail: React.FC = () => {
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
     const [inactiveReason, setInactiveReason] = useState('');
     const [cancelingSale, setCancelingSale] = useState(false);
+    const [uploadingImages, setUploadingImages] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Find sale for this property
     const propertySale = sales.find(s => s.propertyId === id || s.property_id === id);
@@ -33,6 +36,66 @@ const PropertyDetail: React.FC = () => {
     if (!property) {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
     }
+
+    const propertyImages = property.images || [];
+
+    const handleAddImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const input = event.currentTarget;
+        const selectedFiles = Array.from(input.files || []);
+        input.value = '';
+
+        if (selectedFiles.length === 0) return;
+        if (!isOwner) {
+            toast.error('Bu ilana görsel ekleme yetkiniz bulunmuyor.');
+            return;
+        }
+
+        const imageFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+        if (imageFiles.length === 0) {
+            toast.error('Lütfen geçerli bir görsel dosyası seçin.');
+            return;
+        }
+        if (!isCloudinaryConfigured()) {
+            toast.error('Görsel yükleme servisi yapılandırılmamış.');
+            return;
+        }
+
+        setUploadingImages(true);
+        toast.loading(`${imageFiles.length} görsel hazırlanıyor...`, { id: 'property-image-upload' });
+
+        try {
+            const compressedFiles = await Promise.all(imageFiles.map((file) => compressImage(file)));
+            toast.loading(`${compressedFiles.length} görsel yükleniyor...`, { id: 'property-image-upload' });
+
+            const results = await uploadMultipleToCloudinary(
+                compressedFiles,
+                'emlak-crm/properties'
+            );
+            const uploadedUrls = results.filter((result) => result.url).map((result) => result.url);
+            const failedCount = results.length - uploadedUrls.length;
+
+            if (uploadedUrls.length === 0) {
+                throw new Error(results[0]?.error || 'Görseller yüklenemedi.');
+            }
+
+            await updateProperty({
+                ...property,
+                images: [...propertyImages, ...uploadedUrls]
+            });
+
+            if (failedCount > 0) {
+                toast.success(`${uploadedUrls.length} görsel eklendi, ${failedCount} görsel yüklenemedi.`, { id: 'property-image-upload' });
+            } else {
+                toast.success(`${uploadedUrls.length} görsel başarıyla eklendi.`, { id: 'property-image-upload' });
+            }
+        } catch (error) {
+            console.error('Portföy görseli ekleme hatası:', error);
+            const message = error instanceof Error ? error.message : 'Görseller eklenirken bir hata oluştu.';
+            toast.error(message, { id: 'property-image-upload' });
+        } finally {
+            setUploadingImages(false);
+        }
+    };
 
     // Filter activities related to this property
     const propertyActivities = activities.filter(a => a.propertyId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -141,20 +204,30 @@ const PropertyDetail: React.FC = () => {
                     </div>
 
                     {/* Images Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-96">
-                        <div className="md:col-span-2 h-64 md:h-full relative group cursor-pointer overflow-hidden rounded-2xl">
-                            <img src={property.images[0]} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                            <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm flex items-center">
-                                <Maximize className="w-3 h-3 mr-1" />
-                                Tüm Fotoğraflar ({property.images.length})
+                    {propertyImages.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-96">
+                            <div className="md:col-span-2 h-64 md:h-full relative group cursor-pointer overflow-hidden rounded-2xl">
+                                <img src={propertyImages[0]} alt={property.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-xs backdrop-blur-sm flex items-center">
+                                    <Maximize className="w-3 h-3 mr-1" />
+                                    Tüm Fotoğraflar ({propertyImages.length})
+                                </div>
                             </div>
+                            {propertyImages.slice(1).map((img, idx) => (
+                                <div key={img || idx} className="hidden md:block h-full relative rounded-2xl overflow-hidden">
+                                    <img src={img} alt={`${property.title} ${idx + 2}`} className="w-full h-full object-cover" />
+                                </div>
+                            ))}
                         </div>
-                        {property.images.slice(1).map((img, idx) => (
-                            <div key={idx} className="hidden md:block h-full relative rounded-2xl overflow-hidden">
-                                <img src={img} alt="Sub" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="h-72 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 flex flex-col items-center justify-center text-center px-6">
+                            <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center mb-3">
+                                <ImagePlus className="w-7 h-7 text-sky-600 dark:text-sky-400" />
                             </div>
-                        ))}
-                    </div>
+                            <p className="font-semibold text-slate-700 dark:text-slate-200">Henüz görsel eklenmedi</p>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Sağdaki Görsel Ekle düğmesiyle fotoğraf yükleyebilirsiniz.</p>
+                        </div>
+                    )}
 
                     {/* Matching Requests Section - NEW */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/50 bg-gradient-to-r from-white to-indigo-50/30 dark:from-slate-800 dark:to-indigo-900/20 transition-colors">
@@ -479,6 +552,27 @@ const PropertyDetail: React.FC = () => {
                                         <Edit className="w-4 h-4" />
                                         Emlağı Düzenle
                                     </Link>
+                                    <input
+                                        ref={imageInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        className="hidden"
+                                        onChange={handleAddImages}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => imageInputRef.current?.click()}
+                                        disabled={uploadingImages}
+                                        className="w-full bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 py-3 rounded-xl font-medium hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors border border-sky-100 dark:border-sky-900/50 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        {uploadingImages ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <ImagePlus className="w-4 h-4" />
+                                        )}
+                                        {uploadingImages ? 'Görseller Yükleniyor...' : 'Görsel Ekle'}
+                                    </button>
                                     {/* Show Sale or Rental button based on property status */}
                                     {(property.listingStatus === 'Satıldı' || property.listing_status === 'Satıldı') ? (
                                         /* Property is SOLD - Show sale info and cancel option */
