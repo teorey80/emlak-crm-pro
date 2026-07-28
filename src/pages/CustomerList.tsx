@@ -43,11 +43,13 @@ const CustomerList: React.FC = () => {
     );
 
     const filteredCustomers = useMemo(() => {
+        const searchLower = searchTerm.toLowerCase();
+
         return customers
             .filter(c =>
                 (selectedType === '' || c.customerType === selectedType) &&
-                (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    c.email.toLowerCase().includes(searchTerm.toLowerCase()))
+                ((c.name || '').toLowerCase().includes(searchLower) ||
+                    (c.email || '').toLowerCase().includes(searchLower))
             )
             .sort((a, b) => {
                 if (!sortColumn) return 0;
@@ -55,7 +57,7 @@ const CustomerList: React.FC = () => {
                 const multiplier = sortDirection === 'asc' ? 1 : -1;
                 switch (sortColumn) {
                     case 'name':
-                        return multiplier * a.name.localeCompare(b.name, 'tr');
+                        return multiplier * (a.name || '').localeCompare(b.name || '', 'tr');
                     case 'phone':
                         return multiplier * (a.phone || '').localeCompare(b.phone || '', 'tr');
                     case 'email':
