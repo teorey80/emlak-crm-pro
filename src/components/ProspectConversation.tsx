@@ -3,7 +3,7 @@ import { Clock, Phone, X } from 'lucide-react';
 import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectOutcome, ProspectStage } from '../types';
 import type { ProspectingRepository } from '../services/prospectingService';
 import { prospectingError } from '../services/prospectingService';
-import { CLOSED_STAGES, formatProspectDate, fromIstanbulInput, normalizePhone, PROSPECT_STAGES, toIstanbulInput } from '../utils/prospecting';
+import { CLOSED_STAGES, formatProspectDate, fromIstanbulInput, normalizePhone, PROSPECT_STAGES, toIstanbulInput, safeProspectUrl, prospectSourceKind, prospectLocation } from '../utils/prospecting';
 import ProspectProvenance from './ProspectProvenance';
 
 interface Props {
@@ -33,7 +33,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
   const [blockedConfirmed, setBlockedConfirmed] = useState(false);
   const closed = CLOSED_STAGES.includes(stage) || outcome === 'do_not_contact';
   const phone = normalizePhone(item.contact.phone);
-  const safeSource = /^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(item.source_url);
+  const safeSource = safeProspectUrl(item.source_url);
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -64,7 +64,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
 
   return <dialog ref={dialog} aria-labelledby="prospect-dialog-title" onCancel={e => { e.preventDefault(); if (!busy) onClose(); }} className="w-[min(960px,96vw)] max-h-[92dvh] m-auto p-0 rounded-2xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-2xl backdrop:bg-slate-950/50">
     <header className="sticky top-0 z-10 flex justify-between items-start gap-4 p-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-      <div><p className="text-xs text-sky-600 dark:text-sky-400 mb-1">{PROSPECT_STAGES[item.stage]}</p><h2 id="prospect-dialog-title" className="text-xl font-semibold">{item.contact.name}</h2><p className="text-sm text-slate-500 mt-1">{item.site_name} · {item.block} blok · Daire {item.unit}</p></div>
+      <div><p className="text-xs text-sky-600 dark:text-sky-400 mb-1">{PROSPECT_STAGES[item.stage]}</p><h2 id="prospect-dialog-title" className="text-xl font-semibold">{item.contact.name}</h2><p className="text-sm text-slate-500 mt-1">{prospectLocation(item)}</p></div>
       <button type="button" onClick={onClose} disabled={busy} aria-label="Görüşme panelini kapat" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"><X size={20} /></button>
     </header>
     <div className="grid md:grid-cols-2 gap-6 p-5">
@@ -79,7 +79,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
         <h3 className="font-semibold flex items-center gap-2"><Clock size={16} /> Görüşme geçmişi</h3>
         {historyLoading ? <p className="text-sm text-slate-500">Geçmiş yükleniyor…</p> : historyError ? <p role="alert" className="text-sm text-red-600">{historyError}</p> : history.length === 0 ? <p className="text-sm text-slate-500">Henüz görüşme kaydı yok.</p> : <ol className="space-y-4">
           {history.map(entry => <li key={entry.id} className="border-l-2 border-sky-200 dark:border-sky-800 pl-3">
-            <p className="text-xs text-slate-500 dark:text-slate-400">{entry.occurred_at ? entry.date_precision === 'day' ? new Date(entry.occurred_at).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) : formatProspectDate(entry.occurred_at) : 'Tarihi belirtilmemiş'} · {entry.outcome === 'plan' ? 'Takip planı' : entry.outcome === 'import' ? 'Kaynak görüşme' : entry.outcome === 'no_answer' ? 'Ulaşılamadı' : entry.outcome === 'do_not_contact' ? 'İletişim tercihi' : 'Görüşme'}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{entry.occurred_at ? entry.date_precision === 'day' ? new Date(entry.occurred_at).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) : formatProspectDate(entry.occurred_at) : 'Tarihi belirtilmemiş'} · {entry.outcome === 'plan' ? 'Takip planı' : entry.outcome === 'import' ? 'Önceki kaynak kaydı' : entry.outcome === 'no_answer' ? 'Ulaşılamadı' : entry.outcome === 'do_not_contact' ? 'İletişim tercihi' : 'Görüşme'}</p>
             <p className="text-sm whitespace-pre-wrap break-words mt-1">{entry.note}</p>
             <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{PROSPECT_STAGES[entry.stage]}{entry.next_action_at ? ` · ${formatProspectDate(entry.next_action_at)} — ${entry.next_action}` : ''}</p>
           </li>)}
@@ -87,7 +87,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
         {(item.source_note || Object.values(item.source_metadata).some(Boolean)) && <details className="text-sm border-t border-slate-200 dark:border-slate-700 pt-3"><summary className="cursor-pointer font-medium">Kaynak notları ve daire bilgileri</summary>
           <p className="mt-3 whitespace-pre-wrap break-words">{item.source_note}</p>
           <dl className="mt-3 space-y-2">{Object.entries(item.source_metadata).filter(([, value]) => value).map(([key, value]) => <div key={key}><dt className="text-xs text-slate-500">{key}</dt><dd className="break-words whitespace-pre-wrap">{value}</dd></div>)}</dl>
-          {safeSource && <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sky-600 underline">E-Tablodaki kaynak kayıt</a>}
+          {safeSource && <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sky-600 underline">{prospectSourceKind(item) === 'list' ? 'E-Tablodaki kaynak kayıt' : 'İlan bağlantısını aç'}</a>}
         </details>}
       </section>
       <form onSubmit={submit} className="min-w-0 space-y-4" onChange={() => { requestId.current = crypto.randomUUID(); }}>

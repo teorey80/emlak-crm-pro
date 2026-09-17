@@ -171,3 +171,11 @@ export function validateImport(value: unknown): ProspectImportBatch {
   for (const r of batch.rows) if ((units.get(normalizeSearch(`${r.site_name}|${r.block}|${r.unit}`)) || 0) > 1 && !r.data_warning.includes('daire')) r.data_warning = [r.data_warning, 'Aynı daire birden fazla kayıtta; birleştirmeden teyit edin'].filter(Boolean).join(' · ');
   return batch;
 }
+
+export const prospectSourceKind = (item: ProspectCase) => item.source_kind || 'list';
+export const prospectOriginLabel = (item: ProspectCase) => prospectSourceKind(item) === 'fsbo' ? 'FSBO' : prospectSourceKind(item) === 'manual' ? 'Manuel kayıt' : 'Liste aktarımı';
+export function safeProspectUrl(value: string): boolean {
+  try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password; } catch { return false; }
+}
+
+export const prospectLocation = (item: ProspectCase) => [item.site_name, [item.block && `${item.block} blok`, item.unit && `Daire ${item.unit}`].filter(Boolean).join(' · ')].filter(Boolean).join(' · ');

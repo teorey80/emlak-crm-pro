@@ -18,9 +18,38 @@ export interface ProspectContact {
   do_not_contact: boolean;
 }
 
+export interface ProspectStartInput {
+  request_id: string;
+  activity_id?: string;
+  case_id?: string;
+  expected_version?: number;
+  source_kind: 'fsbo' | 'manual';
+  name: string;
+  phone: string;
+  site_name: string;
+  block: string;
+  unit: string;
+  source_url: string;
+  channel: string;
+  transaction_type: string;
+  outcome: ProspectOutcome;
+  note: string;
+  stage: ProspectStage;
+  next_action: string;
+  next_action_at: string | null;
+  closed_reason: string;
+}
+
+export interface ProspectActivitySource {
+  activity: Activity;
+  customer: Pick<Customer, 'id' | 'name' | 'phone'>;
+  linkedCaseId?: string;
+}
+
 export interface ProspectCase {
   id: string;
   contact_id: string;
+  source_kind?: 'list' | 'fsbo' | 'manual';
   contact: ProspectContact;
   site_name: string;
   block: string;

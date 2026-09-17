@@ -104,3 +104,12 @@ test('Conversation summaries are scoped to a case, even for the same contact', (
   assert.equal(prospectEngagementStatus(results[0]), 'reached');
   assert.equal(prospectEngagementStatus(results[1]), 'untouched');
 });
+
+
+test('FSBO links accept web URLs but reject scripts and embedded credentials', async () => {
+  const { safeProspectUrl } = await import('./prospecting.ts');
+  assert.equal(safeProspectUrl('https://example.com/ilan/123'), true);
+  assert.equal(safeProspectUrl('javascript:alert(1)'), false);
+  assert.equal(safeProspectUrl('https://user:secret@example.com'), false);
+  assert.equal(safeProspectUrl(''), false);
+});

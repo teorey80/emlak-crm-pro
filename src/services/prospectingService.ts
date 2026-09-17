@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient';
-import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectImportRow } from '../types';
+import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectImportRow, ProspectStartInput, ProspectActivitySource } from '../types';
 import { attachEngagement, type ProspectEngagementEvent } from '../utils/prospecting';
 
 export interface ProspectingRepository {
+  start?: (input: ProspectStartInput) => Promise<string>;
+  activity?: (id: string) => Promise<ProspectActivitySource>;
   list: () => Promise<ProspectCase[]>;
   history: (id: string) => Promise<ProspectEvent[]>;
   record: (input: ProspectEventInput) => Promise<void>;
@@ -47,6 +49,23 @@ async function listEngagementEvents() {
 }
 
 export const prospectingRepository: ProspectingRepository = {
+  async start(input) {
+    const { data, error } = await supabase.rpc('prospecting_start', { p_input: input });
+    if (error) throw error;
+    return data as string;
+  },
+  async activity(id) {
+    const [activityResult, linkResult] = await Promise.all([
+      supabase.from('activities').select('*').eq('id', id).single(),
+      supabase.from('prospecting_activity_links').select('case_id').eq('activity_id', id).maybeSingle(),
+    ]);
+    if (activityResult.error) throw activityResult.error;
+    if (linkResult.error) throw linkResult.error;
+    const activity = activityResult.data as ProspectActivitySource['activity'];
+    const { data: customer, error } = await supabase.from('customers').select('id,name,phone').eq('id', activity.customerId).single();
+    if (error) throw error;
+    return { activity, customer, linkedCaseId: linkResult.data?.case_id };
+  },
   async list() {
     // A history read failure must not label real conversations as untouched.
     const [records, events] = await Promise.all([listCases(), listEngagementEvents()]);

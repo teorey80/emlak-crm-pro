@@ -126,6 +126,7 @@ const ActivityList: React.FC = () => {
 
                         <div className="self-start md:self-center min-w-[100px] flex flex-col items-end gap-2">
                             {getStatusBadge(activity.status)}
+                            {['Giden Arama', 'Gelen Arama'].includes(activity.type) && <Link to={`/prospecting?activity=${encodeURIComponent(activity.id)}`} className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">Portföy takibine al</Link>}
                             <div className="flex items-center gap-3">
                                 <Link to={`/activities/edit/${activity.id}`} className="text-sm font-medium text-[#1193d4] hover:underline">
                                     Düzenle

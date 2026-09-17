@@ -29,6 +29,19 @@ function createPreviewRepository(): ProspectingRepository {
   const events: ProspectEvent[] = [];
   const done = new Set<string>();
   return {
+    async start(input) {
+      const previous = rows.find(r => r.source_key === `manual:${input.request_id}`);
+      if (previous) return previous.id;
+      const id = crypto.randomUUID();
+      const stage = input.outcome === 'do_not_contact' ? 'lost' : input.outcome === 'no_answer' ? 'new' : input.stage;
+      rows.push({ id, contact_id: id, contact: { id, name: input.name, phone: input.phone, do_not_contact: input.outcome === 'do_not_contact' },
+        source_kind: input.source_kind, site_name: input.site_name, block: input.block, unit: input.unit, stage,
+        transaction_type: input.transaction_type, priority: 'Normal', source_key: `manual:${input.request_id}`, source_url: input.source_url,
+        source_note: '', source_metadata: { Kanal: input.channel }, data_warning: '', last_note: input.note, last_contact_at: input.outcome === 'reached' ? new Date().toISOString() : null,
+        next_action: input.next_action_at ? input.next_action : '', next_action_at: input.next_action_at, closed_reason: input.closed_reason, version: 2, created_at: new Date().toISOString() });
+      events.push({ id: crypto.randomUUID(), case_id: id, occurred_at: new Date().toISOString(), date_precision: 'minute', created_at: new Date().toISOString(), outcome: input.outcome, note: input.note, stage, next_action: input.next_action, next_action_at: input.next_action_at });
+      return id;
+    },
     list: async () => attachEngagement(structuredClone(rows), events),
     history: async id => structuredClone(events.filter(event => event.case_id === id).reverse()),
     async record(input) {
