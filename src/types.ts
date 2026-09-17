@@ -1,4 +1,91 @@
 
+export type ProspectStage = 'pool' | 'new' | 'follow_up' | 'meeting' | 'authorization' | 'other_agent' | 'snoozed' | 'won' | 'lost';
+export type ProspectOutcome = 'reached' | 'no_answer' | 'plan' | 'do_not_contact';
+
+export interface ProspectContact {
+  id: string;
+  name: string;
+  phone: string;
+  do_not_contact: boolean;
+}
+
+export interface ProspectCase {
+  id: string;
+  contact_id: string;
+  contact: ProspectContact;
+  site_name: string;
+  block: string;
+  unit: string;
+  stage: ProspectStage;
+  transaction_type: string;
+  priority: string;
+  source_key: string;
+  source_url: string;
+  source_note: string;
+  source_metadata: Record<string, string>;
+  data_warning: string;
+  last_note: string;
+  search_notes?: string;
+  last_contact_at: string | null;
+  next_action: string;
+  next_action_at: string | null;
+  closed_reason: string;
+  version: number;
+  created_at: string;
+}
+
+export interface ProspectEvent {
+  id: string;
+  case_id: string;
+  occurred_at: string | null;
+  date_precision: 'day' | 'minute' | 'unknown';
+  created_at: string;
+  outcome: ProspectOutcome | 'import';
+  note: string;
+  stage: ProspectStage;
+  next_action: string;
+  next_action_at: string | null;
+}
+
+export interface ProspectEventInput {
+  request_id: string;
+  case_id: string;
+  expected_version: number;
+  occurred_at: string;
+  outcome: ProspectOutcome;
+  note: string;
+  stage: ProspectStage;
+  next_action: string;
+  next_action_at: string | null;
+  closed_reason: string;
+}
+
+export interface ProspectImportRow {
+  source_key: string;
+  source_url: string;
+  name: string;
+  phone: string;
+  site_name: string;
+  block: string;
+  unit: string;
+  stage: ProspectStage;
+  do_not_contact: boolean;
+  transaction_type: string;
+  priority: string;
+  source_note: string;
+  source_metadata: Record<string, string>;
+  data_warning: string;
+  next_action: string;
+  next_action_at: string | null;
+  events: Array<Pick<ProspectEvent, 'occurred_at' | 'note' | 'stage' | 'next_action' | 'next_action_at'> & { date_precision?: ProspectEvent['date_precision'] }>;
+}
+
+export interface ProspectImportBatch {
+  format: 'emlakcrm-prospecting-v1';
+  source_name: string;
+  rows: ProspectImportRow[];
+}
+
 export interface Property {
   id: string;
   title: string;

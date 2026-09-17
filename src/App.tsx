@@ -6,6 +6,7 @@ import { QuickActionsFAB, QuickCallModal, QuickMessageModal } from './components
 import TopBar from './components/TopBar';
 import Dashboard from './pages/Dashboard';
 import CalendarPage from './pages/CalendarPage';
+import Prospecting from './pages/Prospecting';
 import PropertyList from './pages/PropertyList';
 import PropertyDetail from './pages/PropertyDetail';
 import PropertyForm from './pages/PropertyForm';
@@ -185,6 +186,7 @@ const CRMApp: React.FC = () => {
           }>
             <Route index element={<Dashboard />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="prospecting" element={<Prospecting />} />
 
             <Route path="activities" element={<ActivityList />} />
             <Route path="activities/new" element={<ActivityForm />} />
@@ -305,4 +307,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
