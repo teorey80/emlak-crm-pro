@@ -4,6 +4,7 @@ import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectOutcome, 
 import type { ProspectingRepository } from '../services/prospectingService';
 import { prospectingError } from '../services/prospectingService';
 import { CLOSED_STAGES, formatProspectDate, fromIstanbulInput, normalizePhone, PROSPECT_STAGES, toIstanbulInput } from '../utils/prospecting';
+import ProspectProvenance from './ProspectProvenance';
 
 interface Props {
   item: ProspectCase;
@@ -68,6 +69,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
     </header>
     <div className="grid md:grid-cols-2 gap-6 p-5">
       <section aria-label="Kişi ve görüşme geçmişi" className="min-w-0 space-y-4">
+        <ProspectProvenance item={item} detailed />
         <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
           <span className="text-sm">{item.contact.phone || 'Telefon eklenmemiş'}</span>
           {phone.length === 10 && !item.contact.do_not_contact && <a href={`tel:+90${phone}`} className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-sm font-medium"><Phone size={15} /> Ara</a>}

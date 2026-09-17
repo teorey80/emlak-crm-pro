@@ -4,9 +4,10 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import type { ProspectCase, ProspectStage } from '../types';
 import { prospectingError, prospectingRepository, type ProspectingRepository } from '../services/prospectingService';
-import { ACTIVE_STAGES, CLOSED_STAGES, followUpState, formatProspectDate, istanbulDate, matchesProspect, PROSPECT_STAGES } from '../utils/prospecting';
+import { ACTIVE_STAGES, CLOSED_STAGES, followUpState, formatProspectDate, istanbulDate, matchesProspect, prospectEngagementStatus, PROSPECT_STAGES } from '../utils/prospecting';
 import ProspectConversation from '../components/ProspectConversation';
 import ProspectImport from '../components/ProspectImport';
+import ProspectProvenance from '../components/ProspectProvenance';
 
 type View = 'today' | 'board' | 'pool' | 'archive';
 type DueFilter = 'all' | 'overdue' | 'today' | 'undated';
@@ -17,7 +18,8 @@ const ProspectCard: React.FC<{ item: ProspectCase; onOpen: () => void; today: st
   return <button type="button" draggable={!item.contact.do_not_contact} onDragStart={event => { event.dataTransfer.setData('text/prospect-id', item.id); event.dataTransfer.effectAllowed = 'move'; }} onClick={onOpen} className="w-full text-left rounded-xl p-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-400 focus-visible:outline-sky-500 shadow-sm transition-colors">
     <div className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{item.contact.name}</span>{item.data_warning && <AlertCircle size={16} className="shrink-0 text-amber-600" aria-label="Veri kontrolü gerekli" />}</div>
     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.site_name} · {item.block}-{item.unit}</p>
-    <p className="text-sm text-slate-600 dark:text-slate-300 mt-3 line-clamp-2 break-words">{item.last_note || item.source_note || 'Henüz görüşme notu yok.'}</p>
+    <div className="mt-3"><ProspectProvenance item={item} /></div>
+    <p className="text-sm text-slate-600 dark:text-slate-300 mt-3 line-clamp-2 break-words">{(item.last_note || item.source_note) && <span className="font-medium">{item.engagement?.crmEvents ? 'CRM notu: ' : 'Kaynak notu: '}</span>}{item.last_note || item.source_note || 'Henüz not yok.'}</p>
     <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700"><span className={`text-xs font-medium ${due === 'overdue' || due === 'blocked' ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'}`}>{dueLabels[due]}{item.next_action_at && due !== 'blocked' ? ` · ${formatProspectDate(item.next_action_at)}` : ''}</span>
       {item.next_action && due !== 'blocked' && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 break-words">{item.next_action}</p>}
     </div>
@@ -32,6 +34,7 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
   const [dueFilter, setDueFilter] = useState<DueFilter>('all');
   const [search, setSearch] = useState('');
   const [site, setSite] = useState('');
+  const [engagementFilter, setEngagementFilter] = useState('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [proposedStage, setProposedStage] = useState<ProspectStage | undefined>();
   const [importing, setImporting] = useState(false);
@@ -61,6 +64,9 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
   const counts = useMemo(() => siteRecords.reduce((all, r) => { const key = followUpState(r, today); all[key]++; return all; }, { blocked: 0, closed: 0, pool: 0, undated: 0, overdue: 0, today: 0, planned: 0 }), [siteRecords, today]);
   const filtered = useMemo(() => {
     const match = siteRecords.filter(item => {
+      const engagement = prospectEngagementStatus(item);
+      if (engagementFilter === 'no_crm_contact' && (engagement === 'reached' || engagement === 'unknown')) return false;
+      if (engagementFilter !== 'all' && engagementFilter !== 'no_crm_contact' && engagement !== engagementFilter) return false;
       if (search.trim()) return matchesProspect(item, search);
       const state = followUpState(item, today);
       if (view === 'today') return dueFilter === 'all' ? ['overdue', 'today', 'undated'].includes(state) : state === dueFilter;
@@ -70,7 +76,7 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
     });
     const rank = { overdue: 0, today: 1, undated: 2, planned: 3, pool: 4, closed: 5, blocked: 6 };
     return match.sort((a, b) => rank[followUpState(a, today)] - rank[followUpState(b, today)] || (a.next_action_at || '').localeCompare(b.next_action_at || '') || a.contact.name.localeCompare(b.contact.name, 'tr'));
-  }, [siteRecords, search, view, dueFilter, today]);
+  }, [siteRecords, search, view, dueFilter, today, engagementFilter]);
 
   const open = (item: ProspectCase, stage?: ProspectStage) => { setSelectedId(item.id); setProposedStage(stage); };
   const onSaved = async (next: boolean) => {
@@ -99,6 +105,7 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
       ] as const).map(([key, label, Icon]) => <button key={key} onClick={() => { setView(key); setSearch(''); }} aria-pressed={view === key && !search} className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg ${view === key && !search ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Icon size={16} />{label}</button>)}</nav>
       <div className="relative flex-1 min-w-[220px]"><Search size={17} className="absolute left-3 top-3 text-slate-400" /><input aria-label="Tüm kayıtlarda ara" placeholder="İsim, telefon, site, blok, daire veya not…" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-10 pr-3 py-2.5 text-sm" /></div>
       {sites.length > 1 && <select aria-label="Site filtresi" value={site} onChange={e => setSite(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"><option value="">Tüm siteler</option>{sites.map(name => <option key={name}>{name}</option>)}</select>}
+      <select aria-label="Görüşme durumu filtresi" value={engagementFilter} onChange={e => setEngagementFilter(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"><option value="all">Tüm görüşme durumları</option><option value="no_crm_contact">CRM’de görüşme kaydı olmayanlar</option><option value="reached">CRM’de görüşülenler</option><option value="unanswered">Arandı, ulaşılamadı</option><option value="imported">Yalnız listede eski görüşmesi olanlar</option></select>
     </div>
     {error && <div role="alert" className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200"><p className="font-medium">Liste yüklenemedi</p><p className="text-sm mt-1">{error}</p></div>}
     {loading ? <p role="status" className="py-12 text-center text-slate-500">Kayıtlar yükleniyor…</p> : !error && <>

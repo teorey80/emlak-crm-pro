@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { ProspectingWorkspace } from './Prospecting';
 import type { ProspectCase, ProspectEvent, ProspectStage } from '../types';
 import type { ProspectingRepository } from '../services/prospectingService';
+import { attachEngagement } from '../utils/prospecting';
 
 function createPreviewRepository(): ProspectingRepository {
   const day = 86400000;
@@ -28,7 +29,7 @@ function createPreviewRepository(): ProspectingRepository {
   const events: ProspectEvent[] = [];
   const done = new Set<string>();
   return {
-    list: async () => structuredClone(rows),
+    list: async () => attachEngagement(structuredClone(rows), events),
     history: async id => structuredClone(events.filter(event => event.case_id === id).reverse()),
     async record(input) {
       if (done.has(input.request_id)) return;
@@ -47,6 +48,7 @@ function createPreviewRepository(): ProspectingRepository {
         if (rows.some(row => row.source_key === source.source_key)) { skipped++; continue; }
         const id = crypto.randomUUID();
         rows.push({ ...source, id, contact_id: id, contact: { id, name: source.name, phone: source.phone, do_not_contact: source.do_not_contact }, last_note: '', last_contact_at: null, closed_reason: '', version: 1, created_at: new Date().toISOString() });
+        for (const entry of source.events) events.push({ ...entry, id: crypto.randomUUID(), case_id: id, date_precision: entry.date_precision || 'day', created_at: new Date().toISOString(), outcome: 'import' });
         added++;
       }
       return { added, skipped };

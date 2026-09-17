@@ -2,6 +2,15 @@
 export type ProspectStage = 'pool' | 'new' | 'follow_up' | 'meeting' | 'authorization' | 'other_agent' | 'snoozed' | 'won' | 'lost';
 export type ProspectOutcome = 'reached' | 'no_answer' | 'plan' | 'do_not_contact';
 
+export interface ProspectEngagement {
+  conversations: number;
+  attempts: number;
+  plans: number;
+  imported: number;
+  crmEvents: number;
+  lastConversationAt: string | null;
+}
+
 export interface ProspectContact {
   id: string;
   name: string;
@@ -32,6 +41,7 @@ export interface ProspectCase {
   closed_reason: string;
   version: number;
   created_at: string;
+  engagement?: ProspectEngagement;
 }
 
 export interface ProspectEvent {

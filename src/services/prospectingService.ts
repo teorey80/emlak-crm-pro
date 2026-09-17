@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectImportRow } from '../types';
+import { attachEngagement, type ProspectEngagementEvent } from '../utils/prospecting';
 
 export interface ProspectingRepository {
   list: () => Promise<ProspectCase[]>;
@@ -14,8 +15,7 @@ export function prospectingError(error: unknown): string {
   return issue?.message || 'İşlem tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.';
 }
 
-export const prospectingRepository: ProspectingRepository = {
-  async list() {
+async function listCases() {
     // Load every page before filtering: older records never disappear from search.
     const records: ProspectCase[] = [];
     let cursor: string | undefined;
@@ -29,6 +29,28 @@ export const prospectingRepository: ProspectingRepository = {
       if (page.length < 500) return records;
       cursor = page[page.length - 1].id;
     }
+}
+
+async function listEngagementEvents() {
+  const events: ProspectEngagementEvent[] = [];
+  let cursor: string | undefined;
+  while (true) {
+    let query = supabase.from('prospecting_events').select('id,case_id,outcome,occurred_at').order('id').limit(500);
+    if (cursor) query = query.gt('id', cursor);
+    const { data, error } = await query;
+    if (error) throw error;
+    const page = data as Array<ProspectEngagementEvent & { id: string }>;
+    events.push(...page);
+    if (page.length < 500) return events;
+    cursor = page[page.length - 1].id;
+  }
+}
+
+export const prospectingRepository: ProspectingRepository = {
+  async list() {
+    // A history read failure must not label real conversations as untouched.
+    const [records, events] = await Promise.all([listCases(), listEngagementEvents()]);
+    return attachEngagement(records, events);
   },
   async history(id) {
     const events: ProspectEvent[] = [];

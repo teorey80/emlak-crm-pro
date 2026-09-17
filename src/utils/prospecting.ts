@@ -1,4 +1,41 @@
-import type { ProspectCase, ProspectImportBatch, ProspectImportRow, ProspectStage } from '../types';
+import type { ProspectCase, ProspectEngagement, ProspectEvent, ProspectImportBatch, ProspectImportRow, ProspectStage } from '../types';
+
+export type ProspectEngagementEvent = Pick<ProspectEvent, 'case_id' | 'outcome' | 'occurred_at'>;
+export const emptyEngagement = (): ProspectEngagement => ({ conversations: 0, attempts: 0, plans: 0, imported: 0, crmEvents: 0, lastConversationAt: null });
+
+// Source notes and imported history never count as a conversation recorded in this CRM.
+export function attachEngagement(records: ProspectCase[], events: ProspectEngagementEvent[]): ProspectCase[] {
+  const summaries = new Map(records.map(record => [record.id, emptyEngagement()]));
+  for (const event of events) {
+    const summary = summaries.get(event.case_id);
+    if (!summary) continue;
+    if (event.outcome === 'import') { summary.imported++; continue; }
+    summary.crmEvents++;
+    if (event.outcome === 'reached') {
+      summary.conversations++;
+      if (event.occurred_at && (!summary.lastConversationAt || Date.parse(event.occurred_at) > Date.parse(summary.lastConversationAt))) summary.lastConversationAt = event.occurred_at;
+    } else if (event.outcome === 'no_answer') summary.attempts++;
+    else if (event.outcome === 'plan') summary.plans++;
+  }
+  return records.map(record => ({ ...record, engagement: summaries.get(record.id)! }));
+}
+
+export function prospectEngagementStatus(item: ProspectCase): 'unknown' | 'reached' | 'unanswered' | 'imported' | 'planned' | 'untouched' {
+  const history = item.engagement;
+  if (!history) return 'unknown';
+  if (history.conversations) return 'reached';
+  if (history.attempts) return 'unanswered';
+  if (history.imported) return 'imported';
+  if (history.plans) return 'planned';
+  return 'untouched';
+}
+
+export const ENGAGEMENT_LABELS = {
+  unknown: 'Görüşme durumu doğrulanamadı', reached: 'CRM’de görüşüldü', unanswered: 'Arandı, ulaşılamadı',
+  imported: 'Listede eski görüşme var', planned: 'Planlandı · Görüşme kaydı yok', untouched: 'Görüşme kaydı yok',
+};
+
+export const prospectSourceName = (item: ProspectCase) => item.source_metadata['Aktarım kaynağı'] || `${item.site_name} listesi`;
 
 export const PROSPECT_STAGES: Record<ProspectStage, string> = {
   pool: 'Veri havuzu', new: 'Aranacak', follow_up: 'Takipte', meeting: 'Portföy görüşmesi',
