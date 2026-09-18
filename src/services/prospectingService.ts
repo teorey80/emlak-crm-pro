@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectImportRow, ProspectStartInput, ProspectActivitySource } from '../types';
-import { attachEngagement, type ProspectEngagementEvent } from '../utils/prospecting';
+import { attachProspectHistory } from '../utils/prospecting';
 
 export interface ProspectingRepository {
   start?: (input: ProspectStartInput) => Promise<string>;
@@ -34,14 +34,14 @@ async function listCases() {
 }
 
 async function listEngagementEvents() {
-  const events: ProspectEngagementEvent[] = [];
+  const events: ProspectEvent[] = [];
   let cursor: string | undefined;
   while (true) {
-    let query = supabase.from('prospecting_events').select('id,case_id,outcome,occurred_at').order('id').limit(500);
+    let query = supabase.from('prospecting_events').select('*').order('id').limit(500);
     if (cursor) query = query.gt('id', cursor);
     const { data, error } = await query;
     if (error) throw error;
-    const page = data as Array<ProspectEngagementEvent & { id: string }>;
+    const page = data as ProspectEvent[];
     events.push(...page);
     if (page.length < 500) return events;
     cursor = page[page.length - 1].id;
@@ -69,7 +69,7 @@ export const prospectingRepository: ProspectingRepository = {
   async list() {
     // A history read failure must not label real conversations as untouched.
     const [records, events] = await Promise.all([listCases(), listEngagementEvents()]);
-    return attachEngagement(records, events);
+    return attachProspectHistory(records, events);
   },
   async history(id) {
     const events: ProspectEvent[] = [];

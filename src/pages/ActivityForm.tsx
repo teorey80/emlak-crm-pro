@@ -129,6 +129,9 @@ const ActivityForm: React.FC = () => {
         setShowCustomerModal(false);
     };
 
+    const linkedCase = id ? activities.find(activity => activity.id === id)?.prospecting_case_id : undefined;
+    if (linkedCase) return <div className="p-6 space-y-3"><h2 className="text-xl font-semibold">Portföy Takibi araması</h2><p>Bu arama görüşme geçmişine bağlıdır. Yeni görüşme, not ve sonraki adım için takip kartını açın.</p><Link className="text-sky-600 underline" to={`/prospecting?case=${encodeURIComponent(linkedCase)}`}>Takip kartını aç</Link></div>;
+
     return (
         <div className="max-w-3xl mx-auto relative">
             <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors text-sm mb-4">

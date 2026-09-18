@@ -5,14 +5,14 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import type { ProspectCase, ProspectStage } from '../types';
 import { prospectingError, prospectingRepository, type ProspectingRepository } from '../services/prospectingService';
-import { ACTIVE_STAGES, CLOSED_STAGES, followUpState, formatProspectDate, istanbulDate, matchesProspect, prospectEngagementStatus, PROSPECT_STAGES, prospectSourceKind, prospectLocation } from '../utils/prospecting';
+import { ACTIVE_STAGES, CLOSED_STAGES, followUpState, formatProspectDate, istanbulDate, matchesProspect, prospectEngagementStatus, PROSPECT_STAGES, prospectSourceKind, prospectLocation, prospectCalls, isProspectCall, CALL_OUTCOME_LABELS } from '../utils/prospecting';
 import ProspectConversation from '../components/ProspectConversation';
 import ProspectImport from '../components/ProspectImport';
 import ProspectStart from '../components/ProspectStart';
 import ProspectProvenance from '../components/ProspectProvenance';
 
-type View = 'today' | 'board' | 'pool' | 'archive';
-type DueFilter = 'all' | 'overdue' | 'today' | 'undated';
+type View = 'today' | 'history' | 'all' | 'board' | 'pool' | 'archive';
+type DueFilter = 'all' | 'overdue' | 'today' | 'undated' | 'planned';
 const dueLabels = { blocked: 'Aranmasın', closed: 'Tamamlandı', pool: 'Henüz başlanmadı', undated: 'Tarih belirle', overdue: 'Gecikti', today: 'Bugün', planned: 'Planlı' };
 
 const ProspectCard: React.FC<{ item: ProspectCase; onOpen: () => void; today: string }> = ({ item, onOpen, today }: { item: ProspectCase; onOpen: () => void; today: string }) => {
@@ -28,18 +28,27 @@ const ProspectCard: React.FC<{ item: ProspectCase; onOpen: () => void; today: st
   </button>;
 };
 
-export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository; preview?: boolean; activityId?: string; onActivityDone?: () => void }> = ({ repository, preview = false, activityId, onActivityDone }) => {
+const ProspectCalls: React.FC<{ entries: ReturnType<typeof prospectCalls>; onOpen: (item: ProspectCase) => void }> = ({ entries, onOpen }) => entries.length ? <div className="space-y-2">{entries.map(({ item, event }) => <button key={event.id} onClick={() => onOpen(item)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800 hover:border-sky-400">
+  <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{item.contact.name}</span><span className="text-xs text-slate-500">{formatProspectDate(event.occurred_at!)}</span></div>
+  <p className="text-sm mt-1 text-sky-700 dark:text-sky-300">{prospectSourceKind(item) === 'fsbo' ? 'FSBO' : prospectSourceKind(item) === 'list' ? 'Liste araması' : 'Manuel takip'} · {isProspectCall(event) ? CALL_OUTCOME_LABELS[event.outcome] : ''}</p>
+  <p className="text-xs text-slate-500 mt-1">{prospectLocation(item)}</p><p className="text-sm mt-2 whitespace-pre-wrap">{event.note}</p>
+  <p className="text-xs text-slate-500 mt-2">{item.contact.do_not_contact ? 'Arama dışı' : item.next_action_at ? `Sıradaki takip: ${formatProspectDate(item.next_action_at)} · ${item.next_action}` : `Güncel durum: ${PROSPECT_STAGES[item.stage]}`}</p>
+</button>)}</div> : <p className="text-sm text-slate-500 py-3">Bu tarih ve filtrelerde yapılmış arama yok.</p>;
+
+export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository; preview?: boolean; activityId?: string; caseId?: string; onActivityDone?: () => void; onDataChanged?: () => Promise<void> }> = ({ repository, preview = false, activityId, caseId, onActivityDone, onDataChanged }) => {
   const [creating, setCreating] = useState(false);
   const [sourceFilter, setSourceFilter] = useState('all');
   const [records, setRecords] = useState<ProspectCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<View>('today');
-  const [dueFilter, setDueFilter] = useState<DueFilter>('all');
+  const [dueFilter, setDueFilter] = useState<DueFilter>('today');
   const [search, setSearch] = useState('');
   const [site, setSite] = useState('');
   const [engagementFilter, setEngagementFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(caseId || null);
+  const [historyDay, setHistoryDay] = useState(istanbulDate());
+  useEffect(() => { if (caseId) setSelectedId(caseId); }, [caseId]);
   const [proposedStage, setProposedStage] = useState<ProspectStage | undefined>();
   const [importing, setImporting] = useState(false);
   const [today, setToday] = useState(istanbulDate());
@@ -64,23 +73,25 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
   const selected = records.find(r => r.id === selectedId);
   const sites = useMemo(() => [...new Set<string>(records.map((r: ProspectCase) => r.site_name))].sort((a, b) => a.localeCompare(b, 'tr')), [records]);
   const existingKeys = useMemo(() => new Set(records.map(r => r.source_key)), [records]);
-  const siteRecords = useMemo(() => records.filter(r => (!site || r.site_name === site) && (sourceFilter === 'all' || prospectSourceKind(r) === sourceFilter)), [records, site, sourceFilter]);
+  const siteRecords = useMemo(() => records.filter(r => (!site || r.site_name === site) && (sourceFilter === 'all' || prospectSourceKind(r) === sourceFilter) && (
+    engagementFilter === 'all' || (engagementFilter === 'no_crm_contact' ? !['reached', 'unknown'].includes(prospectEngagementStatus(r)) : prospectEngagementStatus(r) === engagementFilter)
+  )), [records, site, sourceFilter, engagementFilter]);
+  const todayCalls = useMemo(() => prospectCalls(siteRecords, today), [siteRecords, today]);
+  const historyCalls = useMemo(() => prospectCalls(siteRecords, historyDay || undefined), [siteRecords, historyDay]);
   const counts = useMemo(() => siteRecords.reduce((all, r) => { const key = followUpState(r, today); all[key]++; return all; }, { blocked: 0, closed: 0, pool: 0, undated: 0, overdue: 0, today: 0, planned: 0 }), [siteRecords, today]);
   const filtered = useMemo(() => {
-    const match = siteRecords.filter(item => {
-      const engagement = prospectEngagementStatus(item);
-      if (engagementFilter === 'no_crm_contact' && (engagement === 'reached' || engagement === 'unknown')) return false;
-      if (engagementFilter !== 'all' && engagementFilter !== 'no_crm_contact' && engagement !== engagementFilter) return false;
+    const match = (search.trim() ? records : siteRecords).filter(item => {
       if (search.trim()) return matchesProspect(item, search);
+      if (view === 'all') return true;
       const state = followUpState(item, today);
-      if (view === 'today') return dueFilter === 'all' ? ['overdue', 'today', 'undated'].includes(state) : state === dueFilter;
+      if (view === 'today') return dueFilter === 'all' ? ['overdue', 'today'].includes(state) : state === dueFilter;
       if (view === 'board') return ACTIVE_STAGES.includes(item.stage) && !item.contact.do_not_contact;
       if (view === 'pool') return item.stage === 'pool' && !item.contact.do_not_contact;
       return ['other_agent', 'snoozed', 'won', 'lost'].includes(item.stage) || item.contact.do_not_contact;
     });
     const rank = { overdue: 0, today: 1, undated: 2, planned: 3, pool: 4, closed: 5, blocked: 6 };
     return match.sort((a, b) => rank[followUpState(a, today)] - rank[followUpState(b, today)] || (a.next_action_at || '').localeCompare(b.next_action_at || '') || a.contact.name.localeCompare(b.contact.name, 'tr'));
-  }, [siteRecords, search, view, dueFilter, today, engagementFilter]);
+  }, [records, siteRecords, search, view, dueFilter, today]);
 
   const open = (item: ProspectCase, stage?: ProspectStage) => { setSelectedId(item.id); setProposedStage(stage); };
   const onSaved = async (next: boolean) => {
@@ -89,6 +100,7 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
     const currentIndex = queue.indexOf(selectedId || '');
     setSelectedId(null); setProposedStage(undefined);
     toast.success('Görüşme ve takip kaydedildi.');
+    void onDataChanged?.().catch(() => toast.error('Aktivite özeti yenilenemedi; Aktiviteler ekranından kontrol edebilirsiniz.'));
     try {
       const updated = await reload();
       if (next) {
@@ -105,31 +117,45 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
     {importing && <ProspectImport repository={repository} existingKeys={existingKeys} onClose={() => setImporting(false)} onDone={async () => { await reload(); }} />}
     <div className="flex flex-wrap gap-2 items-center">
       <nav className="flex flex-wrap gap-1" aria-label="Takip görünümü">{([
-        ['today', 'Bugün', CalendarCheck], ['board', 'Kanban', Columns3], ['pool', 'Veri havuzu', Database], ['archive', 'Bekleyen / kapanan', ClockIcon],
+        ['today', 'Bugün', CalendarCheck], ['history', 'Arama geçmişi', Phone], ['all', 'Tüm kayıtlar', Search], ['board', 'Kanban', Columns3], ['pool', 'Veri havuzu', Database], ['archive', 'Bekleyen / kapanan', ClockIcon],
       ] as const).map(([key, label, Icon]) => <button key={key} onClick={() => { setView(key); setSearch(''); }} aria-pressed={view === key && !search} className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg ${view === key && !search ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Icon size={16} />{label}</button>)}</nav>
       <div className="relative flex-1 min-w-[220px]"><Search size={17} className="absolute left-3 top-3 text-slate-400" /><input aria-label="Tüm kayıtlarda ara" placeholder="İsim, telefon, site, blok, daire veya not…" value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-10 pr-3 py-2.5 text-sm" /></div>
       {sites.length > 1 && <select aria-label="Site filtresi" value={site} onChange={e => setSite(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"><option value="">Tüm siteler</option>{sites.map(name => <option key={name}>{name}</option>)}</select>}
       <select aria-label="Kayıt kaynağı filtresi" value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"><option value="all">Tüm kaynaklar</option><option value="list">Liste datası</option><option value="fsbo">FSBO</option><option value="manual">Manuel / diğer</option></select>
       <select aria-label="Görüşme durumu filtresi" value={engagementFilter} onChange={e => setEngagementFilter(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm"><option value="all">Tüm görüşme durumları</option><option value="no_crm_contact">CRM’de görüşme kaydı olmayanlar</option><option value="reached">CRM’de görüşülenler</option><option value="unanswered">Arandı, ulaşılamadı</option><option value="imported">Eski liste / aktivite kaydı olanlar</option></select>
     </div>
+    {(site || sourceFilter !== 'all' || engagementFilter !== 'all') && <button type="button" onClick={() => { setSite(''); setSourceFilter('all'); setEngagementFilter('all'); }} className="text-sm text-sky-700 dark:text-sky-300 underline">Filtreleri temizle · Tüm siteler ve kaynaklar</button>}
     {error && <div role="alert" className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200"><p className="font-medium">Liste yüklenemedi</p><p className="text-sm mt-1">{error}</p></div>}
     {loading ? <p role="status" className="py-12 text-center text-slate-500">Kayıtlar yükleniyor…</p> : !error && <>
+      {view === 'today' && !search && <>
+        <section aria-label="Bugün yapılan aramalar" className="rounded-xl border border-sky-200 dark:border-sky-800 p-4 space-y-3">
+          <h2 className="font-semibold">Bugün yapılan aramalar · {todayCalls.length}</h2>
+          <p className="text-sm text-slate-500">Ulaşılamayan aramalar da burada görünür. Sonraki takip tarihi ayrıca gösterilir.</p>
+          <ProspectCalls entries={todayCalls} onOpen={open} />
+        </section>
+        <h2 className="font-semibold">Yapılacak takipler</h2>
+      </>}
+      {view === 'history' && !search && <section className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3"><label className="text-sm">Arama tarihi<input aria-label="Arama tarihi" type="date" value={historyDay} onChange={e => setHistoryDay(e.target.value)} className="block mt-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2" /></label><button className="text-sm text-sky-700 dark:text-sky-300 underline" onClick={() => setHistoryDay('')}>Tüm tarihler</button><span className="text-sm text-slate-500">{historyCalls.length} arama</span></div>
+        <ProspectCalls entries={historyCalls} onOpen={open} />
+      </section>}
       {view === 'today' && !search && <div className="flex flex-wrap gap-2">{([
-        ['all', 'Tüm işler', counts.overdue + counts.today + counts.undated], ['overdue', 'Geciken', counts.overdue], ['today', 'Bugün', counts.today], ['undated', 'Tarih bekleyen', counts.undated],
+        ['today', 'Bugün yapılacak', counts.today], ['overdue', 'Geciken', counts.overdue], ['all', 'Bugün + geciken', counts.overdue + counts.today], ['planned', 'İleri tarihli', counts.planned], ['undated', 'Tarihsiz kayıtlar', counts.undated],
       ] as const).map(([key, label, count]) => <button key={key} aria-pressed={dueFilter === key} onClick={() => setDueFilter(key)} className={`px-3 py-1.5 rounded-full text-sm border ${dueFilter === key ? 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-950 dark:text-sky-200' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'}`}>{label} <span className="ml-1 font-semibold">{count}</span></button>)}</div>}
-      {search && <p className="text-sm text-slate-500" role="status">Tüm aşamalarda {filtered.length} sonuç</p>}
-      {view === 'board' && !search ? <>
+      {search && <p className="text-sm text-slate-500" role="status">Tüm kayıtlarda {filtered.length} sonuç · İsim araması diğer filtrelerden bağımsızdır</p>}
+      {(view !== 'history' || !!search) && (view === 'board' && !search ? <>
         <p className="text-xs text-slate-500">Kartı açarak veya başka sütuna taşıyarak görüşme ve takip planlayabilirsin.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">{ACTIVE_STAGES.map(stage => {
           const group = filtered.filter(r => r.stage === stage);
           return <section key={stage} aria-label={PROSPECT_STAGES[stage]} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const item = records.find(r => r.id === e.dataTransfer.getData('text/prospect-id')); if (item && !item.contact.do_not_contact && item.stage !== stage) open(item, stage); }} className="min-w-0 rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-3 min-h-48"><h2 className="flex justify-between text-sm font-semibold mb-3 px-1">{PROSPECT_STAGES[stage]}<span className="text-slate-500">{group.length}</span></h2><div className="space-y-3">{group.map(item => <ProspectCard key={item.id} item={item} today={today} onOpen={() => open(item)} />)}{!group.length && <p className="text-xs text-slate-400 p-3">Bu aşamada kayıt yok.</p>}</div></section>;
         })}</div>
-      </> : filtered.length ? <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{filtered.map(item => <div key={item.id} className="min-w-0"><p className="text-xs text-slate-500 mb-1 pl-1">{PROSPECT_STAGES[item.stage]}</p><ProspectCard item={item} today={today} onOpen={() => open(item)} /></div>)}</div> : <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center"><Phone className="mx-auto mb-3 text-slate-400" size={28} /><p className="font-medium">{records.length === 0 ? 'İlk kayıtlarını ekleyerek başla' : 'Bu görünümde kayıt yok'}</p><p className="text-sm text-slate-500 mt-2">{records.length === 0 ? 'İçeri aktar düğmesiyle E-Tablodaki listenin önizlemesini açabilirsin.' : search ? 'Farklı bir isim, blok veya daireyle aramayı deneyebilirsin.' : 'Diğer görünümlerdeki kayıtları açarak sıradaki adımı planlayabilirsin.'}</p></div>}
+      </> : filtered.length ? <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{filtered.map(item => <div key={item.id} className="min-w-0"><p className="text-xs text-slate-500 mb-1 pl-1">{PROSPECT_STAGES[item.stage]}</p><ProspectCard item={item} today={today} onOpen={() => open(item)} /></div>)}</div> : <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center"><Phone className="mx-auto mb-3 text-slate-400" size={28} /><p className="font-medium">{records.length === 0 ? 'İlk kayıtlarını ekleyerek başla' : 'Bu görünümde kayıt yok'}</p><p className="text-sm text-slate-500 mt-2">{records.length === 0 ? 'İçeri aktar düğmesiyle E-Tablodaki listenin önizlemesini açabilirsin.' : search ? 'Farklı bir isim, blok veya daireyle aramayı deneyebilirsin.' : 'Diğer görünümlerdeki kayıtları açarak sıradaki adımı planlayabilirsin.'}</p></div>)}
       <p className="text-xs text-slate-500">{records.length} kayıt · {counts.blocked} arama dışı · Tarihler İstanbul saatine göre gösterilir.</p>
     </>}
     {(creating || activityId) && <ProspectStart repository={repository} records={records} activityId={activityId} onClose={() => { setCreating(false); onActivityDone?.(); }} onSaved={async id => {
       setCreating(false); onActivityDone?.();
       toast.success('Takip kartı hazır.');
+      void onDataChanged?.().catch(() => toast.error('Aktivite özeti yenilenemedi.'));
       try { await reload(); setSelectedId(id); } catch { toast.error('Kayıt kaydedildi; listeyi yenileyin.'); }
     }} />}
     {selected && <ProspectConversation key={`${selected.id}:${selected.version}`} item={selected} proposedStage={proposedStage} repository={repository} onClose={() => { setSelectedId(null); setProposedStage(undefined); }} onSaved={onSaved} />}
@@ -138,7 +164,7 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
 
 const ClockIcon = ArrowRight;
 export default function Prospecting() {
-  const { session } = useData();
+  const { session, refetchData } = useData();
   const [params, setParams] = useSearchParams();
-  return <ProspectingWorkspace key={session?.user.id} repository={prospectingRepository} activityId={params.get('activity') || undefined} onActivityDone={() => setParams({}, { replace: true })} />;
+  return <ProspectingWorkspace key={session?.user.id} repository={prospectingRepository} onDataChanged={refetchData} caseId={params.get('case') || undefined} activityId={params.get('activity') || undefined} onActivityDone={() => setParams({}, { replace: true })} />;
 }

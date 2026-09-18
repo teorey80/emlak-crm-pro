@@ -71,6 +71,7 @@ export interface ProspectCase {
   version: number;
   created_at: string;
   engagement?: ProspectEngagement;
+  history?: ProspectEvent[];
 }
 
 export interface ProspectEvent {
@@ -336,6 +337,11 @@ export interface Activity {
   time?: string; // HH:mm format
   description: string;
   status: 'Olumlu' | 'Olumsuz' | 'Düşünüyor' | 'Tamamlandı' | 'Planlandı';
+  prospecting_event_id?: string | null;
+  prospecting_case_id?: string | null;
+  prospecting_source_kind?: 'list' | 'fsbo' | 'manual' | null;
+  prospecting_outcome?: 'reached' | 'no_answer' | 'do_not_contact' | null;
+  prospecting_is_follow_up?: boolean | null;
 
   // Office
   office_id?: string;

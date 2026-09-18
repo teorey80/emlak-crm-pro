@@ -1,6 +1,27 @@
 import type { ProspectCase, ProspectEngagement, ProspectEvent, ProspectImportBatch, ProspectImportRow, ProspectStage } from '../types';
 
 export type ProspectEngagementEvent = Pick<ProspectEvent, 'case_id' | 'outcome' | 'occurred_at'>;
+export const CALL_OUTCOMES = ['reached', 'no_answer', 'do_not_contact'] as const;
+export const CALL_OUTCOME_LABELS = { reached: 'Görüşüldü', no_answer: 'Ulaşılamadı', do_not_contact: 'Tekrar aranmak istemiyor' };
+export const isProspectCall = (event: ProspectEngagementEvent): event is ProspectEngagementEvent & { outcome: typeof CALL_OUTCOMES[number] } =>
+  CALL_OUTCOMES.some(outcome => outcome === event.outcome);
+
+export function attachProspectHistory(records: ProspectCase[], events: ProspectEvent[]): ProspectCase[] {
+  const histories = new Map<string, ProspectEvent[]>();
+  for (const event of events) {
+    const history = histories.get(event.case_id) || [];
+    history.push(event); histories.set(event.case_id, history);
+  }
+  return attachEngagement(records, events).map(item => ({ ...item, history: histories.get(item.id) || [] }));
+}
+
+// Calls belong to the day they happened, independently of the next follow-up date/stage.
+export function prospectCalls(records: ProspectCase[], day?: string) {
+  return records.flatMap(item => (item.history || [])
+    .filter(event => isProspectCall(event) && event.occurred_at && (!day || istanbulDate(event.occurred_at) === day))
+    .map(event => ({ item, event })))
+    .sort((a, b) => (b.event.occurred_at || '').localeCompare(a.event.occurred_at || '') || b.event.id.localeCompare(a.event.id));
+}
 export const emptyEngagement = (): ProspectEngagement => ({ conversations: 0, attempts: 0, plans: 0, imported: 0, crmEvents: 0, lastConversationAt: null });
 
 // Source notes and imported history never count as a conversation recorded in this CRM.

@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, MapPin, PhoneIncoming, PhoneOutgoing, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
+import type { Activity } from '../types';
+import { listActivityPage } from '../services/activityService';
+import { CALL_OUTCOME_LABELS, istanbulDate } from '../utils/prospecting';
 
 // Helper functions moved outside to prevent ReferenceError/TDZ issues
 const getActivityIcon = (type: string) => {
@@ -17,6 +20,7 @@ const getActivityIcon = (type: string) => {
 
 const getStatusBadge = (status: string) => {
     switch (status) {
+        case 'Planlandı': return <span className="text-xs rounded-full px-2.5 py-0.5 bg-sky-100 text-sky-800">Planlandı</span>;
         case 'Olumlu': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"><CheckCircle className="w-3 h-3" /> Olumlu</span>;
         case 'Olumsuz': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400"><XCircle className="w-3 h-3" /> Olumsuz</span>;
         case 'Düşünüyor': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"><Clock className="w-3 h-3" /> Düşünüyor</span>;
@@ -25,30 +29,52 @@ const getStatusBadge = (status: string) => {
 };
 
 const ActivityList: React.FC = () => {
-    const { activities, deleteActivity, hasMoreActivities, loadMoreActivities, loadingMore } = useData();
+    const { deleteActivity, session } = useData();
+    const [activities, setActivities] = useState<Activity[]>([]);
+    const [count, setCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [error, setError] = useState('');
+    const [date, setDate] = useState('');
+    const [source, setSource] = useState('all');
+    const [refresh, setRefresh] = useState(0);
+    const generation = useRef(0);
+    const moreBusy = useRef(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentFilterType, setCurrentFilterType] = useState('Tümü');
+    const [currentFilterType, setCurrentFilterType] = useState('all');
 
-    const handleDelete = async (id: string) => {
-        if (window.confirm('Bu aktiviteyi silmek istediğinize emin misiniz?')) {
-            try {
-                await deleteActivity(id);
-                toast.success("Aktivite silindi.");
-            } catch (error) {
-                console.error("Silme hatası:", error);
-                toast.error("Silinemedi.");
+    const filters = useMemo(() => ({ search: searchTerm, type: currentFilterType, date, source }), [searchTerm, currentFilterType, date, source]);
+    useEffect(() => {
+        const request = ++generation.current;
+        setLoading(true); setError(''); setActivities([]); setCount(0);
+        const timer = window.setTimeout(() => {
+            listActivityPage(filters).then(result => {
+                if (generation.current === request) { setActivities(result.rows); setCount(result.count); }
+            }).catch(() => { if (generation.current === request) setError('Aktiviteler yüklenemedi. Yeniden deneyin.'); })
+              .finally(() => { if (generation.current === request) setLoading(false); });
+        }, searchTerm ? 250 : 0);
+        return () => { generation.current++; window.clearTimeout(timer); };
+    }, [filters, refresh, session?.user.id]);
+    const loadMoreActivities = async () => {
+        if (moreBusy.current || loading) return;
+        moreBusy.current = true; setLoadingMore(true);
+        const request = generation.current;
+        try {
+            const result = await listActivityPage(filters, activities.length);
+            if (request === generation.current) {
+                setActivities(previous => [...previous, ...result.rows.filter(row => !previous.some(old => old.id === row.id))]);
+                setCount(result.count);
             }
-        }
+        } catch { if (request === generation.current) toast.error('Sonraki aktiviteler yüklenemedi. Tekrar deneyin.'); }
+        finally { moreBusy.current = false; setLoadingMore(false); }
     };
-
-    const filteredActivities = activities.filter(a => {
-        const matchesSearch =
-            a.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (a.propertyTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-        const matchesType = currentFilterType === 'Tümü' || a.type === currentFilterType;
-
-        return matchesSearch && matchesType;
-    });
+    const handleDelete = async (id: string) => {
+        if (!window.confirm('Bu aktiviteyi silmek istediğinize emin misiniz?')) return;
+        try { await deleteActivity(id); setRefresh(value => value + 1); toast.success('Aktivite silindi.'); }
+        catch { toast.error('Aktivite silinemedi.'); }
+    };
+    const hasMoreActivities = activities.length < count;
+    const filteredActivities = activities;
 
     return (
         <div className="space-y-6">
@@ -80,15 +106,25 @@ const ActivityList: React.FC = () => {
                         value={currentFilterType}
                         onChange={(e) => setCurrentFilterType(e.target.value)}
                     >
-                        <option>Tümü</option>
+                        <option value="all">Tüm aktivite türleri</option>
                         <option>Yer Gösterimi</option>
                         <option>Gelen Arama</option>
                         <option>Giden Arama</option>
-                        <option>Ofis Toplantısı</option>
+                        <option>Ofis Toplantısı</option><option>Tapu İşlemi</option><option>Kapora Alındı</option><option>Diğer</option>
                     </select>
                 </div>
             </div>
 
+            <div className="flex flex-wrap items-end gap-3">
+                <label className="text-sm text-slate-600 dark:text-slate-300">Tarih<input aria-label="Aktivite tarihi" type="date" value={date} onChange={e => setDate(e.target.value)} className="block mt-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-2" /></label>
+                <button className="text-sm text-sky-700 dark:text-sky-300 underline" onClick={() => setDate(istanbulDate())}>Bugün</button>
+                <button className="text-sm text-sky-700 dark:text-sky-300 underline" onClick={() => setDate('')}>Tüm tarihler</button>
+                <label className="text-sm text-slate-600 dark:text-slate-300">Arama kaynağı<select aria-label="Arama kaynağı" value={source} onChange={e => setSource(e.target.value)} className="block mt-1 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-2"><option value="all">Tüm kaynaklar</option><option value="fsbo">FSBO</option><option value="follow_up">Takip aramaları</option><option value="list">Liste aramaları</option><option value="other">Diğer CRM aktiviteleri</option></select></label>
+                <button className="text-sm text-sky-700 dark:text-sky-300 underline" onClick={() => setRefresh(value => value + 1)}>Yenile</button>
+                {!loading && !error && <span className="text-sm text-slate-500">{count} aktivite</span>}
+            </div>
+            {loading && <p role="status" className="text-slate-500">Aktiviteler yükleniyor…</p>}
+            {error && <p role="alert" className="text-red-600">{error}</p>}
             {/* Activity List */}
             <div className="space-y-4">
                 {filteredActivities.map((activity) => (
@@ -99,22 +135,19 @@ const ActivityList: React.FC = () => {
                                     {getActivityIcon(activity.type)}
                                 </div>
                                 <h3 className="font-bold text-slate-800 dark:text-white text-lg">{activity.type}</h3>
-                                <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto md:ml-2 block md:inline">{activity.date}</span>
+                                <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto md:ml-2 block md:inline">{activity.date}{activity.time ? ` · ${activity.time}` : ''}</span>
                             </div>
 
+                            {activity.prospecting_event_id && <p className="text-sm text-sky-700 dark:text-sky-300 mb-2">{activity.prospecting_source_kind === 'fsbo' ? 'FSBO' : activity.prospecting_source_kind === 'list' ? 'Liste araması' : 'Manuel takip'} · {activity.prospecting_is_follow_up ? 'Takip araması' : 'İlk arama'}</p>}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mb-3 text-sm">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-gray-500 dark:text-slate-400">Müşteri:</span>
-                                    <Link to={`/customers/${activity.customerId}`} className="font-medium text-[#1193d4] hover:underline">
-                                        {activity.customerName}
-                                    </Link>
+                                    {activity.customerId ? <Link to={`/customers/${activity.customerId}`} className="font-medium text-[#1193d4] hover:underline">{activity.customerName}</Link> : <span className="font-medium text-slate-800 dark:text-white">{activity.customerName}</span>}
                                 </div>
-                                {activity.propertyId && (
+                                {activity.propertyTitle && (
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-gray-500 dark:text-slate-400">Emlak:</span>
-                                        <Link to={`/properties/${activity.propertyId}`} className="font-medium text-slate-700 dark:text-slate-300 hover:text-[#1193d4] truncate max-w-[200px]">
-                                            {activity.propertyTitle}
-                                        </Link>
+                                        {activity.propertyId ? <Link to={`/properties/${activity.propertyId}`} className="font-medium text-sky-700 dark:text-sky-300">{activity.propertyTitle}</Link> : <span>{activity.propertyTitle}</span>}
                                     </div>
                                 )}
                             </div>
@@ -125,9 +158,9 @@ const ActivityList: React.FC = () => {
                         </div>
 
                         <div className="self-start md:self-center min-w-[100px] flex flex-col items-end gap-2">
-                            {getStatusBadge(activity.status)}
-                            {['Giden Arama', 'Gelen Arama'].includes(activity.type) && <Link to={`/prospecting?activity=${encodeURIComponent(activity.id)}`} className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">Portföy takibine al</Link>}
-                            <div className="flex items-center gap-3">
+                            {activity.prospecting_outcome ? <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700">{CALL_OUTCOME_LABELS[activity.prospecting_outcome]}</span> : getStatusBadge(activity.status)}
+                            {!activity.prospecting_case_id && ['Giden Arama', 'Gelen Arama'].includes(activity.type) && <Link to={`/prospecting?activity=${encodeURIComponent(activity.id)}`} className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">Portföy takibine al</Link>}
+                            {activity.prospecting_case_id ? <Link to={`/prospecting?case=${encodeURIComponent(activity.prospecting_case_id)}`} className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">Takip kartını aç</Link> : <div className="flex items-center gap-3">
                                 <Link to={`/activities/edit/${activity.id}`} className="text-sm font-medium text-[#1193d4] hover:underline">
                                     Düzenle
                                 </Link>
@@ -137,19 +170,19 @@ const ActivityList: React.FC = () => {
                                 >
                                     Sil
                                 </button>
-                            </div>
+                            </div>}
                         </div>
                     </div>
                 ))}
 
-                {filteredActivities.length === 0 && (
+                {!loading && !error && filteredActivities.length === 0 && (
                     <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                         <p>Aradığınız kriterlere uygun aktivite bulunamadı.</p>
                     </div>
                 )}
 
                 {/* Load More Button */}
-                {filteredActivities.length > 0 && (
+                {!loading && !error && filteredActivities.length > 0 && (
                     <div className="flex justify-center pt-4">
                         {hasMoreActivities ? (
                             <button

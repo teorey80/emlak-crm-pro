@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { ProspectingWorkspace } from './Prospecting';
 import type { ProspectCase, ProspectEvent, ProspectStage } from '../types';
 import type { ProspectingRepository } from '../services/prospectingService';
-import { attachEngagement } from '../utils/prospecting';
+import { attachProspectHistory } from '../utils/prospecting';
 
 function createPreviewRepository(): ProspectingRepository {
   const day = 86400000;
@@ -42,7 +42,7 @@ function createPreviewRepository(): ProspectingRepository {
       events.push({ id: crypto.randomUUID(), case_id: id, occurred_at: new Date().toISOString(), date_precision: 'minute', created_at: new Date().toISOString(), outcome: input.outcome, note: input.note, stage, next_action: input.next_action, next_action_at: input.next_action_at });
       return id;
     },
-    list: async () => attachEngagement(structuredClone(rows), events),
+    list: async () => attachProspectHistory(structuredClone(rows), structuredClone(events)),
     history: async id => structuredClone(events.filter(event => event.case_id === id).reverse()),
     async record(input) {
       if (done.has(input.request_id)) return;

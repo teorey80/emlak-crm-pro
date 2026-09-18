@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attachEngagement, prospectEngagementStatus, prospectSourceName, followUpState, fromIstanbulInput, matchesProspect, normalizePhone, normalizeSearch, parseDelimited, parseProspectImport, toIstanbulInput, validateImport } from './prospecting.ts';
-import type { ProspectCase, ProspectImportRow } from '../types.ts';
+import { attachProspectHistory, prospectCalls, attachEngagement, prospectEngagementStatus, prospectSourceName, followUpState, fromIstanbulInput, matchesProspect, normalizePhone, normalizeSearch, parseDelimited, parseProspectImport, toIstanbulInput, validateImport } from './prospecting.ts';
+import type { ProspectCase, ProspectImportRow, ProspectEvent } from '../types.ts';
 
 const row = (source_key = 'sheet:1'): ProspectImportRow => ({ source_key, source_url: '', name: 'Örnek Malik', phone: '0532 000 00 00', site_name: 'Örnek Site', block: 'A', unit: '03', stage: 'new', do_not_contact: false, transaction_type: 'Belirsiz', priority: 'Normal', source_note: '', source_metadata: {}, data_warning: '', next_action: '', next_action_at: null, events: [] });
 const item = (stage: ProspectCase['stage'], due: string | null, blocked = false): ProspectCase => ({ ...row(), id: '1', contact_id: 'c', contact: { id: 'c', name: 'Örnek', phone: '5320000000', do_not_contact: blocked }, stage, next_action_at: due, last_note: '', last_contact_at: null, closed_reason: '', version: 1, created_at: '' });
@@ -112,4 +112,18 @@ test('FSBO links accept web URLs but reject scripts and embedded credentials', a
   assert.equal(safeProspectUrl('javascript:alert(1)'), false);
   assert.equal(safeProspectUrl('https://user:secret@example.com'), false);
   assert.equal(safeProspectUrl(''), false);
+});
+
+
+test('Completed call history survives tomorrow follow-ups, closed stages and Istanbul midnight', () => {
+  const record = { ...item('new', '2026-09-19T06:55:00Z'), source_kind: 'fsbo' as const };
+  const call: ProspectEvent = { id: 'call-1', case_id: record.id, outcome: 'no_answer', occurred_at: '2026-09-17T21:05:00Z', created_at: '2026-09-17T21:05:00Z', date_precision: 'minute', note: 'Ulaşılamadı', stage: 'new', next_action: 'Tekrar ara', next_action_at: record.next_action_at };
+  const second = { ...call, id: 'call-2', outcome: 'reached' as const, occurred_at: '2026-09-18T10:00:00Z' };
+  const records = attachProspectHistory([record], [call, second, { ...call, id: 'plan', outcome: 'plan' }, { ...call, id: 'old', outcome: 'import' }]);
+  assert.equal(followUpState(records[0], '2026-09-18'), 'planned');
+  assert.deepEqual(prospectCalls(records, '2026-09-18').map(row => row.event.id), ['call-2', 'call-1']);
+  assert.equal(prospectCalls(records, '2026-09-17').length, 0);
+  assert.equal(prospectCalls(records.map(row => ({ ...row, stage: 'lost', contact: { ...row.contact, do_not_contact: true } })), '2026-09-18').length, 2);
+  assert.equal(prospectCalls(records, '2026-09-19').length, 0);
+  assert.equal(prospectCalls(records).length, 2);
 });
