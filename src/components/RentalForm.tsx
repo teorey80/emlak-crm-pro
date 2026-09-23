@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 interface RentalFormProps {
     property: Property;
     onClose: () => void;
-    onSave: (sale: Sale) => void;
+    onSave: (sale: Sale) => Promise<void>;
 }
 
 const EXPENSE_TYPES = [
@@ -20,6 +20,7 @@ const EXPENSE_TYPES = [
 
 const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) => {
     const { customers, session, userProfile, teamMembers } = useData();
+    const [saving, setSaving] = useState(false);
 
     // Detect if this is a cross-consultant rental
     const propertyOwner = useMemo(() => {
@@ -39,6 +40,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         consultantId: session?.user?.id || '',
         consultantName: userProfile?.name || '',
         commissionRate: 100, // Default: 1 month rent as commission (100% of monthly)
+        kdvIncluded: true,
+        kdvRate: 20,
         officeShareRate: 50, // Default 50%
         notes: '',
         // Cross-commission fields
@@ -59,6 +62,8 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
 
     // Calculated values - Commission is based on monthly rent
     const commissionAmount = (formData.monthlyRent * formData.commissionRate) / 100;
+    const kdvAmount = formData.kdvIncluded ? Math.round(commissionAmount * formData.kdvRate) / 100 : 0;
+    const grossAmountWithKdv = commissionAmount + kdvAmount;
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
     const netProfit = commissionAmount - totalExpenses;
     const officeShareAmount = (netProfit * formData.officeShareRate) / 100;
@@ -103,8 +108,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
     };
 
     // Submit
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (saving) return;
 
         const sale: Sale = {
             id: `rental-${Date.now()}`,
@@ -130,6 +136,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
             // Commission
             commissionRate: formData.commissionRate,
             commissionAmount: commissionAmount,
+            buyerCommissionAmount: 0,
+            buyerCommissionRate: 0,
+            sellerCommissionAmount: 0,
+            sellerCommissionRate: 0,
+            kdvIncluded: formData.kdvIncluded,
+            kdvRate: formData.kdvIncluded ? formData.kdvRate : 0,
+            kdvAmount,
+            netCommissionExKdv: commissionAmount,
+            grossAmountWithKdv,
 
             // Expenses
             expenses: expenses,
@@ -149,7 +164,12 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
             propertyTitle: property.title,
         };
 
-        onSave(sale);
+        setSaving(true);
+        try {
+            await onSave(sale);
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Filter customers for tenant selection (prefer tenants/buyers)
@@ -330,6 +350,20 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                             </div>
                         </div>
 
+                        <div className="border-t border-emerald-200 dark:border-emerald-800 pt-4 space-y-3">
+                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                <input type="checkbox" checked={formData.kdvIncluded} onChange={(e) => setFormData({ ...formData, kdvIncluded: e.target.checked })} />
+                                Komisyona KDV ekle
+                            </label>
+                            {formData.kdvIncluded && (
+                                <label className="block text-sm text-slate-700 dark:text-slate-300">
+                                    KDV oranı (%)
+                                    <input type="number" min="0" max="100" step="0.01" required value={formData.kdvRate} onChange={(e) => setFormData({ ...formData, kdvRate: Number(e.target.value) })} className="mt-1 w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white" />
+                                </label>
+                            )}
+                            <p className="text-sm text-slate-700 dark:text-slate-300">KDV: {kdvAmount.toLocaleString('tr-TR')} ₺ · KDV dahil tahsilat: {grossAmountWithKdv.toLocaleString('tr-TR')} ₺</p>
+                        </div>
+
                         {/* Cross-consultant commission */}
                         {isCrossConsultant && (
                             <div className="border-t border-emerald-200 dark:border-emerald-800 pt-4 mt-4">
@@ -481,10 +515,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                         </button>
                         <button
                             type="submit"
-                            disabled={!formData.tenantId || !formData.monthlyRent}
+                            disabled={saving || !formData.tenantId || !formData.monthlyRent}
                             className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Kiralamayı Kaydet
+                            {saving ? 'Kaydediliyor...' : 'Kiralamayı Kaydet'}
                         </button>
                     </div>
                 </form>

@@ -263,6 +263,10 @@ export interface Property {
   sold_date?: string;
   rentedDate?: string;
   rented_date?: string;
+  tenant_id?: string;
+  tenant_name?: string;
+  current_monthly_rent?: number;
+  tenant_lease_end_date?: string;
 
   // Draft
   isDraft?: boolean;
@@ -487,6 +491,16 @@ export interface Sale {
   commission_rate?: number; // DB field
   commissionAmount: number;  // Toplam tutar
   commission_amount?: number; // DB field
+  kdvIncluded?: boolean;
+  kdv_included?: boolean;
+  kdvRate?: number;
+  kdv_rate?: number;
+  kdvAmount?: number;
+  kdv_amount?: number;
+  netCommissionExKdv?: number;
+  net_commission_ex_kdv?: number;
+  grossAmountWithKdv?: number;
+  gross_amount_with_kdv?: number;
 
   // Expenses
   expenses: SaleExpense[];

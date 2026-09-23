@@ -1,47 +1,58 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar } from 'lucide-react';
+
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const amount = (value: number | string | null | undefined) => Number(value ?? 0);
+type Period = 'thisMonth' | 'lastMonth' | 'threeMonths' | 'thisYear' | 'custom';
 
 const Reports: React.FC = () => {
   const { properties, customers, activities, sales, teamMembers } = useData();
   const [viewMode, setViewMode] = useState<'overview' | 'commission'>('overview');
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [period, setPeriod] = useState<Period>('thisMonth');
+  const [startDate, setStartDate] = useState(() => dateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [endDate, setEndDate] = useState(() => dateKey(new Date()));
+
+  const choosePeriod = (next: Period) => {
+    setPeriod(next);
+    if (next === 'custom') return;
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const start = next === 'lastMonth' ? new Date(year, month - 1, 1)
+      : next === 'threeMonths' ? new Date(year, month - 2, 1)
+      : next === 'thisYear' ? new Date(year, 0, 1)
+      : new Date(year, month, 1);
+    const end = next === 'lastMonth' ? new Date(year, month, 0) : now;
+    setStartDate(dateKey(start));
+    setEndDate(dateKey(end));
+  };
 
-  // Parse selected month
-  const monthRange = useMemo(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-    const monthName = firstDay.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
-    return { firstDay, lastDay, monthName, year, month };
-  }, [selectedMonth]);
+  const invalidRange = Boolean(startDate && endDate && startDate > endDate);
 
-  // Calculate monthly commission stats
+  // Seçilen dönemdeki kapanışlar; tarih alanı DATE olduğundan günleri ISO metin olarak karşılaştırırız.
   const commissionStats = useMemo(() => {
-    const { firstDay, lastDay } = monthRange;
-
-    const monthlySales = sales?.filter(s => {
-      const saleDate = new Date(s.saleDate || s.sale_date || '');
-      return saleDate >= firstDay && saleDate <= lastDay;
+    const periodSales = sales?.filter(s => {
+      const saleDate = (s.saleDate || s.sale_date || '').slice(0, 10);
+      return !invalidRange && Boolean(startDate && endDate && saleDate >= startDate && saleDate <= endDate);
     }) || [];
 
-    const totalCommission = monthlySales.reduce((sum, s) => sum + (s.commissionAmount || s.commission_amount || 0), 0);
-    const totalOfficeShare = monthlySales.reduce((sum, s) => sum + (s.officeShareAmount || s.office_share_amount || 0), 0);
-    const totalConsultantShare = monthlySales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
-    const totalExpenses = monthlySales.reduce((sum, s) => sum + (s.totalExpenses || s.total_expenses || 0), 0);
-    const totalRevenue = monthlySales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+    const totalCommission = periodSales.reduce((sum, s) => sum + amount(s.commissionAmount ?? s.commission_amount), 0);
+    const totalKdv = periodSales.reduce((sum, s) => sum + amount(s.kdvAmount ?? s.kdv_amount), 0);
+    const totalGross = totalCommission + totalKdv;
+    const totalOfficeShare = periodSales.reduce((sum, s) => sum + amount(s.officeShareAmount ?? s.office_share_amount), 0);
+    const totalConsultantShare = periodSales.reduce((sum, s) => sum + amount(s.consultantShareAmount ?? s.consultant_share_amount), 0);
+    const totalExpenses = periodSales.reduce((sum, s) => sum + amount(s.totalExpenses ?? s.total_expenses), 0);
+    const totalRevenue = periodSales.reduce((sum, s) => sum + amount((s.transactionType || s.transaction_type) === 'rental' ? (s.monthlyRent ?? s.monthly_rent ?? s.salePrice ?? s.sale_price) : (s.salePrice ?? s.sale_price)), 0);
 
     // Per consultant breakdown
     const consultantBreakdown = teamMembers.map(member => {
-      const memberSales = monthlySales.filter(s =>
+      const memberSales = periodSales.filter(s =>
         s.consultantId === member.id || s.consultant_id === member.id || s.user_id === member.id
       );
-      const commission = memberSales.reduce((sum, s) => sum + (s.consultantShareAmount || s.consultant_share_amount || 0), 0);
+      const commission = memberSales.reduce((sum, s) => sum + amount(s.consultantShareAmount ?? s.consultant_share_amount), 0);
       const saleCount = memberSales.length;
-      const revenue = memberSales.reduce((sum, s) => sum + (s.salePrice || s.sale_price || 0), 0);
+      const revenue = memberSales.reduce((sum, s) => sum + amount(s.salePrice ?? s.sale_price), 0);
 
       return {
         ...member,
@@ -49,25 +60,21 @@ const Reports: React.FC = () => {
         saleCount,
         revenue
       };
-    }).sort((a, b) => b.commission - a.commission);
+    }).filter(member => member.saleCount > 0).sort((a, b) => b.commission - a.commission);
 
     return {
-      monthlySales,
+      periodSales,
       totalCommission,
+      totalKdv,
+      totalGross,
       totalOfficeShare,
       totalConsultantShare,
       totalExpenses,
       totalRevenue,
-      saleCount: monthlySales.length,
+      saleCount: periodSales.length,
       consultantBreakdown
     };
-  }, [sales, teamMembers, monthRange]);
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const newDate = new Date(year, month - 1 + (direction === 'next' ? 1 : -1), 1);
-    setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
-  };
+  }, [sales, teamMembers, startDate, endDate, invalidRange]);
 
   // Calculate Stats
   const totalPortfolioValue = properties.reduce((acc, curr) => acc + curr.price, 0);
@@ -121,37 +128,41 @@ const Reports: React.FC = () => {
       {/* Commission Report View */}
       {viewMode === 'commission' && (
         <div className="space-y-6">
-          {/* Month Selector */}
+          {/* Dönem ve tarih aralığı */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              </button>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#1193d4]" />
-                <span className="text-lg font-bold text-slate-800 dark:text-white capitalize">{monthRange.monthName}</span>
-              </div>
-              <button
-                onClick={() => navigateMonth('next')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              </button>
+            <div className="flex items-center gap-2 mb-3 font-semibold text-slate-800 dark:text-white"><Calendar className="w-5 h-5 text-[#1193d4]" /> Rapor dönemi</div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {([['thisMonth', 'Bu ay'], ['lastMonth', 'Geçen ay'], ['threeMonths', 'Son 3 ay'], ['thisYear', 'Bu yıl'], ['custom', 'Özel aralık']] as const).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => choosePeriod(value)} className={`px-3 py-2 rounded-lg text-sm ${period === value ? 'bg-sky-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'}`}>{label}</button>
+              ))}
             </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-sm text-slate-700 dark:text-slate-300">Başlangıç<input aria-label="Başlangıç tarihi" type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setPeriod('custom'); }} className="block mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700" /></label>
+              <label className="text-sm text-slate-700 dark:text-slate-300">Bitiş<input aria-label="Bitiş tarihi" type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setPeriod('custom'); }} className="block mt-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700" /></label>
+            </div>
+            {invalidRange && <p role="alert" className="mt-2 text-sm text-red-600">Başlangıç tarihi bitiş tarihinden sonra olamaz.</p>}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Eski kayıtlarda KDV girilmediyse KDV tutarı 0 TL görünür.</p>
           </div>
 
           {/* Commission Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-5 rounded-xl text-white">
               <div className="flex items-center gap-3 mb-2">
                 <DollarSign className="w-6 h-6 opacity-80" />
-                <span className="text-sm opacity-90">Toplam Komisyon</span>
+                <span className="text-sm opacity-90">Komisyon (KDV hariç)</span>
               </div>
               <p className="text-2xl font-bold">{commissionStats.totalCommission.toLocaleString('tr-TR')} TL</p>
-              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} satis</p>
+              <p className="text-xs opacity-75 mt-1">{commissionStats.saleCount} kapanış</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-teal-500 to-cyan-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2"><Wallet className="w-6 h-6 opacity-80" /><span className="text-sm opacity-90">KDV</span></div>
+              <p className="text-2xl font-bold">{commissionStats.totalKdv.toLocaleString('tr-TR')} TL</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-sky-500 to-blue-600 p-5 rounded-xl text-white">
+              <div className="flex items-center gap-3 mb-2"><DollarSign className="w-6 h-6 opacity-80" /><span className="text-sm opacity-90">KDV dahil tahsilat</span></div>
+              <p className="text-2xl font-bold">{commissionStats.totalGross.toLocaleString('tr-TR')} TL</p>
             </div>
 
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-5 rounded-xl text-white">
@@ -213,17 +224,17 @@ const Reports: React.FC = () => {
               ))}
               {commissionStats.consultantBreakdown.length === 0 && (
                 <div className="p-8 text-center text-slate-400">
-                  Bu ay henuz satis yapilmamis.
+                  Seçilen dönemde kapanış bulunmuyor.
                 </div>
               )}
             </div>
           </div>
 
           {/* Recent Sales */}
-          {commissionStats.monthlySales.length > 0 && (
+          {commissionStats.periodSales.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
               <div className="p-4 border-b border-gray-100 dark:border-slate-700">
-                <h3 className="font-bold text-slate-800 dark:text-white">Bu Ayin Satislari</h3>
+                <h3 className="font-bold text-slate-800 dark:text-white">Dönem Kapanışları</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -231,24 +242,32 @@ const Reports: React.FC = () => {
                     <tr>
                       <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tarih</th>
                       <th className="text-left p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Portfoy</th>
-                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Satis Bedeli</th>
-                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Komisyon</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">İşlem Bedeli</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Komisyon (KDV hariç)</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">KDV</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">KDV dahil</th>
                       <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis</th>
                       <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danisman</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                    {commissionStats.monthlySales.map(sale => (
+                    {commissionStats.periodSales.map(sale => (
                       <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                         <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                           {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
                         </td>
-                        <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">{sale.propertyTitle || '-'}</td>
+                        <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">{sale.propertyTitle || properties.find(p => p.id === (sale.propertyId || sale.property_id))?.title || '-'}</td>
                         <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
-                          {(sale.salePrice || sale.sale_price || 0).toLocaleString('tr-TR')} TL
+                          {amount((sale.transactionType || sale.transaction_type) === 'rental' ? (sale.monthlyRent ?? sale.monthly_rent ?? sale.salePrice ?? sale.sale_price) : (sale.salePrice ?? sale.sale_price)).toLocaleString('tr-TR')} TL
                         </td>
                         <td className="p-3 text-sm text-right font-medium text-blue-600 dark:text-blue-400">
-                          {(sale.commissionAmount || sale.commission_amount || 0).toLocaleString('tr-TR')} TL
+                          {amount(sale.commissionAmount ?? sale.commission_amount).toLocaleString('tr-TR')} TL
+                        </td>
+                        <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
+                          {amount(sale.kdvAmount ?? sale.kdv_amount).toLocaleString('tr-TR')} TL
+                        </td>
+                        <td className="p-3 text-sm text-right font-semibold text-sky-700 dark:text-sky-300">
+                          {(amount(sale.commissionAmount ?? sale.commission_amount) + amount(sale.kdvAmount ?? sale.kdv_amount)).toLocaleString('tr-TR')} TL
                         </td>
                         <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
                           {(sale.officeShareAmount || sale.office_share_amount || 0).toLocaleString('tr-TR')} TL
