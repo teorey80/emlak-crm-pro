@@ -268,7 +268,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error fetching properties:', propsRes.error);
         setPropertiesLoadError(propsRes.error.message || 'Portföy yüklenemedi');
       } else if (propsRes.data) {
-        setProperties(propsRes.data);
+        setProperties(propsRes.data.map(p=>({...p,site:sitesRes.data?.find(site=>site.id===p.site_id)?.name || p.site})));
         setHasMoreProperties(propsRes.data.length === PAGE_SIZE);
         setPropertiesLoadError(null);
       }
@@ -500,21 +500,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addSite = async (site: Site) => {
-    setSites((prev) => [site, ...prev]);
-    const { error } = await supabase.from('sites').insert([site]);
-    if (error) {
-      console.error('Error adding site:', error);
-      throw error;
-    }
+    if (!session?.user.id) throw new Error('Oturum gerekli');
+    const payload = { ...site, user_id: session.user.id, office_id: office?.id || null };
+    const { data, error } = await supabase.from('sites').insert([payload]).select('*').single();
+    if (error) throw error;
+    setSites(prev => [...prev, data]);
   };
 
   const deleteSite = async (id: string) => {
-    setSites((prev) => prev.filter((site) => site.id !== id));
     const { error } = await supabase.from('sites').delete().eq('id', id);
     if (error) {
       console.error('Error deleting site:', error);
       throw error;
     }
+    setSites(prev => prev.filter(site => site.id !== id));
   };
 
   const addActivity = async (activity: Activity) => {
@@ -747,7 +746,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .range(properties.length, properties.length + PAGE_SIZE - 1);
 
       if (data) {
-        setProperties(prev => [...prev, ...data]);
+        setProperties(prev => [...prev, ...data.map(p=>({...p,site:sites.find(site=>site.id===p.site_id)?.name || p.site}))]);
         setHasMoreProperties(data.length === PAGE_SIZE);
       }
     } catch (error) {

@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, MapPin } from 'lucide-react';
@@ -57,7 +58,7 @@ const RequestList: React.FC = () => {
                             <Link to={`/requests/${req.id}`} className="font-bold text-slate-800 dark:text-white group-hover:text-[#1193d4] dark:group-hover:text-sky-400 block flex-1">
                                 {req.customerName}
                                 {req.siteName && <span className="block text-xs font-normal text-gray-500 mt-0.5">({req.siteName})</span>}
-                            </Link>
+                            </Link><EntityTags type="request" id={req.id}/>
                             <div className="flex items-center gap-2">
                                 <Link to={`/requests/edit/${req.id}`} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors">Düzenle</Link>
                                 <button

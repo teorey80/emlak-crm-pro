@@ -1,3 +1,5 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Building, MapPin } from 'lucide-react';
@@ -7,9 +9,10 @@ const RequestDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { requests, properties } = useData();
-  const request = requests.find(r => r.id === id);
+  const { record: request, loading: recordLoading, error: recordError } = useCrmRecord('requests', id, requests);
 
-  if (!request) return <div className="p-10 text-center text-gray-500 dark:text-slate-400">Talep bulunamadı.</div>;
+  if (recordLoading || recordError) return <p role="status" className="p-8">{recordError || 'Kayıt yükleniyor…'}</p>;
+    if (!request) return <div className="p-10 text-center text-gray-500 dark:text-slate-400">Talep bulunamadı.</div>;
 
   // Matching Logic
   const matchingProperties = properties.filter(p => {
@@ -33,7 +36,7 @@ const RequestDetail: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{request.customerName} - Emlak Talebi</h1>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{request.customerName} - Emlak Talebi</h1><EntityTags type="request" id={request.id} detailed editable/>
                     <p className="text-gray-500 dark:text-slate-400 mt-1">{request.type} arıyor</p>
                 </div>
                 <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-sm font-medium">

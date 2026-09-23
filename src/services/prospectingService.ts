@@ -22,7 +22,7 @@ async function listCases() {
     const records: ProspectCase[] = [];
     let cursor: string | undefined;
     while (true) {
-      let query = supabase.from('prospecting_cases').select('*, contact:prospecting_contacts!inner(id,name,phone,do_not_contact)').order('id').limit(500);
+      let query = supabase.from('prospecting_cases').select('*, contact:prospecting_contacts!inner(id,name,phone,do_not_contact,customer_id)').order('id').limit(500);
       if (cursor) query = query.gt('id', cursor);
       const { data, error } = await query;
       if (error) throw error;
@@ -52,6 +52,7 @@ export const prospectingRepository: ProspectingRepository = {
   async start(input) {
     const { data, error } = await supabase.rpc('prospecting_start', { p_input: input });
     if (error) throw error;
+    window.dispatchEvent(new Event('crm-tags-changed'));
     return data as string;
   },
   async activity(id) {
@@ -68,8 +69,10 @@ export const prospectingRepository: ProspectingRepository = {
   },
   async list() {
     // A history read failure must not label real conversations as untouched.
-    const [records, events] = await Promise.all([listCases(), listEngagementEvents()]);
-    return attachProspectHistory(records, events);
+    const [records, events, sites] = await Promise.all([listCases(), listEngagementEvents(), supabase.from('sites').select('id,name')]);
+    if (sites.error) throw sites.error;
+    const names = new Map((sites.data || []).map(site=>[site.id,site.name]));
+    return attachProspectHistory(records.map(record=>({...record,site_name:names.get(record.site_id) || record.site_name})), events);
   },
   async history(id) {
     const events: ProspectEvent[] = [];
@@ -88,6 +91,7 @@ export const prospectingRepository: ProspectingRepository = {
   async record(input) {
     const { error } = await supabase.rpc('prospecting_record_event', { p_input: input });
     if (error) throw error;
+    window.dispatchEvent(new Event('crm-tags-changed'));
   },
   async importRows(rows) {
     const { data, error } = await supabase.rpc('prospecting_import', { p_rows: rows });

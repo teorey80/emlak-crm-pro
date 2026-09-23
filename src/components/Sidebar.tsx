@@ -26,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
 
   const navItems = [
     { path: '/', label: 'Ana Sayfa', icon: LayoutDashboard },
+    { path: '/tags', label: 'Etiketlerle Ara', icon: SearchCheck },
     { path: '/prospecting', label: 'Portföy Takibi', icon: Phone },
     { path: '/calendar', label: 'Takvim / Ajanda', icon: Calendar },
     { path: '/activities', label: 'Aktiviteler', icon: CalendarCheck },

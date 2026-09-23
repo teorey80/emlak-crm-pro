@@ -1,3 +1,5 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Briefcase, Building2, Calendar, CheckCircle, Clock, Dog, Edit, Home, Info, Mail, MapPin, MessageSquare, MoreHorizontal, Phone, PlusCircle, Trash2, User, XCircle } from 'lucide-react';
@@ -9,8 +11,9 @@ const CustomerDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { customers, properties, activities, requests, deleteCustomer } = useData();
-    const customer = customers.find(c => c.id === id);
+    const { record: customer, loading: recordLoading, error: recordError } = useCrmRecord('customers', id, customers);
 
+    if (recordLoading || recordError) return <p role="status" className="p-8">{recordError || 'Kayıt yükleniyor…'}</p>;
     if (!customer) {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">Müşteri bulunamadı.</div>;
     }
@@ -193,7 +196,7 @@ const CustomerDetail: React.FC = () => {
                                         <div className="p-4 bg-gray-50 dark:bg-slate-700 rounded-xl border border-gray-100 dark:border-slate-600 shadow-sm hover:bg-sky-50/30 dark:hover:bg-sky-900/20 transition-colors">
                                             <div className="flex flex-col sm:flex-row justify-between items-start mb-2 gap-2">
                                                 <div className="flex items-center gap-2">
-                                                    <h4 className="text-sm font-bold text-gray-900 dark:text-slate-200">{activity.type}</h4>
+                                                    <h4 className="text-sm font-bold text-gray-900 dark:text-slate-200">{activity.type}</h4><EntityTags type="activity" id={activity.id}/>
                                                     {getStatusBadge(activity.status)}
                                                 </div>
                                                 <time className="text-xs font-normal text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-gray-200 dark:border-slate-600">{activity.date}</time>
@@ -240,7 +243,7 @@ const CustomerDetail: React.FC = () => {
                             <div className="w-20 h-20 bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 rounded-full mx-auto flex items-center justify-center text-2xl font-bold mb-3">
                                 {customer.name.charAt(0)}
                             </div>
-                            <h1 className="text-xl font-bold text-slate-800 dark:text-white">{customer.name}</h1>
+                            <h1 className="text-xl font-bold text-slate-800 dark:text-white">{customer.name}</h1><EntityTags type="customer" id={customer.id} detailed editable/>
                             <span className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-medium ${customer.status === 'Aktif' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' :
                                 customer.status === 'Potansiyel' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
                                     'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'

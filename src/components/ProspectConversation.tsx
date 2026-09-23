@@ -1,3 +1,5 @@
+import ProspectDetails from './ProspectDetails';
+import EntityTags from './EntityTags';
 import React, { useEffect, useRef, useState } from 'react';
 import { Clock, Phone, X } from 'lucide-react';
 import type { ProspectCase, ProspectEvent, ProspectEventInput, ProspectOutcome, ProspectStage } from '../types';
@@ -9,6 +11,8 @@ import ProspectProvenance from './ProspectProvenance';
 interface Props {
   item: ProspectCase;
   proposedStage?: ProspectStage;
+  metadataEnabled?: boolean;
+  onMetadataSaved?: () => Promise<void>;
   repository: ProspectingRepository;
   onClose: () => void;
   onSaved: (next: boolean) => Promise<void>;
@@ -16,7 +20,7 @@ interface Props {
 
 const field = 'w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm text-slate-900 dark:text-white disabled:opacity-60';
 
-const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository, onClose, onSaved }: Props) => {
+const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository, onClose, onSaved, onMetadataSaved, metadataEnabled = true }: Props) => {
   const dialog = useRef<HTMLDialogElement>(null);
   const requestId = useRef(crypto.randomUUID());
   const [history, setHistory] = useState<ProspectEvent[]>([]);
@@ -42,7 +46,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
       .catch(err => { if (!cancelled) setHistoryError(prospectingError(err)); })
       .finally(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
-  }, [item.id, repository]);
+  }, [item.id, item.version, repository]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,6 +73,8 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
     </header>
     <div className="grid md:grid-cols-2 gap-6 p-5">
       <section aria-label="Kişi ve görüşme geçmişi" className="min-w-0 space-y-4">
+        <EntityTags type="prospect" id={item.id} editable/>
+        {metadataEnabled && <ProspectDetails item={item} onSaved={onMetadataSaved}/>}
         <ProspectProvenance item={item} detailed />
         <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
           <span className="text-sm">{item.contact.phone || 'Telefon eklenmemiş'}</span>
@@ -81,6 +87,7 @@ const ProspectConversation: React.FC<Props> = ({ item, proposedStage, repository
           {history.map(entry => <li key={entry.id} className="border-l-2 border-sky-200 dark:border-sky-800 pl-3">
             <p className="text-xs text-slate-500 dark:text-slate-400">{entry.occurred_at ? entry.date_precision === 'day' ? new Date(entry.occurred_at).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' }) : formatProspectDate(entry.occurred_at) : 'Tarihi belirtilmemiş'} · {entry.outcome === 'plan' ? 'Takip planı' : entry.outcome === 'import' ? 'Önceki kaynak kaydı' : entry.outcome === 'no_answer' ? 'Ulaşılamadı' : entry.outcome === 'do_not_contact' ? 'İletişim tercihi' : 'Görüşme'}</p>
             <p className="text-sm whitespace-pre-wrap break-words mt-1">{entry.note}</p>
+            {['reached','no_answer','do_not_contact'].includes(entry.outcome) && <EntityTags type="activity" id={`PROSPECT-${entry.id}`}/>}
             <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{PROSPECT_STAGES[entry.stage]}{entry.next_action_at ? ` · ${formatProspectDate(entry.next_action_at)} — ${entry.next_action}` : ''}</p>
           </li>)}
         </ol>}

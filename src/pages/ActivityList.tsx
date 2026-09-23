@@ -1,5 +1,6 @@
+import EntityTags from '../components/EntityTags';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, MapPin, PhoneIncoming, PhoneOutgoing, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
@@ -29,6 +30,8 @@ const getStatusBadge = (status: string) => {
 };
 
 const ActivityList: React.FC = () => {
+    const [params,setParams] = useSearchParams();
+    const record = params.get('record') || '';
     const { deleteActivity, session } = useData();
     const [activities, setActivities] = useState<Activity[]>([]);
     const [count, setCount] = useState(0);
@@ -43,7 +46,7 @@ const ActivityList: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentFilterType, setCurrentFilterType] = useState('all');
 
-    const filters = useMemo(() => ({ search: searchTerm, type: currentFilterType, date, source }), [searchTerm, currentFilterType, date, source]);
+    const filters = useMemo(() => ({ search: searchTerm, type: currentFilterType, date, source, record }), [searchTerm, currentFilterType, date, source, record]);
     useEffect(() => {
         const request = ++generation.current;
         setLoading(true); setError(''); setActivities([]); setCount(0);
@@ -78,6 +81,7 @@ const ActivityList: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {record && <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 p-3 text-sm">Etiketten seçtiğiniz görüşme gösteriliyor. <button type="button" onClick={()=>{setParams({});setSearchTerm('');setCurrentFilterType('all');setDate('');setSource('all');}} className="underline">Tüm aktiviteleri göster</button></div>}
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Aktiviteler & Ajanda</h2>
                 <Link
@@ -138,6 +142,7 @@ const ActivityList: React.FC = () => {
                                 <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto md:ml-2 block md:inline">{activity.date}{activity.time ? ` · ${activity.time}` : ''}</span>
                             </div>
 
+                            <EntityTags type="activity" id={activity.id} editable/>
                             {activity.prospecting_event_id && <p className="text-sm text-sky-700 dark:text-sky-300 mb-2">{activity.prospecting_source_kind === 'fsbo' ? 'FSBO' : activity.prospecting_source_kind === 'list' ? 'Liste araması' : 'Manuel takip'} · {activity.prospecting_is_follow_up ? 'Takip araması' : 'İlk arama'}</p>}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mb-3 text-sm">
                                 <div className="flex items-center gap-1.5">

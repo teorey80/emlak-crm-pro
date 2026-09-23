@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import { useSearchParams } from 'react-router-dom';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowRight, CalendarCheck, Columns3, Database, Phone, RefreshCw, Search, Upload } from 'lucide-react';
@@ -17,23 +18,23 @@ const dueLabels = { blocked: 'Aranmasın', closed: 'Tamamlandı', pool: 'Henüz 
 
 const ProspectCard: React.FC<{ item: ProspectCase; onOpen: () => void; today: string }> = ({ item, onOpen, today }: { item: ProspectCase; onOpen: () => void; today: string }) => {
   const due = followUpState(item, today);
-  return <button type="button" draggable={!item.contact.do_not_contact} onDragStart={event => { event.dataTransfer.setData('text/prospect-id', item.id); event.dataTransfer.effectAllowed = 'move'; }} onClick={onOpen} className="w-full text-left rounded-xl p-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-400 focus-visible:outline-sky-500 shadow-sm transition-colors">
-    <div className="flex items-start justify-between gap-2"><span className="font-semibold text-slate-900 dark:text-slate-100 break-words">{item.contact.name}</span>{item.data_warning && <AlertCircle size={16} className="shrink-0 text-amber-600" aria-label="Veri kontrolü gerekli" />}</div>
+  return <div draggable={!item.contact.do_not_contact} onDragStart={event => { event.dataTransfer.setData('text/prospect-id', item.id); event.dataTransfer.effectAllowed = 'move'; }} onClick={onOpen} className="w-full text-left rounded-xl p-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-sky-400 focus-visible:outline-sky-500 shadow-sm transition-colors">
+    <div className="flex items-start justify-between gap-2"><button type="button" onClick={e=>{e.stopPropagation();onOpen();}} className="font-semibold text-slate-900 dark:text-slate-100 break-words text-left">{item.contact.name}</button>{item.data_warning && <AlertCircle size={16} className="shrink-0 text-amber-600" aria-label="Veri kontrolü gerekli" />}</div>
     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{prospectLocation(item)}</p>
-    <div className="mt-3"><ProspectProvenance item={item} /></div>
+    <EntityTags type="prospect" id={item.id}/><div className="mt-3"><ProspectProvenance item={item} /></div>
     <p className="text-sm text-slate-600 dark:text-slate-300 mt-3 line-clamp-2 break-words">{(item.last_note || item.source_note) && <span className="font-medium">{item.engagement?.crmEvents ? 'CRM notu: ' : 'Kaynak notu: '}</span>}{item.last_note || item.source_note || 'Henüz not yok.'}</p>
     <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700"><span className={`text-xs font-medium ${due === 'overdue' || due === 'blocked' ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'}`}>{dueLabels[due]}{item.next_action_at && due !== 'blocked' ? ` · ${formatProspectDate(item.next_action_at)}` : ''}</span>
       {item.next_action && due !== 'blocked' && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 break-words">{item.next_action}</p>}
     </div>
-  </button>;
+  </div>;
 };
 
-const ProspectCalls: React.FC<{ entries: ReturnType<typeof prospectCalls>; onOpen: (item: ProspectCase) => void }> = ({ entries, onOpen }) => entries.length ? <div className="space-y-2">{entries.map(({ item, event }) => <button key={event.id} onClick={() => onOpen(item)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800 hover:border-sky-400">
-  <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{item.contact.name}</span><span className="text-xs text-slate-500">{formatProspectDate(event.occurred_at!)}</span></div>
+const ProspectCalls: React.FC<{ entries: ReturnType<typeof prospectCalls>; onOpen: (item: ProspectCase) => void }> = ({ entries, onOpen }) => entries.length ? <div className="space-y-2">{entries.map(({ item, event }) => <div key={event.id} onClick={() => onOpen(item)} className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-800 hover:border-sky-400">
+  <div className="flex flex-wrap justify-between gap-2"><button type="button" onClick={e=>{e.stopPropagation();onOpen(item);}} className="font-medium">{item.contact.name}</button><span className="text-xs text-slate-500">{formatProspectDate(event.occurred_at!)}</span></div>
   <p className="text-sm mt-1 text-sky-700 dark:text-sky-300">{prospectSourceKind(item) === 'fsbo' ? 'FSBO' : prospectSourceKind(item) === 'list' ? 'Liste araması' : 'Manuel takip'} · {isProspectCall(event) ? CALL_OUTCOME_LABELS[event.outcome] : ''}</p>
   <p className="text-xs text-slate-500 mt-1">{prospectLocation(item)}</p><p className="text-sm mt-2 whitespace-pre-wrap">{event.note}</p>
   <p className="text-xs text-slate-500 mt-2">{item.contact.do_not_contact ? 'Arama dışı' : item.next_action_at ? `Sıradaki takip: ${formatProspectDate(item.next_action_at)} · ${item.next_action}` : `Güncel durum: ${PROSPECT_STAGES[item.stage]}`}</p>
-</button>)}</div> : <p className="text-sm text-slate-500 py-3">Bu tarih ve filtrelerde yapılmış arama yok.</p>;
+<EntityTags type="activity" id={`PROSPECT-${event.id}`}/></div>)}</div> : <p className="text-sm text-slate-500 py-3">Bu tarih ve filtrelerde yapılmış arama yok.</p>;
 
 export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository; preview?: boolean; activityId?: string; caseId?: string; onActivityDone?: () => void; onDataChanged?: () => Promise<void> }> = ({ repository, preview = false, activityId, caseId, onActivityDone, onDataChanged }) => {
   const [creating, setCreating] = useState(false);
@@ -152,13 +153,13 @@ export const ProspectingWorkspace: React.FC<{ repository: ProspectingRepository;
       </> : filtered.length ? <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">{filtered.map(item => <div key={item.id} className="min-w-0"><p className="text-xs text-slate-500 mb-1 pl-1">{PROSPECT_STAGES[item.stage]}</p><ProspectCard item={item} today={today} onOpen={() => open(item)} /></div>)}</div> : <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center"><Phone className="mx-auto mb-3 text-slate-400" size={28} /><p className="font-medium">{records.length === 0 ? 'İlk kayıtlarını ekleyerek başla' : 'Bu görünümde kayıt yok'}</p><p className="text-sm text-slate-500 mt-2">{records.length === 0 ? 'İçeri aktar düğmesiyle E-Tablodaki listenin önizlemesini açabilirsin.' : search ? 'Farklı bir isim, blok veya daireyle aramayı deneyebilirsin.' : 'Diğer görünümlerdeki kayıtları açarak sıradaki adımı planlayabilirsin.'}</p></div>)}
       <p className="text-xs text-slate-500">{records.length} kayıt · {counts.blocked} arama dışı · Tarihler İstanbul saatine göre gösterilir.</p>
     </>}
-    {(creating || activityId) && <ProspectStart repository={repository} records={records} activityId={activityId} onClose={() => { setCreating(false); onActivityDone?.(); }} onSaved={async id => {
+    {(creating || activityId) && <ProspectStart preview={preview} repository={repository} records={records} activityId={activityId} onClose={() => { setCreating(false); onActivityDone?.(); }} onSaved={async id => {
       setCreating(false); onActivityDone?.();
       toast.success('Takip kartı hazır.');
       void onDataChanged?.().catch(() => toast.error('Aktivite özeti yenilenemedi.'));
       try { await reload(); setSelectedId(id); } catch { toast.error('Kayıt kaydedildi; listeyi yenileyin.'); }
     }} />}
-    {selected && <ProspectConversation key={`${selected.id}:${selected.version}`} item={selected} proposedStage={proposedStage} repository={repository} onClose={() => { setSelectedId(null); setProposedStage(undefined); }} onSaved={onSaved} />}
+    {selected && <ProspectConversation key={selected.id} metadataEnabled={!preview} item={selected} proposedStage={proposedStage} onMetadataSaved={async()=>{await reload();}} repository={repository} onClose={() => { setSelectedId(null); setProposedStage(undefined); }} onSaved={onSaved} />}
   </div>;
 };
 

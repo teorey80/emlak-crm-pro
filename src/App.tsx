@@ -1,3 +1,5 @@
+import TagSearch from './pages/TagSearch';
+import { TagProvider } from './context/TagContext';
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -186,6 +188,7 @@ const CRMApp: React.FC = () => {
           }>
             <Route index element={<Dashboard />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="tags" element={<TagSearch />} />
             <Route path="prospecting" element={<Prospecting />} />
 
             <Route path="activities" element={<ActivityList />} />
@@ -300,7 +303,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <DataProvider>
-        <CRMApp />
+        <TagProvider><CRMApp /></TagProvider>
       </DataProvider>
     </ThemeProvider>
   );

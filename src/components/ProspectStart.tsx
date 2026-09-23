@@ -1,3 +1,4 @@
+import SitePicker from './SitePicker';
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { ProspectActivitySource, ProspectCase, ProspectStartInput } from '../types';
@@ -7,10 +8,11 @@ import { CLOSED_STAGES, fromIstanbulInput, normalizePhone, normalizeSearch, PROS
 
 const field = 'w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 text-sm';
 interface Props {
+  preview?: boolean;
   repository: ProspectingRepository; records: ProspectCase[]; activityId?: string;
   onClose: () => void; onSaved: (id: string) => Promise<void>;
 }
-export default function ProspectStart({ repository, records, activityId, onClose, onSaved }: Props) {
+export default function ProspectStart({ repository, records, activityId, onClose, onSaved, preview = false }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const request = useRef(crypto.randomUUID());
   const processing = useRef(false);
@@ -81,7 +83,9 @@ export default function ProspectStart({ repository, records, activityId, onClose
           {!target && <>
             <div className="grid sm:grid-cols-2 gap-3"><label className="text-sm">Kayıt kaynağı<select className={field} value={form.source_kind} onChange={e => change('source_kind', e.target.value as ProspectStartInput['source_kind'])}><option value="fsbo">FSBO — sahibinden satış / kiralama</option><option value="manual">Manuel / diğer</option></select></label><label className="text-sm">Kanal<input className={field} value={form.channel} onChange={e => change('channel',e.target.value)} placeholder="Sahibinden, referans, sokak ilanı…" /></label></div>
             <label className="block text-sm">İlan bağlantısı (isteğe bağlı)<input type="url" className={field} value={form.source_url} onChange={e => change('source_url',e.target.value)} placeholder="https://…" /></label>
-            <label className="block text-sm">Site / konum ve taşınmaz açıklaması<input required className={field} value={form.site_name} onChange={e => change('site_name',e.target.value)} placeholder="Çekmeköy, Merkez Mahallesi 2+1 daire" /></label>
+            {!preview && <SitePicker value={form.site_id} legacyName={form.site_name} onChange={(site_id,name)=>setForm(prev=>({...prev,site_id,site_name:name || prev.site_name}))}/>}
+            <label className="block text-sm">Oda sayısı<input className={field} value={form.rooms || ''} onChange={e=>change('rooms',e.target.value.replace(/\s/g,''))} placeholder="Örn. 3+1" /></label>
+            <label className="block text-sm">Konum / taşınmaz açıklaması<input required className={field} value={form.site_name} onChange={e => change('site_name',e.target.value)} placeholder="Çekmeköy, Merkez Mahallesi 2+1 daire" /></label>
             <div className="grid grid-cols-3 gap-3"><label className="text-sm">Blok<input className={field} value={form.block} onChange={e => change('block',e.target.value)} /></label><label className="text-sm">Daire<input className={field} value={form.unit} onChange={e => change('unit',e.target.value)} /></label><label className="text-sm">İşlem<select className={field} value={form.transaction_type} onChange={e => change('transaction_type',e.target.value)}><option>Satılık</option><option>Kiralık</option><option>Belirsiz</option></select></label></div>
           </>}
           {!activityId && <label className="block text-sm">Görüşme sonucu<select className={field} value={form.outcome} onChange={e => change('outcome', e.target.value as ProspectStartInput['outcome'])}><option value="plan">Henüz görüşmedim / sadece planla</option><option value="reached">Görüştüm</option><option value="no_answer">Aradım, ulaşamadım</option><option value="do_not_contact">Tekrar aranmak istemiyor</option></select></label>}

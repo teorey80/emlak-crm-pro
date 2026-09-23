@@ -1,0 +1,10 @@
+import CustomerLinkPicker from './CustomerLinkPicker';
+import React, { useState } from 'react';
+import SitePicker from './SitePicker';
+import { supabase } from '../services/supabaseClient';
+import type { ProspectCase } from '../types';
+export default function ProspectDetails({ item, onSaved }: { item: ProspectCase; onSaved?: () => Promise<void> }) {
+ const [customer,setCustomer]=useState(item.contact.customer_id || null);const [open,setOpen]=useState(false);const [site,setSite]=useState(item.site_id || null);const [rooms,setRooms]=useState(item.rooms || '');const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+ const save=async()=>{setBusy(true);setError('');try{const result=await supabase.rpc('crm_update_prospect_details',{p_id:item.id,p_version:item.version,p_site:site,p_rooms:rooms.trim() || null,p_customer:customer});if(result.error)throw result.error;window.dispatchEvent(new Event('crm-tags-changed'));await onSaved?.();setOpen(false);}catch(err){setError((err as {message?:string}).message || 'Bilgiler kaydedilemedi.');}finally{setBusy(false);}};
+ return <div className="my-3 text-sm"><button type="button" onClick={()=>setOpen(!open)} className="text-sky-700 dark:text-sky-300 underline">Müşteri, site ve oda bağlantısını düzenle</button>{open && <div className="mt-2 p-3 border rounded-lg dark:border-slate-700 space-y-3"><CustomerLinkPicker value={customer} onChange={setCustomer}/><SitePicker value={site} legacyName={item.site_name} onChange={id=>setSite(id)}/><label className="block">Oda sayısı<input value={rooms} onChange={e=>setRooms(e.target.value.replace(/\s/g,''))} placeholder="Örn. 3+1" className="block w-full rounded-lg border p-2 dark:bg-slate-800 dark:border-slate-600"/></label>{error && <p role="alert" className="text-red-600">{error}</p>}<button type="button" disabled={busy} onClick={()=>void save()} className="px-3 py-2 bg-sky-600 text-white rounded-lg disabled:opacity-50">{busy?'Kaydediliyor…':'Bağlantıları kaydet'}</button></div>}</div>;
+}

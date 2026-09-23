@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import React, { useState, useMemo } from 'react';
 import { Search, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -149,6 +150,7 @@ const CustomerList: React.FC = () => {
                                     <Link to={`/customers/${customer.id}`} className="font-medium text-slate-800 dark:text-slate-200 hover:text-[#1193d4]">
                                         {customer.name}
                                     </Link>
+                                    <EntityTags type="customer" id={customer.id}/>
                                 </td>
                                 <td className="p-4 text-gray-600 dark:text-slate-400">{customer.phone}</td>
                                 <td className="p-4 text-gray-600 dark:text-slate-400">{customer.email}</td>

@@ -12,6 +12,7 @@ export interface ProspectEngagement {
 }
 
 export interface ProspectContact {
+  customer_id?: string | null;
   id: string;
   name: string;
   phone: string;
@@ -26,6 +27,8 @@ export interface ProspectStartInput {
   source_kind: 'fsbo' | 'manual';
   name: string;
   phone: string;
+  site_id?: string | null;
+  rooms?: string | null;
   site_name: string;
   block: string;
   unit: string;
@@ -51,6 +54,8 @@ export interface ProspectCase {
   contact_id: string;
   source_kind?: 'list' | 'fsbo' | 'manual';
   contact: ProspectContact;
+  site_id?: string | null;
+  rooms?: string | null;
   site_name: string;
   block: string;
   unit: string;
@@ -138,6 +143,7 @@ export interface Property {
   area: number; // Net m2 for list view
   bathrooms: number;
   heating: string;
+  site_id?: string | null;
   site?: string;
   images: string[];
   description: string;
@@ -331,6 +337,8 @@ export interface Activity {
   type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kapora Alındı' | 'Diğer';
   customerId: string;
   customerName: string;
+  site_id?: string | null;
+  rooms?: string | null;
   propertyId?: string;
   propertyTitle?: string; // Optional, e.g. just a general meeting
   date: string;

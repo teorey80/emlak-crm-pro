@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, ArrowUpDown, X, ChevronUp, ChevronDown, RefreshCw, AlertTriangle, Globe } from 'lucide-react';
@@ -401,7 +402,7 @@ const PropertyList: React.FC = () => {
                                             <td className="p-4">
                                                 <Link to={`/properties/${property.id}`} className="font-semibold text-slate-800 dark:text-slate-200 hover:text-[#1193d4] block mb-1">
                                                     {property.title}
-                                                </Link>
+                                                </Link><EntityTags type="property" id={property.id}/>
                                                 <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
                                                     {property.location}
                                                 </span>

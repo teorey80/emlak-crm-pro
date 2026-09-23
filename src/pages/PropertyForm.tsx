@@ -1,3 +1,6 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
+import SitePicker from '../components/SitePicker';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -137,18 +140,20 @@ const PropertyForm: React.FC = () => {
   });
 
   // Load existing property for edit mode
+  const {record: editRecord, loading: editLoading, error: editError} = useCrmRecord('properties',id,properties);
   useEffect(() => {
     if (id) {
-      const existingProperty = properties.find(p => p.id === id);
+      const existingProperty = editRecord;
       if (existingProperty) {
         setFormData({
           ...existingProperty,
+          siteName: existingProperty.site || existingProperty.siteName || '',
           category: existingProperty.category || 'KONUT',
           subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
         });
       }
     }
-  }, [id, properties]);
+  }, [id, editRecord]);
 
   // ── Taslak (draft) otomatik kaydetme ─────────────────────────────
   // Yeni ilan girişinde girilen veriler localStorage'a yedeklenir; böylece
@@ -1326,26 +1331,14 @@ Sadece JSON döndür:
           <select
             className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
             value={formData.isInSite ? 'Evet' : 'Hayır'}
-            onChange={e => handleChange('isInSite', e.target.value === 'Evet')}
+            onChange={e => setFormData(prev=>({...prev,isInSite:e.target.value==='Evet',...(e.target.value==='Hayır'?{site_id:null,siteName:'',site:''}:{})}))}
           >
             <option value="Hayır">Hayır</option>
             <option value="Evet">Evet</option>
           </select>
         </div>
 
-        {/* Site Name */}
-        {formData.isInSite && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Site Adı</label>
-            <input
-              type="text"
-              placeholder="Site adı"
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              value={formData.siteName}
-              onChange={e => handleChange('siteName', e.target.value)}
-            />
-          </div>
-        )}
+        {formData.isInSite && <SitePicker value={formData.site_id} legacyName={formData.siteName} onChange={(site_id,siteName)=>setFormData(prev=>({...prev,site_id,siteName}))}/>}
 
         {/* Address */}
         <div className="md:col-span-2 lg:col-span-3">
@@ -1685,6 +1678,8 @@ Sadece JSON döndür:
     </div>
   );
 
+    if (id && (editLoading || editError || !editRecord)) return <p role="status" className="p-8">{editError || (editLoading ? 'Kayıt yükleniyor…' : 'Kayıt bulunamadı.')}</p>;
+
   return (
     <div className="max-w-5xl mx-auto pb-10">
       {/* Header */}
@@ -1701,6 +1696,8 @@ Sadece JSON döndür:
         </h1>
         <div className="w-20" />
       </div>
+
+      {id && <EntityTags type="property" id={id} editable/>}
 
       {/* Progress Steps */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-4 mb-6 border border-gray-200 dark:border-slate-700">

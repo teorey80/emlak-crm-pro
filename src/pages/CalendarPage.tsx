@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import React, { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Phone, MessageSquare, Clock, Plus, Home } from 'lucide-react';
@@ -283,7 +284,7 @@ const CalendarPage: React.FC = () => {
                                     {event.subtype === 'Telefon Görüşmesi' && <Phone className="w-3.5 h-3.5 text-gray-400" />}
                                     {event.subtype === 'Yer Gösterimi' && <MapPin className="w-3.5 h-3.5 text-gray-400" />}
                                     {event.title}
-                                </h4>
+                                </h4><EntityTags type={event.type} id={event.id}/>
 
                                 <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">
                                     {event.description}

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
+import { TagChips } from '../components/EntityTags';
 import { Building, MapPin, Plus } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Site } from '../types';
@@ -12,34 +14,44 @@ const SiteManagement: React.FC = () => {
     status: 'Aktif'
   });
 
-  const handleAddSite = () => {
+  const [saving,setSaving] = useState(false);
+  const handleAddSite = async () => {
     if (!newSite.name || !newSite.region) return;
 
+    if (sites.some(site=>site.name.trim().toLocaleLowerCase('tr')===newSite.name!.trim().toLocaleLowerCase('tr'))) { toast.error('Bu site zaten listede. Mevcut siteyi kullanabilirsiniz.'); return; }
     const site: Site = {
         id: Date.now().toString(),
         createdAt: new Date().toISOString().split('T')[0],
-        ...newSite as Site
+        ...newSite as Site, name: newSite.name.trim().replace(/\s+/g,' ')
     };
 
-    addSite(site);
+    setSaving(true);
+    try {
+    await addSite(site);
     setNewSite({
         name: '',
         region: '',
         address: '',
         status: 'Aktif'
     });
+    toast.success('Site ve ortak etiketi eklendi.');
+    } catch { toast.error('Site eklenemedi. Lütfen tekrar deneyin.'); } finally { setSaving(false); }
+  };
+  const removeSite = async (id: string) => {
+    try { await deleteSite(id); toast.success('Site silindi.'); }
+    catch { toast.error('Site silinemedi. Bağlı kayıtları olan bir siteyi silmeden önce bu kayıtların site seçimini değiştirin.'); }
   };
 
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Site Yönetimi</h2>
-        <button className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2.5 rounded-lg hover:bg-sky-700 shadow-sm font-medium">
+        <button onClick={()=>document.getElementById('new-site-name')?.focus()} className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2.5 rounded-lg hover:bg-sky-700 shadow-sm font-medium">
           <Plus className="w-4 h-4" />
           Yeni Site Ekle
         </button>
       </div>
-      <p className="text-gray-500 dark:text-slate-400">Mevcut siteleri yönetin veya yeni site ekleyin.</p>
+      <p className="text-gray-500 dark:text-slate-400">Site adı etiketine tıklayarak o projeye bağlı portföy, müşteri, aktivite ve takipleri bulabilirsiniz. Yeni portföylerde aynı siteyi seçin.</p>
 
       <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm overflow-hidden transition-colors">
          <div className="p-6 border-b border-gray-100 dark:border-slate-700">
@@ -59,7 +71,7 @@ const SiteManagement: React.FC = () => {
             <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
                 {sites.map((site) => (
                     <tr key={site.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                        <td className="p-4 font-medium text-slate-800 dark:text-slate-200">{site.name}</td>
+                        <td className="p-4 font-medium text-slate-800 dark:text-slate-200"><TagChips kind="property" tags={[{key:`site:${site.id}`,group:'site',label:site.name}]}/></td>
                         <td className="p-4 text-gray-600 dark:text-slate-400">{site.region}</td>
                         <td className="p-4 text-gray-500 dark:text-slate-500 text-xs">{site.address}</td>
                         <td className="p-4 text-gray-500 dark:text-slate-500 text-xs">{site.createdAt}</td>
@@ -69,8 +81,7 @@ const SiteManagement: React.FC = () => {
                             </span>
                         </td>
                         <td className="p-4 text-right">
-                            <button className="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 text-xs font-medium mr-3">Düzenle</button>
-                            <button onClick={() => deleteSite(site.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Sil</button>
+                            <button onClick={() => void removeSite(site.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Sil</button>
                         </td>
                     </tr>
                 ))}
@@ -87,6 +98,7 @@ const SiteManagement: React.FC = () => {
                     type="text" 
                     className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg p-2 text-slate-800 dark:text-white focus:ring-sky-500 focus:border-sky-500" 
                     placeholder="Örn: Gülbahçe Konakları"
+                    id="new-site-name"
                     value={newSite.name}
                     onChange={(e) => setNewSite({...newSite, name: e.target.value})} 
                   />
@@ -125,7 +137,8 @@ const SiteManagement: React.FC = () => {
           </div>
           <div className="mt-4 text-right">
                <button 
-                onClick={handleAddSite}
+                disabled={saving}
+                onClick={()=>void handleAddSite()}
                 className="bg-sky-600 text-white px-6 py-2 rounded-lg hover:bg-sky-700 font-medium transition-colors"
                >
                    Site Ekle

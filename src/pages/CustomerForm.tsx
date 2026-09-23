@@ -1,3 +1,5 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
@@ -30,14 +32,15 @@ const CustomerForm: React.FC = () => {
 
     const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
 
+  const {record: editRecord, loading: editLoading, error: editError} = useCrmRecord('customers',id,customers);
     useEffect(() => {
         if (id) {
-            const customer = customers.find(c => c.id === id);
+            const customer = editRecord;
             if (customer) {
                 setFormData(customer);
             }
         }
-    }, [id, customers]);
+    }, [id, editRecord]);
 
     const validateForm = (): boolean => {
         const newErrors: { phone?: string; email?: string } = {};
@@ -109,6 +112,8 @@ const CustomerForm: React.FC = () => {
         }
     };
 
+    if (id && (editLoading || editError || !editRecord)) return <p role="status" className="p-8">{editError || (editLoading ? 'Kayıt yükleniyor…' : 'Kayıt bulunamadı.')}</p>;
+
     return (
         <div className="max-w-4xl mx-auto bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 transition-colors">
             <div className="mb-8">
@@ -117,6 +122,7 @@ const CustomerForm: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-8">
+                    {id && <EntityTags type="customer" id={id} editable/>}
                 <div className="space-y-6">
                     <fieldset>
                         <legend className="text-lg font-semibold text-slate-800 dark:text-white mb-4 border-b border-gray-200 dark:border-slate-700 pb-2 w-full">Müşteri Bilgileri</legend>

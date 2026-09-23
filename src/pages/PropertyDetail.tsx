@@ -1,3 +1,5 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
 import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2 } from 'lucide-react';
@@ -13,7 +15,7 @@ const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, deleteSale, addActivity, sales } = useData();
-    const property = properties.find(p => p.id === id);
+    const { record: property, loading: recordLoading, error: recordError } = useCrmRecord('properties', id, properties);
     const [showSaleForm, setShowSaleForm] = useState(false);
     const [showRentalForm, setShowRentalForm] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState<'pasif' | 'kapora' | null>(null);
@@ -33,6 +35,7 @@ const PropertyDetail: React.FC = () => {
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
 
+    if (recordLoading || recordError) return <p role="status" className="p-8">{recordError || 'Kayıt yükleniyor…'}</p>;
     if (!property) {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
     }
@@ -171,7 +174,7 @@ const PropertyDetail: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 transition-colors">
                         <div className="flex justify-between items-start">
                             <div>
-                                <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{property.title}</h1>
+                                <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{property.title}</h1><EntityTags type="property" id={property.id} detailed editable/>
                                 <div className="flex items-center text-gray-500 dark:text-slate-400 mt-1">
                                     <MapPin className="w-4 h-4 mr-1" />
                                     {property.location}
@@ -332,7 +335,7 @@ const PropertyDetail: React.FC = () => {
                                     </span>
                                     <div className="p-4 bg-white dark:bg-slate-700 border border-gray-100 dark:border-slate-600 rounded-lg shadow-sm hover:bg-sky-50/20 dark:hover:bg-sky-900/10 transition-colors">
                                         <div className="flex justify-between mb-1">
-                                            <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-200">{activity.type} - {activity.customerName}</h4>
+                                            <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-200">{activity.type} - {activity.customerName}</h4><EntityTags type="activity" id={activity.id}/>
                                             <time className="text-xs text-gray-400 dark:text-slate-500">{activity.date}</time>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-slate-400 italic">"{activity.description}"</p>

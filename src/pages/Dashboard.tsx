@@ -1,3 +1,4 @@
+import EntityTags from '../components/EntityTags';
 import React, { useState, useMemo } from 'react';
 import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
 import { generateRealEstateAdvice } from '../services/geminiService';
@@ -304,7 +305,7 @@ const Dashboard: React.FC = () => {
                             <Calendar className="w-5 h-5" />}
                     </div>
                     <div className="ml-4 flex-1">
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4><EntityTags type={item.type} id={item.id}/>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         {item.date} • {item.time === 'Yeni' ? <span className="text-orange-600 dark:text-orange-400 font-bold">YENİ TALEP</span> : item.time || 'Saat Yok'}
                         {item.description ? ` • ${item.description}` : ''}

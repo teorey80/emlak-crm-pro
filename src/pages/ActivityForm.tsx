@@ -1,3 +1,6 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import SitePicker from '../components/SitePicker';
+import EntityTags from '../components/EntityTags';
 
 import React, { useState } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
@@ -55,9 +58,10 @@ const ActivityForm: React.FC = () => {
         }
     };
 
+    const {record: editRecord, loading: editLoading, error: editError} = useCrmRecord('activities',id,activities);
     useEffect(() => {
         if (id) {
-            const activityToEdit = activities.find(a => a.id === id);
+            const activityToEdit = editRecord;
             if (activityToEdit) {
                 setFormData({
                     type: activityToEdit.type,
@@ -66,11 +70,13 @@ const ActivityForm: React.FC = () => {
                     status: activityToEdit.status,
                     description: activityToEdit.description,
                     customerId: activityToEdit.customerId,
-                    propertyId: activityToEdit.propertyId
+                    customerName: activityToEdit.customerName, propertyTitle: activityToEdit.propertyTitle,
+                    propertyId: activityToEdit.propertyId,
+                    site_id: activityToEdit.site_id, rooms: activityToEdit.rooms
                 });
             }
         }
-    }, [id, activities]);
+    }, [id, editRecord]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -83,9 +89,11 @@ const ActivityForm: React.FC = () => {
             id: id || Date.now().toString(),
             type: formData.type as any,
             customerId: formData.customerId,
-            customerName: selectedCustomer?.name || 'Bilinmeyen Müşteri',
+            customerName: selectedCustomer?.name || formData.customerName || 'Bilinmeyen Müşteri',
             propertyId: formData.propertyId,
-            propertyTitle: selectedProperty?.title,
+            site_id: formData.propertyId ? null : formData.site_id || null,
+            rooms: formData.propertyId ? null : formData.rooms || null,
+            propertyTitle: selectedProperty?.title || formData.propertyTitle,
             date: formData.date || '',
             time: formData.time,
             description: formData.description || '',
@@ -131,6 +139,8 @@ const ActivityForm: React.FC = () => {
 
     const linkedCase = id ? activities.find(activity => activity.id === id)?.prospecting_case_id : undefined;
     if (linkedCase) return <div className="p-6 space-y-3"><h2 className="text-xl font-semibold">Portföy Takibi araması</h2><p>Bu arama görüşme geçmişine bağlıdır. Yeni görüşme, not ve sonraki adım için takip kartını açın.</p><Link className="text-sky-600 underline" to={`/prospecting?case=${encodeURIComponent(linkedCase)}`}>Takip kartını aç</Link></div>;
+
+    if (id && (editLoading || editError || !editRecord)) return <p role="status" className="p-8">{editError || (editLoading ? 'Kayıt yükleniyor…' : 'Kayıt bulunamadı.')}</p>;
 
     return (
         <div className="max-w-3xl mx-auto relative">
@@ -204,6 +214,7 @@ const ActivityForm: React.FC = () => {
                             required
                         >
                             <option value="">Müşteri Seçiniz</option>
+                            {formData.customerId && !customers.some(c=>c.id===formData.customerId) && <option value={formData.customerId}>{formData.customerName || 'Kayıtlı müşteri'}</option>}
                             {customers.map(c => (
                                 <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
                             ))}
@@ -219,12 +230,15 @@ const ActivityForm: React.FC = () => {
                             onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
                         >
                             <option value="">Emlak Seçiniz (Yok)</option>
+                            {formData.propertyId && !properties.some(p=>p.id===formData.propertyId) && <option value={formData.propertyId}>{formData.propertyTitle || 'Kayıtlı portföy'}</option>}
                             {properties.map(p => (
                                 <option key={p.id} value={p.id}>#{p.id.slice(-4)} - {p.title}</option>
                             ))}
                         </select>
                     </div>
 
+                    {id && <EntityTags type="activity" id={id} editable/>}
+                    {!formData.propertyId && <div className="space-y-3"><SitePicker value={formData.site_id} onChange={(site_id)=>setFormData({...formData,site_id})}/><label className="block text-sm">Gösterilen / görüşülen evin oda sayısı<input value={formData.rooms || ''} onChange={e=>setFormData({...formData,rooms:e.target.value.replace(/\s/g,'')})} placeholder="Örn. 3+1" className="w-full rounded-lg border p-2.5 dark:bg-slate-800 dark:border-slate-600"/></label></div>}
                     {/* Notes */}
                     <div>
                         <div className="flex justify-between items-center mb-1">

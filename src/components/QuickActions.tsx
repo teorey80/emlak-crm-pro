@@ -1,3 +1,4 @@
+import EntityTags from './EntityTags';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Phone, MessageCircle, X, Check, User, Clock, FileText, PhoneIncoming, PhoneOutgoing, Building2, Calendar, ClipboardList, Info } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -357,7 +358,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
             {matchedCustomer && (
               <div className="mt-2 flex items-center gap-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-2 rounded-lg">
                 <Check className="w-4 h-4" />
-                <span className="text-sm font-medium">{matchedCustomer.name}</span>
+                <span className="text-sm font-medium">{matchedCustomer.name}</span><EntityTags type="customer" id={matchedCustomer.id}/>
               </div>
             )}
 
@@ -800,7 +801,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             {matchedCustomer && (
               <div className="mt-2 flex items-center gap-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-3 py-2 rounded-lg">
                 <Check className="w-4 h-4" />
-                <span className="text-sm font-medium">{matchedCustomer.name}</span>
+                <span className="text-sm font-medium">{matchedCustomer.name}</span><EntityTags type="customer" id={matchedCustomer.id}/>
               </div>
             )}
 

@@ -1,11 +1,12 @@
 import { supabase } from './supabaseClient';
 import type { Activity } from '../types';
 
-export interface ActivityFilters { search: string; type: string; source: string; date: string; }
+export interface ActivityFilters { search: string; type: string; source: string; date: string; record?: string; }
 export async function listActivityPage(filters: ActivityFilters, offset = 0, pageSize = 50) {
   let query = supabase.from('activities').select('*', { count: 'exact' })
     .order('date', { ascending: false, nullsFirst: false })
     .order('time', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
+  if (filters.record) query = query.eq('id', filters.record);
   if (filters.type !== 'all') query = query.eq('type', filters.type);
   if (filters.date) query = query.eq('date', filters.date);
   if (filters.source === 'fsbo') query = query.eq('prospecting_source_kind', 'fsbo');

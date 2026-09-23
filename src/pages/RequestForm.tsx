@@ -1,3 +1,6 @@
+import { useCrmRecord } from '../utils/useCrmRecord';
+import EntityTags from '../components/EntityTags';
+import SitePicker from '../components/SitePicker';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { ArrowLeft, UserPlus } from 'lucide-react';
@@ -41,15 +44,16 @@ const RequestForm: React.FC = () => {
         siteId: ''
     });
 
+    const {record: editRecord, loading: editLoading, error: editError} = useCrmRecord('requests',id,requests);
     // Load for Edit
     useEffect(() => {
-        if (id && requests.length > 0) {
-            const existing = requests.find(r => r.id === id);
+        if (id) {
+            const existing = editRecord;
             if (existing) {
                 setFormData(existing);
             }
         }
-    }, [id, requests]);
+    }, [id, editRecord]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -66,7 +70,7 @@ const RequestForm: React.FC = () => {
         const requestData: Request = {
             id: id || `req-${Date.now()}`,
             customerId: formData.customerId,
-            customerName: selectedCustomer?.name || 'Bilinmeyen',
+            customerName: selectedCustomer?.name || formData.customerName || 'Bilinmeyen',
             type: formData.type as any,
             requestType: formData.requestType as any || 'Satılık',
             status: formData.status as any,
@@ -79,7 +83,7 @@ const RequestForm: React.FC = () => {
             notes: formData.notes,
             minRooms: formData.minRooms,
             siteId: formData.siteId,
-            siteName: selectedSite?.name
+            siteName: selectedSite?.name || formData.siteName
         };
 
         try {
@@ -115,6 +119,8 @@ const RequestForm: React.FC = () => {
         setFormData({ ...formData, [field]: numValue });
     };
 
+    if (id && (editLoading || editError || !editRecord)) return <p role="status" className="p-8">{editError || (editLoading ? 'Kayıt yükleniyor…' : 'Kayıt bulunamadı.')}</p>;
+
     return (
         <div className="max-w-3xl mx-auto">
             <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors text-sm mb-4">
@@ -128,6 +134,7 @@ const RequestForm: React.FC = () => {
                 </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {id && <EntityTags type="request" id={id} editable/>}
                     {/* Customer Selection */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
@@ -147,6 +154,7 @@ const RequestForm: React.FC = () => {
                             disabled={!!id}
                         >
                             <option value="">Müşteri Seçiniz</option>
+                            {formData.customerId && !customers.some(c=>c.id===formData.customerId) && <option value={formData.customerId}>{formData.customerName || 'Kayıtlı müşteri'}</option>}
                             {customers.map(c => (
                                 <option key={c.id} value={c.id}>{c.name} - {c.phone}</option>
                             ))}
@@ -231,17 +239,7 @@ const RequestForm: React.FC = () => {
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Özel Site Tercihi (Varsa)</label>
-                            <select
-                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
-                                value={formData.siteId || ''}
-                                onChange={(e) => setFormData({ ...formData, siteId: e.target.value })}
-                            >
-                                <option value="">Site Farketmez</option>
-                                {sites.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name} ({s.region})</option>
-                                ))}
-                            </select>
+                            <SitePicker value={formData.siteId} legacyName={formData.siteName} onChange={(siteId,siteName)=>setFormData({...formData,siteId:siteId || '',siteName})}/>
                             <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
                                 Eğer müşteri sadece belirli bir siteden daire istiyorsa seçiniz.
                             </p>
