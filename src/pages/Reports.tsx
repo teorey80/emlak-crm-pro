@@ -1,17 +1,22 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar } from 'lucide-react';
+import { BarChart3, PieChart, TrendingUp, Wallet, DollarSign, Users, Calendar, Pencil } from 'lucide-react';
 
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const amount = (value: number | string | null | undefined) => Number(value ?? 0);
+const validDate = (value: string | null) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 type Period = 'thisMonth' | 'lastMonth' | 'threeMonths' | 'thisYear' | 'custom';
 
 const Reports: React.FC = () => {
   const { properties, customers, activities, sales, teamMembers } = useData();
-  const [viewMode, setViewMode] = useState<'overview' | 'commission'>('overview');
-  const [period, setPeriod] = useState<Period>('thisMonth');
-  const [startDate, setStartDate] = useState(() => dateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
-  const [endDate, setEndDate] = useState(() => dateKey(new Date()));
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const hasSavedRange = validDate(searchParams.get('start')) && validDate(searchParams.get('end'));
+  const [viewMode, setViewMode] = useState<'overview' | 'commission'>(searchParams.get('view') === 'commission' ? 'commission' : 'overview');
+  const [period, setPeriod] = useState<Period>(hasSavedRange ? 'custom' : 'thisMonth');
+  const [startDate, setStartDate] = useState(() => hasSavedRange ? searchParams.get('start')! : dateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [endDate, setEndDate] = useState(() => hasSavedRange ? searchParams.get('end')! : dateKey(new Date()));
 
   const choosePeriod = (next: Period) => {
     setPeriod(next);
@@ -248,11 +253,12 @@ const Reports: React.FC = () => {
                       <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">KDV dahil</th>
                       <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ofis</th>
                       <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Danisman</th>
+                      <th className="text-right p-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">İşlem</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                     {commissionStats.periodSales.map(sale => (
-                      <tr key={sale.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                      <tr key={sale.id} role="link" tabIndex={0} aria-label={`${sale.propertyTitle || properties.find(p => p.id === (sale.propertyId || sale.property_id))?.title || 'İşlem'} kaydını düzenle`} onClick={() => navigate(`/sales/${sale.id}/edit`, { state: { returnTo: `/reports?view=commission&start=${startDate}&end=${endDate}` } })} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/sales/${sale.id}/edit`, { state: { returnTo: `/reports?view=commission&start=${startDate}&end=${endDate}` } }); } }} className="cursor-pointer hover:bg-sky-50 dark:hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500">
                         <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                           {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
                         </td>
@@ -278,6 +284,7 @@ const Reports: React.FC = () => {
                         <td className="p-3 text-sm text-right font-medium text-green-600 dark:text-green-400">
                           {amount(sale.consultantShareAmount ?? sale.consultant_share_amount).toLocaleString('tr-TR')} TL
                         </td>
+                        <td className="p-3 text-sm text-right font-medium text-sky-700 dark:text-sky-300"><span className="inline-flex items-center gap-1"><Pencil className="w-4 h-4" />Düzenle</span></td>
                       </tr>
                     ))}
                   </tbody>

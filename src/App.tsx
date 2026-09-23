@@ -22,6 +22,7 @@ import RequestList from './pages/RequestList';
 import RequestForm from './pages/RequestForm';
 import RequestDetail from './pages/RequestDetail';
 import Reports from './pages/Reports';
+import SaleEdit from './pages/SaleEdit';
 import WebBuilder from './pages/WebBuilder';
 import WebPreview from './pages/WebPreview';
 import ProjectReviewsList from './pages/WebContent/ProjectReviewsList';
@@ -223,6 +224,7 @@ const CRMApp: React.FC = () => {
             <Route path="web-content/guides/:id/edit" element={<GuideForm />} />
 
             <Route path="reports" element={<Reports />} />
+            <Route path="sales/:id/edit" element={<SaleEdit />} />
             <Route path="team" element={<Team />} />
             <Route path="matches" element={<MatchCenter />} />
             <Route path="settings" element={<Settings />} />
