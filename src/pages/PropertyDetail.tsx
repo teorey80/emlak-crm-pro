@@ -638,6 +638,19 @@ const PropertyDetail: React.FC = () => {
                                                 <DollarSign className="w-5 h-5" />
                                                 Bu Emlak Kiralandı
                                             </div>
+                                            <div className="mt-3 space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                                                <p>İlan fiyatı: {Number(property.price ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                {(propertySale?.monthlyRent ?? propertySale?.monthly_rent ?? property.current_monthly_rent) != null && (
+                                                    <p>Gerçekleşen aylık kira: {Number(propertySale?.monthlyRent ?? propertySale?.monthly_rent ?? property.current_monthly_rent).toLocaleString('tr-TR')} ₺</p>
+                                                )}
+                                                {propertySale && (
+                                                    <>
+                                                        <p>Komisyon: {Number(propertySale.commissionAmount ?? propertySale.commission_amount ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                        <p>KDV: {Number(propertySale.kdvAmount ?? propertySale.kdv_amount ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                        <p className="font-semibold">KDV dahil tahsilat: {(Number(propertySale.commissionAmount ?? propertySale.commission_amount ?? 0) + Number(propertySale.kdvAmount ?? propertySale.kdv_amount ?? 0)).toLocaleString('tr-TR')} ₺</p>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                     ) : propertySale ? (
                                         <button
@@ -900,18 +913,22 @@ const PropertyDetail: React.FC = () => {
                                 tenant_lease_end_date: sale.leaseEndDate,
                             });
 
-                            // Create activity record for the rental
-                            await addActivity({
-                                id: `rental-activity-${Date.now()}`,
-                                type: 'Diğer',
-                                customerId: sale.buyerId || '',
-                                customerName: sale.buyerName || 'Kiracı',
-                                propertyId: property.id,
-                                propertyTitle: property.title,
-                                date: sale.saleDate,
-                                description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
-                                status: 'Tamamlandı'
-                            });
+                            // Aktivite hatası kapanış kaydını başarısız göstermemeli.
+                            try {
+                                await addActivity({
+                                    id: `rental-activity-${Date.now()}`,
+                                    type: 'Diğer',
+                                    customerId: sale.buyerId || '',
+                                    customerName: sale.buyerName || 'Kiracı',
+                                    propertyId: property.id,
+                                    propertyTitle: property.title,
+                                    date: sale.saleDate,
+                                    description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
+                                    status: 'Tamamlandı'
+                                });
+                            } catch (activityError) {
+                                console.warn('Kiralama aktivitesi kaydedilemedi:', activityError);
+                            }
 
                             setShowRentalForm(false);
                             toast.success('Kiralama başarıyla kaydedildi!');

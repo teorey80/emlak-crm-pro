@@ -256,7 +256,10 @@ const Reports: React.FC = () => {
                         <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                           {new Date(sale.saleDate || sale.sale_date || '').toLocaleDateString('tr-TR')}
                         </td>
-                        <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">{sale.propertyTitle || properties.find(p => p.id === (sale.propertyId || sale.property_id))?.title || '-'}</td>
+                        <td className="p-3 text-sm font-medium text-slate-800 dark:text-white">
+                          {sale.propertyTitle || properties.find(p => p.id === (sale.propertyId || sale.property_id))?.title || '-'}
+                          <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">{(sale.transactionType || sale.transaction_type) === 'rental' ? 'Kiralama · aylık kira' : 'Satış'}</span>
+                        </td>
                         <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
                           {amount((sale.transactionType || sale.transaction_type) === 'rental' ? (sale.monthlyRent ?? sale.monthly_rent ?? sale.salePrice ?? sale.sale_price) : (sale.salePrice ?? sale.sale_price)).toLocaleString('tr-TR')} TL
                         </td>
@@ -270,10 +273,10 @@ const Reports: React.FC = () => {
                           {(amount(sale.commissionAmount ?? sale.commission_amount) + amount(sale.kdvAmount ?? sale.kdv_amount)).toLocaleString('tr-TR')} TL
                         </td>
                         <td className="p-3 text-sm text-right text-slate-600 dark:text-slate-300">
-                          {(sale.officeShareAmount || sale.office_share_amount || 0).toLocaleString('tr-TR')} TL
+                          {amount(sale.officeShareAmount ?? sale.office_share_amount).toLocaleString('tr-TR')} TL
                         </td>
                         <td className="p-3 text-sm text-right font-medium text-green-600 dark:text-green-400">
-                          {(sale.consultantShareAmount || sale.consultant_share_amount || 0).toLocaleString('tr-TR')} TL
+                          {amount(sale.consultantShareAmount ?? sale.consultant_share_amount).toLocaleString('tr-TR')} TL
                         </td>
                       </tr>
                     ))}

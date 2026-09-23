@@ -168,6 +168,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
             // Burada ekstra bir şey yapmaya gerek yok
         } catch (error) {
             console.error('SaleForm error:', error);
+        } finally {
             setSaving(false);
         }
     };
