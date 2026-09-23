@@ -38,7 +38,7 @@ interface DataContextType {
   loadingMore: boolean;
   // CRUD operations
   addProperty: (property: Property) => Promise<void>;
-  updateProperty: (property: Property) => Promise<void>;
+  updateProperty: (property: Pick<Property, 'id'> & Partial<Property>) => Promise<void>;
   addCustomer: (customer: Customer) => Promise<Customer>;
   updateCustomer: (customer: Customer) => Promise<void>;
   addSite: (site: Site) => Promise<void>;
@@ -362,6 +362,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Form alanı -> DB kolonu (isim farklı olanlar)
     const RENAME: Record<string, string> = {
       balcony: 'balkon',
+      listingStatus: 'listing_status',
+      soldDate: 'sold_date',
+      rentedDate: 'rented_date',
+      tenantId: 'tenant_id',
+      tenantName: 'tenant_name',
+      monthlyRent: 'current_monthly_rent',
+      leaseEndDate: 'tenant_lease_end_date',
       elevator: 'asansor',
       creditEligible: 'krediyeUygunluk',
       ownerType: 'kimden',
@@ -432,10 +439,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateProperty = async (updatedProperty: Property) => {
-    // Update local state first - merge with existing property
-    setProperties((prev) => prev.map(p => p.id === updatedProperty.id ? { ...p, ...updatedProperty } : p));
-
+  const updateProperty = async (updatedProperty: Pick<Property, 'id'> & Partial<Property>) => {
     // DB payload: form alanlarını gerçek kolon adlarına çevir + tip dönüşümü.
     // (addProperty ile AYNI mantık — "column not found" ve tip hatalarını önler.)
     const dbPayload = buildPropertyDbPayload(updatedProperty as any);
@@ -448,11 +452,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    const { error } = await supabase.from('properties').update(dbPayload).eq('id', updatedProperty.id);
+    const { data, error } = await supabase.from('properties').update(dbPayload).eq('id', updatedProperty.id).select('id').maybeSingle();
     if (error) {
       console.error('Error updating property:', error);
       throw error;
     }
+    if (!data) throw new Error('İlan güncellenemedi. Kayıt veya erişim yetkisi kontrol edilmeli.');
+    setProperties((prev) => prev.map(p => p.id === updatedProperty.id
+      ? { ...p, ...updatedProperty, ...(dbPayload.listing_status !== undefined ? { listingStatus: dbPayload.listing_status, listing_status: dbPayload.listing_status } : {}) }
+      : p));
   };
 
   const addCustomer = async (customer: Customer): Promise<Customer> => {
@@ -589,10 +597,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       seller_commission_rate: sale.sellerCommissionRate || 0,
       commission_rate: sale.commissionRate || 0,
       commission_amount: sale.commissionAmount || 0,
+      kdv_included: sale.kdvIncluded ?? false,
+      kdv_rate: sale.kdvRate ?? 0,
+      kdv_amount: sale.kdvAmount ?? 0,
+      net_commission_ex_kdv: sale.netCommissionExKdv ?? sale.commissionAmount ?? 0,
+      gross_amount_with_kdv: sale.grossAmountWithKdv ?? sale.commissionAmount ?? 0,
+      monthly_rent: sale.monthlyRent ?? null,
+      deposit_amount: sale.depositAmount ?? null,
+      lease_duration: sale.leaseDuration ?? null,
+      lease_start_date: sale.transactionType === 'rental' ? sale.saleDate : null,
+      lease_end_date: sale.leaseEndDate ?? null,
       expenses: sale.expenses || [],
       total_expenses: sale.totalExpenses || 0,
-      office_share_rate: sale.officeShareRate || 50,
-      consultant_share_rate: sale.consultantShareRate || 50,
+      office_share_rate: sale.officeShareRate ?? 50,
+      consultant_share_rate: sale.consultantShareRate ?? 50,
       office_share_amount: sale.officeShareAmount || 0,
       consultant_share_amount: sale.consultantShareAmount || 0,
       net_profit: sale.netProfit || 0,

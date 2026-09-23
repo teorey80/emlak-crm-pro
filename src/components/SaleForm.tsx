@@ -40,6 +40,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
         // Ayrı komisyon tutarları (manuel giriş)
         buyerCommissionAmount: 0, // Alıcıdan alınan
         sellerCommissionAmount: 0, // Satıcıdan alınan
+        kdvIncluded: true,
+        kdvRate: 20,
         officeShareRate: 50, // Default 50%
         notes: '',
         // Cross-commission fields
@@ -65,6 +67,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
 
     // Toplam komisyon
     const commissionAmount = formData.buyerCommissionAmount + formData.sellerCommissionAmount;
+    const kdvAmount = formData.kdvIncluded ? Math.round(commissionAmount * formData.kdvRate) / 100 : 0;
+    const grossAmountWithKdv = commissionAmount + kdvAmount;
     const commissionRate = formData.salePrice > 0
         ? (commissionAmount / formData.salePrice) * 100
         : 0;
@@ -142,6 +146,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
             sellerCommissionRate,
             commissionRate,
             commissionAmount,
+            kdvIncluded: formData.kdvIncluded,
+            kdvRate: formData.kdvIncluded ? formData.kdvRate : 0,
+            kdvAmount,
+            netCommissionExKdv: commissionAmount,
+            grossAmountWithKdv,
             expenses,
             totalExpenses,
             officeShareRate: formData.officeShareRate,
@@ -159,6 +168,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
             // Burada ekstra bir şey yapmaya gerek yok
         } catch (error) {
             console.error('SaleForm error:', error);
+        } finally {
             setSaving(false);
         }
     };
@@ -322,6 +332,19 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                                     %{commissionRate.toFixed(2)}
                                 </div>
                             </div>
+                        </div>
+                        <div className="rounded-lg border border-green-200 dark:border-green-800 p-4 space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                <input type="checkbox" checked={formData.kdvIncluded} onChange={(e) => setFormData({ ...formData, kdvIncluded: e.target.checked })} />
+                                Komisyona KDV ekle
+                            </label>
+                            {formData.kdvIncluded && (
+                                <label className="block text-sm text-slate-700 dark:text-slate-300">
+                                    KDV oranı (%)
+                                    <input type="number" min="0" max="100" step="0.01" required value={formData.kdvRate} onChange={(e) => setFormData({ ...formData, kdvRate: Number(e.target.value) })} className="mt-1 block w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white" />
+                                </label>
+                            )}
+                            <p className="text-sm text-slate-700 dark:text-slate-300">KDV: {kdvAmount.toLocaleString('tr-TR')} ₺ · KDV dahil tahsilat: {grossAmountWithKdv.toLocaleString('tr-TR')} ₺</p>
                         </div>
                     </div>
 

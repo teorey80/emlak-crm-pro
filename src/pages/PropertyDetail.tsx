@@ -601,11 +601,9 @@ const PropertyDetail: React.FC = () => {
                                                             } else {
                                                                 // No sale record found, just update property status
                                                                 await updateProperty({
-                                                                    ...property,
-                                                                    listingStatus: 'Satılık',
-                                                                    listing_status: 'Satılık',
-                                                                    soldDate: undefined,
-                                                                    sold_date: undefined
+                                                                    id: property.id,
+                                                                    listing_status: 'Aktif',
+                                                                    sold_date: null
                                                                 });
                                                             }
                                                             toast.success('Satış iptal edildi! Emlak tekrar aktif.');
@@ -640,7 +638,47 @@ const PropertyDetail: React.FC = () => {
                                                 <DollarSign className="w-5 h-5" />
                                                 Bu Emlak Kiralandı
                                             </div>
+                                            <div className="mt-3 space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                                                <p>İlan fiyatı: {Number(property.price ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                {(propertySale?.monthlyRent ?? propertySale?.monthly_rent ?? property.current_monthly_rent) != null && (
+                                                    <p>Gerçekleşen aylık kira: {Number(propertySale?.monthlyRent ?? propertySale?.monthly_rent ?? property.current_monthly_rent).toLocaleString('tr-TR')} ₺</p>
+                                                )}
+                                                {propertySale && (
+                                                    <>
+                                                        <p>Komisyon: {Number(propertySale.commissionAmount ?? propertySale.commission_amount ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                        <p>KDV: {Number(propertySale.kdvAmount ?? propertySale.kdv_amount ?? 0).toLocaleString('tr-TR')} ₺</p>
+                                                        <p className="font-semibold">KDV dahil tahsilat: {(Number(propertySale.commissionAmount ?? propertySale.commission_amount ?? 0) + Number(propertySale.kdvAmount ?? propertySale.kdv_amount ?? 0)).toLocaleString('tr-TR')} ₺</p>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
+                                    ) : propertySale ? (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const isRental = (propertySale.transactionType || propertySale.transaction_type) === 'rental';
+                                                    await updateProperty({
+                                                        id: property.id,
+                                                        listing_status: isRental ? 'Kiralandı' : 'Satıldı',
+                                                        ...(isRental ? {
+                                                            rented_date: propertySale.saleDate || propertySale.sale_date,
+                                                            tenant_id: propertySale.buyerId || propertySale.buyer_id || undefined,
+                                                            tenant_name: propertySale.buyerName || propertySale.buyer_name || undefined,
+                                                            current_monthly_rent: propertySale.monthlyRent || propertySale.monthly_rent || undefined,
+                                                            tenant_lease_end_date: propertySale.leaseEndDate || propertySale.lease_end_date || undefined
+                                                        } : { sold_date: propertySale.saleDate || propertySale.sale_date })
+                                                    });
+                                                    toast.success('Kapanış tamamlandı; ilan aktif listeden çıkarıldı.');
+                                                    navigate('/properties');
+                                                } catch (error) {
+                                                    console.error('Kapanış tamamlama hatası:', error);
+                                                    toast.error(error instanceof Error ? error.message : 'İlan durumu güncellenemedi.');
+                                                }
+                                            }}
+                                            className="w-full bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 py-3 rounded-xl font-medium border border-amber-200 dark:border-amber-800"
+                                        >
+                                            Komisyon kaydı var · Kapanışı tamamla
+                                        </button>
                                     ) : property.status === 'Kiralık' ? (
                                         <button
                                             onClick={() => setShowRentalForm(true)}
@@ -666,7 +704,7 @@ const PropertyDetail: React.FC = () => {
                                                     if (confirm('Kaporayı iptal etmek istediğinize emin misiniz? İlan tekrar Aktif duruma geçecek.')) {
                                                         try {
                                                             await updateProperty({
-                                                                ...property,
+                                                                id: property.id,
                                                                 listing_status: 'Aktif',
                                                                 deposit_amount: null,
                                                                 deposit_date: null,
@@ -785,16 +823,14 @@ const PropertyDetail: React.FC = () => {
                     property={property}
                     onClose={() => setShowSaleForm(false)}
                     onSave={async (sale: Sale) => {
+                        let saleSaved = false;
                         try {
                             // Save sale to database
                             await addSale({ ...sale, transactionType: 'sale' });
+                            saleSaved = true;
 
                             // Update property status to Satıldı - only send required fields
-                            await updateProperty({
-                                id: property.id,
-                                listing_status: 'Satıldı',
-                                sold_date: sale.saleDate
-                            } as any);
+                            await updateProperty({ id: property.id, listing_status: 'Satıldı', sold_date: sale.saleDate });
 
                             // Create Tapu İşlemi activities for both buyer and seller (non-blocking)
                             const activityDate = sale.saleDate;
@@ -847,7 +883,8 @@ const PropertyDetail: React.FC = () => {
                             navigate('/properties');
                         } catch (error) {
                             console.error('Satış kaydetme hatası:', error);
-                            toast.error('Satış kaydedilemedi. Lütfen tekrar deneyin.');
+                            if (saleSaved) setShowSaleForm(false);
+                            toast.error(saleSaved ? 'Komisyon kaydedildi; ilan durumu güncellenemedi. “Kapanışı tamamla” ile tekrar deneyin.' : 'Satış kaydedilemedi. Lütfen tekrar deneyin.');
                         }
                     }}
                 />
@@ -859,41 +896,47 @@ const PropertyDetail: React.FC = () => {
                     property={property}
                     onClose={() => setShowRentalForm(false)}
                     onSave={async (sale: Sale) => {
+                        let saleSaved = false;
                         try {
                             // Save rental to database (as sale with transactionType='rental')
                             await addSale(sale);
+                            saleSaved = true;
 
                             // Update property status to Kiralandı
                             await updateProperty({
-                                ...property,
-                                listingStatus: 'Kiralandı',
+                                id: property.id,
                                 listing_status: 'Kiralandı',
-                                rentedDate: sale.saleDate,
-                                tenantId: sale.buyerId,
-                                tenantName: sale.buyerName,
-                                monthlyRent: sale.monthlyRent,
-                                leaseEndDate: sale.leaseEndDate
+                                rented_date: sale.saleDate,
+                                tenant_id: sale.buyerId || undefined,
+                                tenant_name: sale.buyerName || undefined,
+                                current_monthly_rent: sale.monthlyRent,
+                                tenant_lease_end_date: sale.leaseEndDate,
                             });
 
-                            // Create activity record for the rental
-                            await addActivity({
-                                id: `rental-activity-${Date.now()}`,
-                                type: 'Diğer',
-                                customerId: sale.buyerId || '',
-                                customerName: sale.buyerName || 'Kiracı',
-                                propertyId: property.id,
-                                propertyTitle: property.title,
-                                date: sale.saleDate,
-                                description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
-                                status: 'Tamamlandı'
-                            });
+                            // Aktivite hatası kapanış kaydını başarısız göstermemeli.
+                            try {
+                                await addActivity({
+                                    id: `rental-activity-${Date.now()}`,
+                                    type: 'Diğer',
+                                    customerId: sale.buyerId || '',
+                                    customerName: sale.buyerName || 'Kiracı',
+                                    propertyId: property.id,
+                                    propertyTitle: property.title,
+                                    date: sale.saleDate,
+                                    description: `Kiralama tamamlandı. Aylık kira: ${sale.monthlyRent?.toLocaleString('tr-TR')} ₺, Süre: ${sale.leaseDuration} ay`,
+                                    status: 'Tamamlandı'
+                                });
+                            } catch (activityError) {
+                                console.warn('Kiralama aktivitesi kaydedilemedi:', activityError);
+                            }
 
                             setShowRentalForm(false);
                             toast.success('Kiralama başarıyla kaydedildi!');
                             navigate('/properties');
                         } catch (error) {
                             console.error('Kiralama kaydetme hatası:', error);
-                            toast.error('Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
+                            if (saleSaved) setShowRentalForm(false);
+                            toast.error(saleSaved ? 'Komisyon kaydedildi; ilan durumu güncellenemedi. “Kapanışı tamamla” ile tekrar deneyin.' : 'Kiralama kaydedilemedi. Lütfen tekrar deneyin.');
                         }
                     }}
                 />
@@ -953,7 +996,7 @@ const PropertyDetail: React.FC = () => {
                                         }
                                         try {
                                             await updateProperty({
-                                                ...property,
+                                                id: property.id,
                                                 listing_status: 'Pasif',
                                                 inactive_reason: finalReason
                                             });
@@ -1055,7 +1098,7 @@ const PropertyDetail: React.FC = () => {
 
                                             // 1. Update property with deposit info
                                             await updateProperty({
-                                                ...property,
+                                                id: property.id,
                                                 listing_status: 'Kapora Alındı',
                                                 deposit_amount: parseFloat(kaporaAmount),
                                                 deposit_date: kaporaDate,

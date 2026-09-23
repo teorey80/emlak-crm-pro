@@ -238,7 +238,7 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {id && <EntityTags type="activity" id={id} editable/>}
-                    {!formData.propertyId && <div className="space-y-3"><SitePicker value={formData.site_id} onChange={(site_id)=>setFormData({...formData,site_id})}/><label className="block text-sm">Gösterilen / görüşülen evin oda sayısı<input value={formData.rooms || ''} onChange={e=>setFormData({...formData,rooms:e.target.value.replace(/\s/g,'')})} placeholder="Örn. 3+1" className="w-full rounded-lg border p-2.5 dark:bg-slate-800 dark:border-slate-600"/></label></div>}
+                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site etiketi bu aktiviteye otomatik eklenir.</p> : <div className="space-y-3"><SitePicker value={formData.site_id} onChange={(site_id)=>setFormData({...formData,site_id})}/><label className="block text-sm">Gösterilen / görüşülen evin oda sayısı<input value={formData.rooms || ''} onChange={e=>setFormData({...formData,rooms:e.target.value.replace(/\s/g,'')})} placeholder="Örn. 3+1" className="w-full rounded-lg border p-2.5 dark:bg-slate-800 dark:border-slate-600"/></label></div>}
                     {/* Notes */}
                     <div>
                         <div className="flex justify-between items-center mb-1">

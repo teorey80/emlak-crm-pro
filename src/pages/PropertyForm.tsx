@@ -147,6 +147,7 @@ const PropertyForm: React.FC = () => {
       if (existingProperty) {
         setFormData({
           ...existingProperty,
+          isInSite: Boolean(existingProperty.isInSite || existingProperty.site_id || existingProperty.site || existingProperty.siteName),
           siteName: existingProperty.site || existingProperty.siteName || '',
           category: existingProperty.category || 'KONUT',
           subCategory: existingProperty.subCategory || existingProperty.status || 'Satılık',
@@ -1338,7 +1339,7 @@ Sadece JSON döndür:
           </select>
         </div>
 
-        {formData.isInSite && <SitePicker value={formData.site_id} legacyName={formData.siteName} onChange={(site_id,siteName)=>setFormData(prev=>({...prev,site_id,siteName}))}/>}
+        {formData.isInSite && <SitePicker value={formData.site_id} legacyName={formData.siteName} onChange={(site_id,siteName)=>setFormData(prev=>({...prev,site_id,siteName,site:siteName}))}/>}
 
         {/* Address */}
         <div className="md:col-span-2 lg:col-span-3">
