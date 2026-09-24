@@ -7,6 +7,31 @@ import { Customer, Activity, Property } from '../types';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
+type CustomerType = NonNullable<Customer['customerType']>;
+
+const NewCustomerTypeField: React.FC<{
+  id: string;
+  value: CustomerType | '';
+  onChange: (value: CustomerType | '') => void;
+}> = ({ id, value, onChange }) => (
+  <div className="mt-2">
+    <label htmlFor={id} className="block text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">Müşteri Tipi</label>
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value as CustomerType | '')}
+      className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+    >
+      <option value="">Seçiniz</option>
+      <option value="Alıcı">Alıcı</option>
+      <option value="Satıcı">Satıcı</option>
+      <option value="Kiracı">Kiracı</option>
+      <option value="Kiracı Adayı">Kiracı Adayı</option>
+      <option value="Mal Sahibi">Mal Sahibi</option>
+    </select>
+  </div>
+);
+
 // ==================== QUICK ACTION FAB ====================
 
 interface QuickActionsFABProps {
@@ -85,6 +110,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<CustomerType | ''>('');
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +136,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('');
       setCallDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
@@ -154,6 +181,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
     setPhone(customer.phone);
     setMatchedCustomer(customer);
     setCustomerSuggestions([]);
+    setNewCustomerType('');
   };
 
   const selectProperty = (property: Property) => {
@@ -166,6 +194,10 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const handleSubmit = async () => {
     if (!phone.trim()) {
       toast.error('Telefon numarası gerekli');
+      return;
+    }
+    if (!matchedCustomer && !newCustomerType) {
+      toast.error('Yeni müşteri için müşteri tipini seçiniz.');
       return;
     }
 
@@ -183,7 +215,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: 'Telefon',
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -363,7 +395,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
             )}
 
             {/* No Match Info - New Customer Registration */}
-            {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
+            {phone.trim() && !matchedCustomer && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
                   <User className="w-4 h-4" />
@@ -376,6 +408,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
                   placeholder="Müşteri adını giriniz..."
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
                 />
+                <NewCustomerTypeField id="quick-call-customer-type" value={newCustomerType} onChange={setNewCustomerType} />
               </div>
             )}
           </div>
@@ -585,6 +618,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<CustomerType | ''>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when modal opens
@@ -609,6 +643,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('');
     }
   }, [isOpen]);
 
@@ -650,6 +685,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
     setPhone(customer.phone || customer.name);
     setMatchedCustomer(customer);
     setCustomerSuggestions([]);
+    setNewCustomerType('');
   };
 
   const selectProperty = (property: Property) => {
@@ -662,6 +698,10 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const handleSubmit = async () => {
     if (!phone.trim()) {
       toast.error('Telefon numarası veya kişi gerekli');
+      return;
+    }
+    if (!matchedCustomer && !newCustomerType) {
+      toast.error('Yeni müşteri için müşteri tipini seçiniz.');
       return;
     }
 
@@ -679,7 +719,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: channel,
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -806,7 +846,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             )}
 
             {/* No Match - New Customer Registration */}
-            {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
+            {phone.trim() && !matchedCustomer && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
                   <User className="w-4 h-4" />
@@ -819,6 +859,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                   placeholder="Müşteri adını giriniz..."
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
                 />
+                <NewCustomerTypeField id="quick-message-customer-type" value={newCustomerType} onChange={setNewCustomerType} />
               </div>
             )}
           </div>
