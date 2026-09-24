@@ -18,9 +18,11 @@ const RequestDetail: React.FC = () => {
   const matchingProperties = properties.filter(p => {
       const matchType = p.type === request.type;
       const matchPrice = p.price >= request.minPrice && p.price <= request.maxPrice;
-      const matchCity = p.location.includes(request.city);
-      // Loose text match for district if specified
-      const matchDistrict = request.district === 'Tümü' || p.location.includes(request.district); 
+      const location = [p.location, p.city, p.district].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR');
+      const city = (request.city || '').trim().toLocaleLowerCase('tr-TR');
+      const district = (request.district || '').trim().toLocaleLowerCase('tr-TR');
+      const matchCity = !city || location.includes(city);
+      const matchDistrict = !district || district === 'tümü' || location.includes(district);
       
       return matchType && matchPrice && matchCity && matchDistrict;
   });

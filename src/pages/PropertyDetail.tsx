@@ -22,6 +22,8 @@ const PropertyDetail: React.FC = () => {
     const [inactiveReason, setInactiveReason] = useState('');
     const [cancelingSale, setCancelingSale] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
+    const [settingCover, setSettingCover] = useState(false);
+    const [coverImages, setCoverImages] = useState<{ propertyId: string; images: string[] } | null>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Find sale for this property
@@ -40,7 +42,24 @@ const PropertyDetail: React.FC = () => {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
     }
 
-    const propertyImages = property.images || [];
+    const propertyImages = coverImages?.propertyId === property.id ? coverImages.images : property.images || [];
+
+    const handleSetCover = async (index: number) => {
+        if (!isOwner || index <= 0 || index >= propertyImages.length || settingCover) return;
+
+        const images = [propertyImages[index], ...propertyImages.filter((_, imageIndex) => imageIndex !== index)];
+        setSettingCover(true);
+        try {
+            await updateProperty({ id: property.id, images });
+            setCoverImages({ propertyId: property.id, images });
+            toast.success('Kapak görseli güncellendi.');
+        } catch (error) {
+            console.error('Kapak görseli güncelleme hatası:', error);
+            toast.error('Kapak görseli güncellenemedi. Lütfen tekrar deneyin.');
+        } finally {
+            setSettingCover(false);
+        }
+    };
 
     const handleAddImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const input = event.currentTarget;
@@ -81,10 +100,9 @@ const PropertyDetail: React.FC = () => {
                 throw new Error(results[0]?.error || 'Görseller yüklenemedi.');
             }
 
-            await updateProperty({
-                ...property,
-                images: [...propertyImages, ...uploadedUrls]
-            });
+            const images = [...propertyImages, ...uploadedUrls];
+            await updateProperty({ id: property.id, images });
+            setCoverImages({ propertyId: property.id, images });
 
             if (failedCount > 0) {
                 toast.success(`${uploadedUrls.length} görsel eklendi, ${failedCount} görsel yüklenemedi.`, { id: 'property-image-upload' });
@@ -229,6 +247,32 @@ const PropertyDetail: React.FC = () => {
                             </div>
                             <p className="font-semibold text-slate-700 dark:text-slate-200">Henüz görsel eklenmedi</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Sağdaki Görsel Ekle düğmesiyle fotoğraf yükleyebilirsiniz.</p>
+                        </div>
+                    )}
+
+                    {isOwner && propertyImages.length > 1 && (
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">Kapak görseli seç</p>
+                            <div className="flex gap-3 overflow-x-auto pb-2">
+                                {propertyImages.map((img, index) => (
+                                    <div key={`${img}-${index}`} className="relative shrink-0 w-28">
+                                        <img src={img} alt={`${property.title} fotoğraf ${index + 1}`} className="w-28 h-20 object-cover rounded-lg" />
+                                        {index === 0 ? (
+                                            <span className="block mt-1 text-xs font-medium text-sky-600 dark:text-sky-400">Kapak</span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetCover(index)}
+                                                disabled={settingCover || uploadingImages}
+                                                className="mt-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                                aria-label={`${index + 1}. fotoğrafı kapak yap`}
+                                            >
+                                                Kapak Yap
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 

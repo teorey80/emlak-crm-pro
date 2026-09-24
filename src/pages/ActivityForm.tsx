@@ -10,6 +10,8 @@ import { Activity, Customer } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
+type CustomerType = NonNullable<Customer['customerType']>;
+
 const ActivityForm: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -25,7 +27,8 @@ const ActivityForm: React.FC = () => {
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
+    const [newCustomer, setNewCustomer] = useState<{ name: string; phone: string; customerType: CustomerType | '' }>({ name: '', phone: '', customerType: '' });
+    const [savingCustomer, setSavingCustomer] = useState(false);
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
@@ -115,26 +118,40 @@ const ActivityForm: React.FC = () => {
         }
     };
 
-    const handleQuickAddCustomer = (e: React.FormEvent) => {
+    const handleQuickAddCustomer = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newCustomer.name || !newCustomer.phone) return;
+        if (!newCustomer.name.trim() || !newCustomer.phone.trim() || savingCustomer) return;
+        if (!newCustomer.customerType) {
+            toast.error('Müşteri tipini seçiniz.');
+            return;
+        }
 
         const customer: Customer = {
             id: Date.now().toString(),
-            name: newCustomer.name,
-            phone: newCustomer.phone,
+            name: newCustomer.name.trim(),
+            phone: newCustomer.phone.trim(),
             email: '',
             status: 'Aktif',
+            customerType: newCustomer.customerType,
             source: 'Hızlı Ekleme',
             createdAt: new Date().toISOString().split('T')[0],
             interactions: [],
             avatar: `https://i.pravatar.cc/150?u=${Date.now()}`
         };
 
-        addCustomer(customer);
-        setFormData({ ...formData, customerId: customer.id });
-        setNewCustomer({ name: '', phone: '' });
-        setShowCustomerModal(false);
+        setSavingCustomer(true);
+        try {
+            const created = await addCustomer(customer);
+            setFormData(prev => ({ ...prev, customerId: created.id, customerName: created.name }));
+            setNewCustomer({ name: '', phone: '', customerType: '' });
+            setShowCustomerModal(false);
+            toast.success('Müşteri eklendi ve seçildi.');
+        } catch (error) {
+            console.error('Hızlı müşteri ekleme hatası:', error);
+            toast.error('Müşteri kaydedilemedi. Lütfen tekrar deneyin.');
+        } finally {
+            setSavingCustomer(false);
+        }
     };
 
     const linkedCase = id ? activities.find(activity => activity.id === id)?.prospecting_case_id : undefined;
@@ -345,6 +362,23 @@ const ActivityForm: React.FC = () => {
                                     required
                                 />
                             </div>
+                            <div>
+                                <label htmlFor="activity-customer-type" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Müşteri Tipi</label>
+                                <select
+                                    id="activity-customer-type"
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                    value={newCustomer.customerType}
+                                    onChange={e => setNewCustomer(prev => ({ ...prev, customerType: e.target.value as CustomerType | '' }))}
+                                    required
+                                >
+                                    <option value="">Seçiniz</option>
+                                    <option value="Alıcı">Alıcı</option>
+                                    <option value="Satıcı">Satıcı</option>
+                                    <option value="Kiracı">Kiracı</option>
+                                    <option value="Kiracı Adayı">Kiracı Adayı</option>
+                                    <option value="Mal Sahibi">Mal Sahibi</option>
+                                </select>
+                            </div>
                             <div className="pt-2 flex gap-3">
                                 <button
                                     type="button"
@@ -355,9 +389,10 @@ const ActivityForm: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:opacity-90"
+                                    disabled={savingCustomer}
+                                    className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                                 >
-                                    Kaydet ve Seç
+                                    {savingCustomer ? 'Kaydediliyor...' : 'Kaydet ve Seç'}
                                 </button>
                             </div>
                         </form>
