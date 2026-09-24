@@ -596,6 +596,14 @@ Sadece JSON döndür:
     }));
   };
 
+  const setCoverImage = (index: number) => {
+    setFormData(prev => {
+      const images = prev.images || [];
+      if (index <= 0 || index >= images.length) return prev;
+      return { ...prev, images: [images[index], ...images.filter((_, i) => i !== index)] };
+    });
+  };
+
   // Form submission
   const handleSubmit = async () => {
     // Validation
@@ -1667,10 +1675,19 @@ Sadece JSON döndür:
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-              {idx === 0 && (
+              {idx === 0 ? (
                 <span className="absolute bottom-2 left-2 px-2 py-1 bg-[#1193d4] text-white text-xs rounded">
                   Kapak
                 </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCoverImage(idx)}
+                  className="absolute bottom-2 left-2 px-2 py-1 bg-slate-900/80 hover:bg-[#1193d4] text-white text-xs rounded"
+                  aria-label={`${idx + 1}. fotoğrafı kapak yap`}
+                >
+                  Kapak Yap
+                </button>
               )}
             </div>
           ))}
