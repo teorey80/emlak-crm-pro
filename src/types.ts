@@ -279,7 +279,7 @@ export interface Customer {
   email: string;
   phone: string;
   status: 'Aktif' | 'Potansiyel' | 'Pasif';
-  customerType?: 'Alıcı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi';
+  customerType?: 'Alıcı' | 'Satıcı' | 'Kiracı' | 'Kiracı Adayı' | 'Mal Sahibi' | 'Emlakçı';
   source: string;
   createdAt: string;
   interactions: Interaction[]; // Kept for backward compatibility but will use global Activities
@@ -343,6 +343,9 @@ export interface Activity {
   customerName: string;
   site_id?: string | null;
   rooms?: string | null;
+  transaction_type?: 'Satılık' | 'Kiralık' | null;
+  sharing_status?: 'open' | 'restricted' | 'unknown' | null;
+  external_listing_url?: string | null;
   propertyId?: string;
   propertyTitle?: string; // Optional, e.g. just a general meeting
   date: string;

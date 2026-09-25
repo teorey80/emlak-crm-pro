@@ -1,5 +1,5 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
-import SitePicker from '../components/SitePicker';
+import ActivityListingFields, { isValidListingUrl } from '../components/ActivityListingFields';
 import EntityTags from '../components/EntityTags';
 
 import React, { useState } from 'react';
@@ -75,7 +75,10 @@ const ActivityForm: React.FC = () => {
                     customerId: activityToEdit.customerId,
                     customerName: activityToEdit.customerName, propertyTitle: activityToEdit.propertyTitle,
                     propertyId: activityToEdit.propertyId,
-                    site_id: activityToEdit.site_id, rooms: activityToEdit.rooms
+                    site_id: activityToEdit.site_id, rooms: activityToEdit.rooms,
+                    transaction_type: activityToEdit.transaction_type,
+                    sharing_status: activityToEdit.sharing_status,
+                    external_listing_url: activityToEdit.external_listing_url
                 });
             }
         }
@@ -88,6 +91,11 @@ const ActivityForm: React.FC = () => {
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
         const selectedProperty = properties.find(p => p.id === formData.propertyId);
 
+        if (!isValidListingUrl(formData.external_listing_url || '')) {
+            toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
+            return;
+        }
+
         const activityData: Activity = {
             id: id || Date.now().toString(),
             type: formData.type as any,
@@ -96,6 +104,9 @@ const ActivityForm: React.FC = () => {
             propertyId: formData.propertyId,
             site_id: formData.propertyId ? null : formData.site_id || null,
             rooms: formData.propertyId ? null : formData.rooms || null,
+            transaction_type: formData.propertyId ? null : formData.transaction_type || null,
+            sharing_status: formData.sharing_status || null,
+            external_listing_url: formData.external_listing_url?.trim() || null,
             propertyTitle: selectedProperty?.title || formData.propertyTitle,
             date: formData.date || '',
             time: formData.time,
@@ -255,7 +266,18 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {id && <EntityTags type="activity" id={id} editable/>}
-                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site etiketi bu aktiviteye otomatik eklenir.</p> : <div className="space-y-3"><SitePicker value={formData.site_id} onChange={(site_id)=>setFormData({...formData,site_id})}/><label className="block text-sm">Gösterilen / görüşülen evin oda sayısı<input value={formData.rooms || ''} onChange={e=>setFormData({...formData,rooms:e.target.value.replace(/\s/g,'')})} placeholder="Örn. 3+1" className="w-full rounded-lg border p-2.5 dark:bg-slate-800 dark:border-slate-600"/></label></div>}
+                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site ve satılık/kiralık etiketleri bu aktiviteye otomatik eklenir.</p> : <ActivityListingFields
+                        siteId={formData.site_id}
+                        onSiteChange={site_id => setFormData(prev => ({ ...prev, site_id }))}
+                        rooms={formData.rooms}
+                        onRoomsChange={rooms => setFormData(prev => ({ ...prev, rooms }))}
+                        transactionType={formData.transaction_type}
+                        onTransactionTypeChange={transaction_type => setFormData(prev => ({ ...prev, transaction_type: transaction_type || null }))}
+                        sharingStatus={formData.sharing_status}
+                        onSharingStatusChange={sharing_status => setFormData(prev => ({ ...prev, sharing_status: sharing_status || null }))}
+                        externalListingUrl={formData.external_listing_url}
+                        onExternalListingUrlChange={external_listing_url => setFormData(prev => ({ ...prev, external_listing_url }))}
+                    />}
                     {/* Notes */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
@@ -377,6 +399,7 @@ const ActivityForm: React.FC = () => {
                                     <option value="Kiracı">Kiracı</option>
                                     <option value="Kiracı Adayı">Kiracı Adayı</option>
                                     <option value="Mal Sahibi">Mal Sahibi</option>
+                                    <option value="Emlakçı">Emlakçı</option>
                                 </select>
                             </div>
                             <div className="pt-2 flex gap-3">
