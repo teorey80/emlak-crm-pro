@@ -1,5 +1,6 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import EntityTags from '../components/EntityTags';
+import ActivityListingLink from '../components/ActivityListingLink';
 import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2 } from 'lucide-react';
@@ -22,6 +23,8 @@ const PropertyDetail: React.FC = () => {
     const [inactiveReason, setInactiveReason] = useState('');
     const [cancelingSale, setCancelingSale] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
+    const [settingCover, setSettingCover] = useState(false);
+    const [coverImages, setCoverImages] = useState<{ propertyId: string; images: string[] } | null>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Find sale for this property
@@ -40,7 +43,24 @@ const PropertyDetail: React.FC = () => {
         return <div className="p-10 text-center text-gray-500 dark:text-slate-400">İlan bulunamadı.</div>;
     }
 
-    const propertyImages = property.images || [];
+    const propertyImages = coverImages?.propertyId === property.id ? coverImages.images : property.images || [];
+
+    const handleSetCover = async (index: number) => {
+        if (!isOwner || index <= 0 || index >= propertyImages.length || settingCover) return;
+
+        const images = [propertyImages[index], ...propertyImages.filter((_, imageIndex) => imageIndex !== index)];
+        setSettingCover(true);
+        try {
+            await updateProperty({ id: property.id, images });
+            setCoverImages({ propertyId: property.id, images });
+            toast.success('Kapak görseli güncellendi.');
+        } catch (error) {
+            console.error('Kapak görseli güncelleme hatası:', error);
+            toast.error('Kapak görseli güncellenemedi. Lütfen tekrar deneyin.');
+        } finally {
+            setSettingCover(false);
+        }
+    };
 
     const handleAddImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const input = event.currentTarget;
@@ -81,10 +101,9 @@ const PropertyDetail: React.FC = () => {
                 throw new Error(results[0]?.error || 'Görseller yüklenemedi.');
             }
 
-            await updateProperty({
-                ...property,
-                images: [...propertyImages, ...uploadedUrls]
-            });
+            const images = [...propertyImages, ...uploadedUrls];
+            await updateProperty({ id: property.id, images });
+            setCoverImages({ propertyId: property.id, images });
 
             if (failedCount > 0) {
                 toast.success(`${uploadedUrls.length} görsel eklendi, ${failedCount} görsel yüklenemedi.`, { id: 'property-image-upload' });
@@ -232,6 +251,32 @@ const PropertyDetail: React.FC = () => {
                         </div>
                     )}
 
+                    {isOwner && propertyImages.length > 1 && (
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">Kapak görseli seç</p>
+                            <div className="flex gap-3 overflow-x-auto pb-2">
+                                {propertyImages.map((img, index) => (
+                                    <div key={`${img}-${index}`} className="relative shrink-0 w-28">
+                                        <img src={img} alt={`${property.title} fotoğraf ${index + 1}`} className="w-28 h-20 object-cover rounded-lg" />
+                                        {index === 0 ? (
+                                            <span className="block mt-1 text-xs font-medium text-sky-600 dark:text-sky-400">Kapak</span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetCover(index)}
+                                                disabled={settingCover || uploadingImages}
+                                                className="mt-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                                aria-label={`${index + 1}. fotoğrafı kapak yap`}
+                                            >
+                                                Kapak Yap
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Matching Requests Section - NEW */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900/50 bg-gradient-to-r from-white to-indigo-50/30 dark:from-slate-800 dark:to-indigo-900/20 transition-colors">
                         <div className="flex items-center gap-2 mb-4">
@@ -339,6 +384,7 @@ const PropertyDetail: React.FC = () => {
                                             <time className="text-xs text-gray-400 dark:text-slate-500">{activity.date}</time>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-slate-400 italic">"{activity.description}"</p>
+                                        <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                         <div className="mt-2">
                                             <span className={`text-xs px-2 py-0.5 rounded border ${activity.status === 'Olumlu' ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400' :
                                                 activity.status === 'Olumsuz' ? 'bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800 text-red-700 dark:text-red-400' :

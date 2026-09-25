@@ -125,6 +125,7 @@ const CustomerList: React.FC = () => {
                         <option value="Kiracı">Kiracı</option>
                         <option value="Kiracı Adayı">Kiracı Adayı</option>
                         <option value="Mal Sahibi">Mal Sahibi</option>
+                        <option value="Emlakçı">Emlakçı</option>
                     </select>
                 </div>
             </div>

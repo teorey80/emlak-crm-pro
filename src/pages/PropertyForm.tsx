@@ -4,7 +4,7 @@ import SitePicker from '../components/SitePicker';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ImagePlus, Trash2, MapPin, Wand2, Loader2, Link, FileText,
+  ImagePlus, Trash2, MapPin, Loader2, FileText,
   UserPlus, X, ChevronLeft, ChevronRight, Check, Building,
   List, Image, Home, Briefcase, Map, Save, Search, Navigation
 } from 'lucide-react';
@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Property, Customer } from '../types';
 import { supabase } from '../services/supabaseClient';
-import { generateRealEstateAdvice } from '../services/geminiService';
+import GoogleMapPicker, { geocodeAddress } from '../components/GoogleMapPicker';
 import {
   PROPERTY_CATEGORIES,
   ROOM_OPTIONS,
@@ -58,15 +58,6 @@ const PropertyForm: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // ⚡ Cloudinary upload sayacı — kaç fotoğraf yükleniyor
   const [uploadingCount, setUploadingCount] = useState(0);
-
-  // AI states
-  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
-  const [isEstimatingPrice, setIsEstimatingPrice] = useState(false);
-
-  // URL Import states
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importUrl, setImportUrl] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Owner Modal
   const [showOwnerModal, setShowOwnerModal] = useState(false);
@@ -251,43 +242,24 @@ const PropertyForm: React.FC = () => {
     fetchNeighborhoods();
   }, [formData.city, formData.district]);
 
-  // Address search with Nominatim geocoding
-  const handleAddressSearch = async () => {
-    if (!addressSearch.trim()) return;
+  // Google Haritalar üzerinde adres arama
+  const handleAddressSearch = async (query = addressSearch) => {
+    if (!query.trim()) return;
 
     setSearchingAddress(true);
     try {
       // Build search query with city/district context
       const searchQuery = [
-        addressSearch,
+        query,
         formData.neighborhood,
         formData.district,
         formData.city,
         'Türkiye'
       ].filter(Boolean).join(', ');
 
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=tr`,
-        {
-          headers: {
-            'Accept-Language': 'tr'
-          }
-        }
-      );
-
-      if (response.ok) {
-        const results = await response.json();
-        if (results && results.length > 0) {
-          const { lat, lon, display_name } = results[0];
-          handleChange('coordinates', {
-            lat: parseFloat(lat),
-            lng: parseFloat(lon)
-          });
-          toast.success(`Konum bulundu: ${display_name.split(',').slice(0, 2).join(',')}`);
-        } else {
-          toast.error('Adres bulunamadı. Farklı bir adres deneyin.');
-        }
-      }
+      const result = await geocodeAddress(searchQuery);
+      setFormData(prev => ({ ...prev, coordinates: result.coordinates, address: result.address }));
+      toast.success(`Konum bulundu: ${result.address}`);
     } catch (error) {
       console.error('Adres arama hatası:', error);
       toast.error('Adres arama sırasında hata oluştu');
@@ -342,163 +314,6 @@ const PropertyForm: React.FC = () => {
       handleChange(field, currentArray.filter(v => v !== value));
     } else {
       handleChange(field, [...currentArray, value]);
-    }
-  };
-
-  // AI Description Generator
-  const handleGenerateDescription = async () => {
-    if (!formData.type && !formData.city) {
-      toast.error('Lütfen önce emlak tipi ve konum bilgilerini doldurun');
-      return;
-    }
-
-    setIsGeneratingDescription(true);
-    try {
-      const propertyInfo = [
-        formData.category && `Kategori: ${PROPERTY_CATEGORIES[formData.category as keyof typeof PROPERTY_CATEGORIES]?.label}`,
-        formData.type && `Emlak Tipi: ${formData.type}`,
-        formData.subCategory && `İşlem: ${formData.subCategory}`,
-        formData.rooms && `Oda Sayısı: ${formData.rooms}`,
-        formData.bathrooms && `Banyo: ${formData.bathrooms}`,
-        formData.netArea && `Net Alan: ${formData.netArea} m²`,
-        formData.grossArea && `Brüt Alan: ${formData.grossArea} m²`,
-        formData.city && formData.district && `Konum: ${formData.district}, ${formData.city}`,
-        formData.neighborhood && `Mahalle: ${formData.neighborhood}`,
-        formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor && formData.floorCount && `Kat: ${formData.currentFloor}/${formData.floorCount}`,
-        formData.heating && `Isıtma: ${formData.heating}`,
-        formData.furnished && `Eşya: Eşyalı`,
-        formData.parking && `Otopark: ${formData.parking}`,
-        formData.elevator === 'Var' && `Asansör: Var`,
-        formData.price && `Fiyat: ${formData.price.toLocaleString('tr-TR')} ${formData.currency || 'TL'}`,
-        formData.interiorFeatures?.length && `İç Özellikler: ${formData.interiorFeatures.slice(0, 5).join(', ')}`,
-        formData.viewFeatures?.length && `Manzara: ${formData.viewFeatures.join(', ')}`,
-      ].filter(Boolean).join('\n');
-
-      const prompt = `Aşağıdaki emlak bilgilerine göre, profesyonel ve çekici bir Türkçe ilan açıklaması yaz.
-Açıklama 150-250 kelime arasında olsun. Sadece açıklama metnini yaz, başka bir şey ekleme.
-Emlak bilgilerini tekrar listeleme, bunları cazip bir anlatımla açıklamaya dönüştür.
-Potansiyel alıcı/kiracıyı heyecanlandıracak ve emlağın öne çıkan özelliklerini vurgulayacak şekilde yaz.
-
-Emlak Bilgileri:
-${propertyInfo}`;
-
-      const result = await generateRealEstateAdvice(prompt);
-      if (result) {
-        handleChange('description', result.trim());
-        toast.success('İlan açıklaması AI ile oluşturuldu!');
-      }
-    } catch (err: any) {
-      toast.error('Açıklama oluşturulamadı');
-    } finally {
-      setIsGeneratingDescription(false);
-    }
-  };
-
-  // AI Price Estimator
-  const handleEstimatePrice = async () => {
-    if (!formData.type && !formData.city) {
-      toast.error('Lütfen önce emlak tipi ve konum bilgilerini doldurun');
-      return;
-    }
-
-    setIsEstimatingPrice(true);
-    try {
-      const propertyInfo = [
-        formData.type && `Emlak Tipi: ${formData.type}`,
-        formData.subCategory && `İşlem: ${formData.subCategory}`,
-        formData.rooms && `Oda Sayısı: ${formData.rooms}`,
-        formData.netArea && `Net Alan: ${formData.netArea} m²`,
-        formData.grossArea && `Brüt Alan: ${formData.grossArea} m²`,
-        formData.city && `Şehir: ${formData.city}`,
-        formData.district && `İlçe: ${formData.district}`,
-        formData.buildingAge !== undefined && `Bina Yaşı: ${formData.buildingAge}`,
-        formData.currentFloor && `Bulunduğu Kat: ${formData.currentFloor}`,
-        formData.heating && `Isıtma: ${formData.heating}`,
-        formData.elevator === 'Var' && `Asansör: Var`,
-      ].filter(Boolean).join('\n');
-
-      const prompt = `Aşağıdaki emlak bilgilerine göre Türkiye piyasasında tahmini bir ${formData.subCategory === 'Kiralık' ? 'kira' : 'satış'} fiyatı öner.
-SADECE bir sayı döndür, başka hiçbir şey yazma. Türk Lirası cinsinden yaz.
-Örnek: 2500000
-
-Emlak Bilgileri:
-${propertyInfo}`;
-
-      const result = await generateRealEstateAdvice(prompt);
-      if (result) {
-        const priceMatch = result.replace(/[^\d]/g, '');
-        const estimatedPrice = parseInt(priceMatch, 10);
-        if (estimatedPrice && !isNaN(estimatedPrice)) {
-          handleChange('price', estimatedPrice);
-          toast.success(`AI fiyat tahmini: ${estimatedPrice.toLocaleString('tr-TR')} TL`);
-        }
-      }
-    } catch (err: any) {
-      toast.error('Fiyat tahmini yapılamadı');
-    } finally {
-      setIsEstimatingPrice(false);
-    }
-  };
-
-  // URL Import
-  const handleImportFromUrl = async () => {
-    if (!importUrl.trim()) return;
-
-    setIsAnalyzing(true);
-    try {
-      const prompt = `Aşağıdaki emlak ilan URL'sini analiz et ve bilgileri JSON formatında çıkar.
-URL: ${importUrl}
-
-Sadece JSON döndür:
-{
-  "title": "İlan başlığı",
-  "description": "Açıklama",
-  "price": 0,
-  "type": "Daire/Villa/Arsa/etc",
-  "rooms": "3+1",
-  "grossArea": 0,
-  "netArea": 0,
-  "buildingAge": 0,
-  "currentFloor": 0,
-  "floorCount": 0,
-  "city": "İl",
-  "district": "İlçe"
-}`;
-
-      const result = await generateRealEstateAdvice(prompt);
-      if (result) {
-        try {
-          const jsonMatch = result.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[0]);
-            setFormData(prev => ({
-              ...prev,
-              title: data.title || prev.title,
-              description: data.description || prev.description,
-              price: data.price || prev.price,
-              type: data.type || prev.type,
-              rooms: data.rooms || prev.rooms,
-              grossArea: data.grossArea || prev.grossArea,
-              netArea: data.netArea || prev.netArea,
-              buildingAge: data.buildingAge ?? prev.buildingAge,
-              currentFloor: data.currentFloor ?? prev.currentFloor,
-              floorCount: data.floorCount || prev.floorCount,
-              city: data.city || prev.city,
-              district: data.district || prev.district,
-            }));
-            toast.success('İlan bilgileri içe aktarıldı!');
-            setShowImportModal(false);
-            setImportUrl('');
-          }
-        } catch {
-          toast.error('JSON parse hatası');
-        }
-      }
-    } catch (err: any) {
-      toast.error('İçe aktarma başarısız');
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -594,6 +409,14 @@ Sadece JSON döndür:
       ...prev,
       images: prev.images?.filter((_, i) => i !== index)
     }));
+  };
+
+  const setCoverImage = (index: number) => {
+    setFormData(prev => {
+      const images = prev.images || [];
+      if (index <= 0 || index >= images.length) return prev;
+      return { ...prev, images: [images[index], ...images.filter((_, i) => i !== index)] };
+    });
   };
 
   // Form submission
@@ -769,14 +592,6 @@ Sadece JSON döndür:
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-slate-800 dark:text-white">Temel Bilgiler</h3>
-        <button
-          type="button"
-          onClick={() => setShowImportModal(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100"
-        >
-          <Link className="w-4 h-4" />
-          URL'den İçe Aktar
-        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -802,15 +617,6 @@ Sadece JSON döndür:
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
               Fiyat <span className="text-red-500">*</span>
             </label>
-            <button
-              type="button"
-              onClick={handleEstimatePrice}
-              disabled={isEstimatingPrice}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-100 disabled:opacity-50"
-            >
-              {isEstimatingPrice ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-              AI Tahmin
-            </button>
           </div>
           <div className="flex gap-2">
             <input
@@ -864,15 +670,6 @@ Sadece JSON döndür:
         <div className="md:col-span-2">
           <div className="flex items-center justify-between mb-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Açıklama</label>
-            <button
-              type="button"
-              onClick={handleGenerateDescription}
-              disabled={isGeneratingDescription}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
-            >
-              {isGeneratingDescription ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-              AI ile Oluştur
-            </button>
           </div>
           <textarea
             rows={5}
@@ -1238,7 +1035,6 @@ Sadece JSON döndür:
   // Step: Location
   const renderLocationStep = () => {
     const districts = formData.city ? getDistricts(formData.city) : [];
-    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${(formData.coordinates?.lng || 32.8597) - 0.05}%2C${(formData.coordinates?.lat || 39.9334) - 0.03}%2C${(formData.coordinates?.lng || 32.8597) + 0.05}%2C${(formData.coordinates?.lat || 39.9334) + 0.03}&layer=mapnik&marker=${formData.coordinates?.lat || 39.9334}%2C${formData.coordinates?.lng || 32.8597}`;
     const googleMapsPickerUrl = `https://www.google.com/maps/search/?api=1&query=${formData.coordinates?.lat || 39.9334},${formData.coordinates?.lng || 32.8597}`;
 
     return (
@@ -1366,10 +1162,10 @@ Sadece JSON döndür:
               type="button"
               onClick={() => {
                 // Use current location from address fields to search
-                const searchText = [formData.address, formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
+                const searchText = formData.address || [formData.neighborhood, formData.district, formData.city].filter(Boolean).join(', ');
                 if (searchText) {
                   setAddressSearch(searchText);
-                  handleAddressSearch();
+                  handleAddressSearch(searchText);
                 }
               }}
               className="flex items-center gap-1 px-3 py-1.5 text-sm bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100"
@@ -1401,11 +1197,11 @@ Sadece JSON döndür:
               className="flex-1 p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
               value={addressSearch}
               onChange={e => setAddressSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleAddressSearch(); } }}
             />
             <button
               type="button"
-              onClick={handleAddressSearch}
+              onClick={() => void handleAddressSearch()}
               disabled={searchingAddress || !addressSearch.trim()}
               className="px-4 py-3 bg-[#1193d4] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
             >
@@ -1421,22 +1217,12 @@ Sadece JSON döndür:
           </p>
         </div>
 
-        {/* Map Preview */}
-        <div className="h-72 bg-gray-100 dark:bg-slate-800 relative">
-          <iframe
-            key={`${formData.coordinates?.lat}-${formData.coordinates?.lng}`}
-            width="100%"
-            height="100%"
-            src={mapUrl}
-            title="Konum Haritası"
-            className="border-0"
-          />
-          {formData.coordinates?.lat && formData.coordinates?.lng && (
-            <div className="absolute bottom-2 left-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg shadow text-xs text-slate-600 dark:text-slate-300">
-              {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lng.toFixed(4)}
-            </div>
-          )}
-        </div>
+        {/* Haritadan seçim */}
+        <GoogleMapPicker
+          coordinates={formData.coordinates || { lat: 41.0082, lng: 28.9784 }}
+          onChange={(coordinates, address) => setFormData(prev => ({ ...prev, coordinates, address: address || prev.address }))}
+        />
+        <p className="px-4 py-2 text-xs text-gray-500 dark:text-slate-400">Haritada bir noktaya tıklayın veya işareti sürükleyin. Seçilen konum ilana kaydedilir.</p>
 
         {/* Coordinate Inputs */}
         <div className="p-4 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-600">
@@ -1667,10 +1453,19 @@ Sadece JSON döndür:
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-              {idx === 0 && (
+              {idx === 0 ? (
                 <span className="absolute bottom-2 left-2 px-2 py-1 bg-[#1193d4] text-white text-xs rounded">
                   Kapak
                 </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCoverImage(idx)}
+                  className="absolute bottom-2 left-2 px-2 py-1 bg-slate-900/80 hover:bg-[#1193d4] text-white text-xs rounded"
+                  aria-label={`${idx + 1}. fotoğrafı kapak yap`}
+                >
+                  Kapak Yap
+                </button>
               )}
             </div>
           ))}
@@ -1782,46 +1577,6 @@ Sadece JSON döndür:
           </button>
         )}
       </div>
-
-      {/* URL Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">URL'den İçe Aktar</h3>
-              <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-              Sahibinden, Hepsiemlak gibi sitelerdeki ilan linkini yapıştırın.
-            </p>
-            <input
-              type="url"
-              placeholder="https://..."
-              className="w-full p-3 border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white mb-4"
-              value={importUrl}
-              onChange={e => setImportUrl(e.target.value)}
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="flex-1 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-white"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleImportFromUrl}
-                disabled={isAnalyzing || !importUrl}
-                className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}
-                {isAnalyzing ? 'Analiz Ediliyor...' : 'İçe Aktar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Owner Modal */}
       {showOwnerModal && (

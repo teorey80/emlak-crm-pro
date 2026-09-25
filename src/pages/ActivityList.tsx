@@ -1,4 +1,5 @@
 import EntityTags from '../components/EntityTags';
+import ActivityListingLink from '../components/ActivityListingLink';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, MapPin, PhoneIncoming, PhoneOutgoing, Briefcase, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -160,6 +161,7 @@ const ActivityList: React.FC = () => {
                             <p className="text-gray-600 dark:text-slate-300 text-sm bg-gray-50 dark:bg-slate-700 p-3 rounded-lg border border-gray-100 dark:border-slate-600">
                                 {activity.description}
                             </p>
+                            <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                         </div>
 
                         <div className="self-start md:self-center min-w-[100px] flex flex-col items-end gap-2">

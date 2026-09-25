@@ -1,9 +1,11 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import EntityTags from '../components/EntityTags';
+import ActivityListingLink from '../components/ActivityListingLink';
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Briefcase, Building2, Calendar, CheckCircle, Clock, Dog, Edit, Home, Info, Mail, MapPin, MessageSquare, MoreHorizontal, Phone, PlusCircle, Trash2, User, XCircle } from 'lucide-react';
-import AddToCalendarButton from '../components/AddToCalendarButton';
+import toast from 'react-hot-toast';
+import { syncCalendarActivity } from '../services/googleWorkspaceService';
 import DocumentManager from '../components/DocumentManager';
 import { useData } from '../context/DataContext';
 
@@ -91,14 +93,12 @@ const CustomerDetail: React.FC = () => {
                                                     </div>
                                                 )}
                                                 <p className="text-sm text-gray-700 dark:text-slate-300">{activity.description}</p>
+                                                <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                             </div>
-                                            <AddToCalendarButton
-                                                title={`Emlak Randevusu: ${activity.type} - ${customer.name}`}
-                                                date={activity.date}
-                                                time={activity.time}
-                                                description={`${activity.description} \n\nMüşteri: ${customer.name} \nTel: ${customer.phone}`}
-                                                location={activity.propertyTitle || 'Ofis'}
-                                            />
+                                            <button type="button" onClick={async () => {
+                                                try { await syncCalendarActivity(activity); toast.success('Google Takvim ile eşitlendi.'); }
+                                                catch (error) { toast.error(error instanceof Error ? error.message : 'Google Takvim eşitlenemedi.'); }
+                                            }} className="text-xs text-sky-700 underline">Takvim ile tekrar eşitle</button>
                                         </div>
                                     </div>
                                 ))}
@@ -209,6 +209,7 @@ const CustomerDetail: React.FC = () => {
                                             )}
 
                                             <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">{activity.description}</p>
+                                            <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                         </div>
                                     </li>
                                 ))}

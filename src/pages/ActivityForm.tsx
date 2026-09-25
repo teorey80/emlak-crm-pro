@@ -1,31 +1,40 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
-import SitePicker from '../components/SitePicker';
+import ActivityListingFields, { isValidListingUrl } from '../components/ActivityListingFields';
 import EntityTags from '../components/EntityTags';
 
 import React, { useState } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Activity, Customer } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
+type CustomerType = NonNullable<Customer['customerType']>;
+
 const ActivityForm: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { id } = useParams<{ id: string }>();
     const { customers, properties, activities, addActivity, updateActivity, addCustomer } = useData();
 
+    const appointmentPrefill = location.state && typeof location.state === 'object' ? location.state as Partial<Activity> : null;
     const [formData, setFormData] = useState<Partial<Activity>>({
-        type: 'Yer Gösterimi',
-        date: new Date().toISOString().split('T')[0],
+        type: appointmentPrefill?.type || 'Yer Gösterimi',
+        date: new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10),
         time: '09:00',
-        status: 'Düşünüyor',
-        description: ''
+        status: appointmentPrefill ? 'Planlandı' : 'Düşünüyor',
+        description: '',
+        customerId: appointmentPrefill?.customerId,
+        customerName: appointmentPrefill?.customerName,
+        propertyId: appointmentPrefill?.propertyId,
+        propertyTitle: appointmentPrefill?.propertyTitle,
     });
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: '', phone: '' });
+    const [newCustomer, setNewCustomer] = useState<{ name: string; phone: string; customerType: CustomerType | '' }>({ name: '', phone: '', customerType: '' });
+    const [savingCustomer, setSavingCustomer] = useState(false);
 
     // Voice State
     const [isRecording, setIsRecording] = useState(false);
@@ -72,7 +81,10 @@ const ActivityForm: React.FC = () => {
                     customerId: activityToEdit.customerId,
                     customerName: activityToEdit.customerName, propertyTitle: activityToEdit.propertyTitle,
                     propertyId: activityToEdit.propertyId,
-                    site_id: activityToEdit.site_id, rooms: activityToEdit.rooms
+                    site_id: activityToEdit.site_id, rooms: activityToEdit.rooms,
+                    transaction_type: activityToEdit.transaction_type,
+                    sharing_status: activityToEdit.sharing_status,
+                    external_listing_url: activityToEdit.external_listing_url
                 });
             }
         }
@@ -85,6 +97,11 @@ const ActivityForm: React.FC = () => {
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
         const selectedProperty = properties.find(p => p.id === formData.propertyId);
 
+        if (!isValidListingUrl(formData.external_listing_url || '')) {
+            toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
+            return;
+        }
+
         const activityData: Activity = {
             id: id || Date.now().toString(),
             type: formData.type as any,
@@ -93,6 +110,9 @@ const ActivityForm: React.FC = () => {
             propertyId: formData.propertyId,
             site_id: formData.propertyId ? null : formData.site_id || null,
             rooms: formData.propertyId ? null : formData.rooms || null,
+            transaction_type: formData.propertyId ? null : formData.transaction_type || null,
+            sharing_status: formData.sharing_status || null,
+            external_listing_url: formData.external_listing_url?.trim() || null,
             propertyTitle: selectedProperty?.title || formData.propertyTitle,
             date: formData.date || '',
             time: formData.time,
@@ -115,26 +135,40 @@ const ActivityForm: React.FC = () => {
         }
     };
 
-    const handleQuickAddCustomer = (e: React.FormEvent) => {
+    const handleQuickAddCustomer = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newCustomer.name || !newCustomer.phone) return;
+        if (!newCustomer.name.trim() || !newCustomer.phone.trim() || savingCustomer) return;
+        if (!newCustomer.customerType) {
+            toast.error('Müşteri tipini seçiniz.');
+            return;
+        }
 
         const customer: Customer = {
             id: Date.now().toString(),
-            name: newCustomer.name,
-            phone: newCustomer.phone,
+            name: newCustomer.name.trim(),
+            phone: newCustomer.phone.trim(),
             email: '',
             status: 'Aktif',
+            customerType: newCustomer.customerType,
             source: 'Hızlı Ekleme',
             createdAt: new Date().toISOString().split('T')[0],
             interactions: [],
             avatar: `https://i.pravatar.cc/150?u=${Date.now()}`
         };
 
-        addCustomer(customer);
-        setFormData({ ...formData, customerId: customer.id });
-        setNewCustomer({ name: '', phone: '' });
-        setShowCustomerModal(false);
+        setSavingCustomer(true);
+        try {
+            const created = await addCustomer(customer);
+            setFormData(prev => ({ ...prev, customerId: created.id, customerName: created.name }));
+            setNewCustomer({ name: '', phone: '', customerType: '' });
+            setShowCustomerModal(false);
+            toast.success('Müşteri eklendi ve seçildi.');
+        } catch (error) {
+            console.error('Hızlı müşteri ekleme hatası:', error);
+            toast.error('Müşteri kaydedilemedi. Lütfen tekrar deneyin.');
+        } finally {
+            setSavingCustomer(false);
+        }
     };
 
     const linkedCase = id ? activities.find(activity => activity.id === id)?.prospecting_case_id : undefined;
@@ -238,7 +272,18 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {id && <EntityTags type="activity" id={id} editable/>}
-                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site etiketi bu aktiviteye otomatik eklenir.</p> : <div className="space-y-3"><SitePicker value={formData.site_id} onChange={(site_id)=>setFormData({...formData,site_id})}/><label className="block text-sm">Gösterilen / görüşülen evin oda sayısı<input value={formData.rooms || ''} onChange={e=>setFormData({...formData,rooms:e.target.value.replace(/\s/g,'')})} placeholder="Örn. 3+1" className="w-full rounded-lg border p-2.5 dark:bg-slate-800 dark:border-slate-600"/></label></div>}
+                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site ve satılık/kiralık etiketleri bu aktiviteye otomatik eklenir.</p> : <ActivityListingFields
+                        siteId={formData.site_id}
+                        onSiteChange={site_id => setFormData(prev => ({ ...prev, site_id }))}
+                        rooms={formData.rooms}
+                        onRoomsChange={rooms => setFormData(prev => ({ ...prev, rooms }))}
+                        transactionType={formData.transaction_type}
+                        onTransactionTypeChange={transaction_type => setFormData(prev => ({ ...prev, transaction_type: transaction_type || null }))}
+                        sharingStatus={formData.sharing_status}
+                        onSharingStatusChange={sharing_status => setFormData(prev => ({ ...prev, sharing_status: sharing_status || null }))}
+                        externalListingUrl={formData.external_listing_url}
+                        onExternalListingUrlChange={external_listing_url => setFormData(prev => ({ ...prev, external_listing_url }))}
+                    />}
                     {/* Notes */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
@@ -293,6 +338,7 @@ const ActivityForm: React.FC = () => {
                                 </label>
                             ))}
                         </div>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Planlandı durumundaki randevular bağlı Google Takvim hesabınıza otomatik eklenir.</p>
                     </div>
 
                     <div className="pt-4 flex gap-3">
@@ -345,6 +391,24 @@ const ActivityForm: React.FC = () => {
                                     required
                                 />
                             </div>
+                            <div>
+                                <label htmlFor="activity-customer-type" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Müşteri Tipi</label>
+                                <select
+                                    id="activity-customer-type"
+                                    className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                    value={newCustomer.customerType}
+                                    onChange={e => setNewCustomer(prev => ({ ...prev, customerType: e.target.value as CustomerType | '' }))}
+                                    required
+                                >
+                                    <option value="">Seçiniz</option>
+                                    <option value="Alıcı">Alıcı</option>
+                                    <option value="Satıcı">Satıcı</option>
+                                    <option value="Kiracı">Kiracı</option>
+                                    <option value="Kiracı Adayı">Kiracı Adayı</option>
+                                    <option value="Mal Sahibi">Mal Sahibi</option>
+                                    <option value="Emlakçı">Emlakçı</option>
+                                </select>
+                            </div>
                             <div className="pt-2 flex gap-3">
                                 <button
                                     type="button"
@@ -355,9 +419,10 @@ const ActivityForm: React.FC = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:opacity-90"
+                                    disabled={savingCustomer}
+                                    className="flex-1 py-2.5 bg-[#1193d4] text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
                                 >
-                                    Kaydet ve Seç
+                                    {savingCustomer ? 'Kaydediliyor...' : 'Kaydet ve Seç'}
                                 </button>
                             </div>
                         </form>

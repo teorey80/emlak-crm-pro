@@ -1,4 +1,4 @@
-# EmlakCRM Pro — CLAUDE.md
+# EmlakCRM Pro — AGENTS.md
 
 ## Proje Özeti
 

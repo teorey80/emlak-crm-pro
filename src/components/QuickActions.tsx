@@ -1,4 +1,5 @@
 import EntityTags from './EntityTags';
+import ActivityListingFields, { isValidListingUrl } from './ActivityListingFields';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Phone, MessageCircle, X, Check, User, Clock, FileText, PhoneIncoming, PhoneOutgoing, Building2, Calendar, ClipboardList, Info } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -6,6 +7,32 @@ import { useTheme } from '../context/ThemeContext';
 import { Customer, Activity, Property } from '../types';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+
+type CustomerType = NonNullable<Customer['customerType']>;
+
+const NewCustomerTypeField: React.FC<{
+  id: string;
+  value: CustomerType | '';
+  onChange: (value: CustomerType | '') => void;
+}> = ({ id, value, onChange }) => (
+  <div className="mt-2">
+    <label htmlFor={id} className="block text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">Müşteri Tipi</label>
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value as CustomerType | '')}
+      className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
+    >
+      <option value="">Seçiniz</option>
+      <option value="Alıcı">Alıcı</option>
+      <option value="Satıcı">Satıcı</option>
+      <option value="Kiracı">Kiracı</option>
+      <option value="Kiracı Adayı">Kiracı Adayı</option>
+      <option value="Mal Sahibi">Mal Sahibi</option>
+      <option value="Emlakçı">Emlakçı</option>
+    </select>
+  </div>
+);
 
 // ==================== QUICK ACTION FAB ====================
 
@@ -76,6 +103,11 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [actionType, setActionType] = useState<'info' | 'appointment' | 'request'>('info');
   const [callResult, setCallResult] = useState<'Olumlu' | 'Olumsuz' | 'Düşünüyor'>('Olumlu');
   const [note, setNote] = useState('');
+  const [listingSiteId, setListingSiteId] = useState<string | null>(null);
+  const [listingRooms, setListingRooms] = useState('');
+  const [listingTransactionType, setListingTransactionType] = useState<'Satılık' | 'Kiralık' | ''>('');
+  const [listingSharingStatus, setListingSharingStatus] = useState<'open' | 'restricted' | 'unknown' | ''>('');
+  const [externalListingUrl, setExternalListingUrl] = useState('');
   const [callDate, setCallDate] = useState(new Date().toISOString().split('T')[0]);
 
   // UI state
@@ -85,6 +117,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<CustomerType | ''>('');
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,11 +138,17 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
       setActionType('info');
       setCallResult('Olumlu');
       setNote('');
+      setListingSiteId(null);
+      setListingRooms('');
+      setListingTransactionType('');
+      setListingSharingStatus('');
+      setExternalListingUrl('');
       setMatchedCustomer(null);
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('');
       setCallDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
@@ -154,6 +193,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
     setPhone(customer.phone);
     setMatchedCustomer(customer);
     setCustomerSuggestions([]);
+    setNewCustomerType('');
   };
 
   const selectProperty = (property: Property) => {
@@ -166,6 +206,14 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
   const handleSubmit = async () => {
     if (!phone.trim()) {
       toast.error('Telefon numarası gerekli');
+      return;
+    }
+    if (!matchedCustomer && !newCustomerType) {
+      toast.error('Yeni müşteri için müşteri tipini seçiniz.');
+      return;
+    }
+    if (!isValidListingUrl(externalListingUrl)) {
+      toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
       return;
     }
 
@@ -183,7 +231,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: 'Telefon',
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -221,6 +269,11 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
         customerName: customerName!,
         propertyId: selectedProperty?.id,
         propertyTitle: selectedProperty?.title,
+        site_id: selectedProperty ? null : listingSiteId,
+        rooms: selectedProperty ? null : listingRooms || null,
+        transaction_type: selectedProperty ? null : listingTransactionType || null,
+        sharing_status: listingSharingStatus || null,
+        external_listing_url: externalListingUrl.trim() || null,
         date: callDate,
         time,
         description,
@@ -363,7 +416,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
             )}
 
             {/* No Match Info - New Customer Registration */}
-            {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
+            {phone.trim() && !matchedCustomer && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
                   <User className="w-4 h-4" />
@@ -376,6 +429,7 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
                   placeholder="Müşteri adını giriniz..."
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
                 />
+                <NewCustomerTypeField id="quick-call-customer-type" value={newCustomerType} onChange={setNewCustomerType} />
               </div>
             )}
           </div>
@@ -437,6 +491,19 @@ export const QuickCallModal: React.FC<QuickCallModalProps> = ({ isOpen, onClose 
               </>
             )}
           </div>
+
+          {!selectedProperty && <ActivityListingFields
+            siteId={listingSiteId}
+            onSiteChange={id => setListingSiteId(id)}
+            rooms={listingRooms}
+            onRoomsChange={setListingRooms}
+            transactionType={listingTransactionType}
+            onTransactionTypeChange={setListingTransactionType}
+            sharingStatus={listingSharingStatus}
+            onSharingStatusChange={setListingSharingStatus}
+            externalListingUrl={externalListingUrl}
+            onExternalListingUrlChange={setExternalListingUrl}
+          />}
 
           {/* Action Type */}
           <div>
@@ -578,6 +645,11 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [propertySearch, setPropertySearch] = useState('');
   const [topic, setTopic] = useState('');
   const [messageContent, setMessageContent] = useState('');
+  const [listingSiteId, setListingSiteId] = useState<string | null>(null);
+  const [listingRooms, setListingRooms] = useState('');
+  const [listingTransactionType, setListingTransactionType] = useState<'Satılık' | 'Kiralık' | ''>('');
+  const [listingSharingStatus, setListingSharingStatus] = useState<'open' | 'restricted' | 'unknown' | ''>('');
+  const [externalListingUrl, setExternalListingUrl] = useState('');
   const [messageDate, setMessageDate] = useState(new Date().toISOString().split('T')[0]);
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
@@ -585,6 +657,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const [showPropertySearch, setShowPropertySearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerType, setNewCustomerType] = useState<CustomerType | ''>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when modal opens
@@ -603,12 +676,18 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
       setPropertySearch('');
       setTopic('');
       setMessageContent('');
+      setListingSiteId(null);
+      setListingRooms('');
+      setListingTransactionType('');
+      setListingSharingStatus('');
+      setExternalListingUrl('');
       setMessageDate(new Date().toISOString().split('T')[0]);
       setMatchedCustomer(null);
       setCustomerSuggestions([]);
       setPropertySuggestions([]);
       setShowPropertySearch(false);
       setNewCustomerName('');
+      setNewCustomerType('');
     }
   }, [isOpen]);
 
@@ -650,6 +729,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
     setPhone(customer.phone || customer.name);
     setMatchedCustomer(customer);
     setCustomerSuggestions([]);
+    setNewCustomerType('');
   };
 
   const selectProperty = (property: Property) => {
@@ -662,6 +742,14 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
   const handleSubmit = async () => {
     if (!phone.trim()) {
       toast.error('Telefon numarası veya kişi gerekli');
+      return;
+    }
+    if (!matchedCustomer && !newCustomerType) {
+      toast.error('Yeni müşteri için müşteri tipini seçiniz.');
+      return;
+    }
+    if (topic === 'İlan / portföy paylaşımı' && !isValidListingUrl(externalListingUrl)) {
+      toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
       return;
     }
 
@@ -679,7 +767,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
           phone: phone,
           email: '',
           status: 'Potansiyel',
-          customerType: 'Alıcı',
+          customerType: newCustomerType,
           source: channel,
           createdAt: new Date().toISOString(),
           interactions: [],
@@ -700,6 +788,11 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
         customerName: customerName!,
         propertyId: selectedProperty?.id,
         propertyTitle: selectedProperty?.title,
+        site_id: topic === 'İlan / portföy paylaşımı' && !selectedProperty ? listingSiteId : null,
+        rooms: topic === 'İlan / portföy paylaşımı' && !selectedProperty ? listingRooms || null : null,
+        transaction_type: topic === 'İlan / portföy paylaşımı' && !selectedProperty ? listingTransactionType || null : null,
+        sharing_status: topic === 'İlan / portföy paylaşımı' ? listingSharingStatus || null : null,
+        external_listing_url: topic === 'İlan / portföy paylaşımı' ? externalListingUrl.trim() || null : null,
         date: messageDate,
         time: now.toTimeString().slice(0, 5),
         description: `${channel} - ${propertyInfo}${topic || 'Mesajlaşma'}${messageContent ? '\n\nİçerik: ' + messageContent : ''}`,
@@ -806,7 +899,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
             )}
 
             {/* No Match - New Customer Registration */}
-            {phone.length >= 7 && !matchedCustomer && customerSuggestions.length === 0 && (
+            {phone.trim() && !matchedCustomer && (
               <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
                   <User className="w-4 h-4" />
@@ -819,6 +912,7 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
                   placeholder="Müşteri adını giriniz..."
                   className="w-full px-3 py-2 border border-amber-200 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
                 />
+                <NewCustomerTypeField id="quick-message-customer-type" value={newCustomerType} onChange={setNewCustomerType} />
               </div>
             )}
           </div>
@@ -909,10 +1003,24 @@ export const QuickMessageModal: React.FC<QuickMessageModalProps> = ({ isOpen, on
               <option value="Randevu">Randevu</option>
               <option value="Bilgi talebi">Bilgi talebi</option>
               <option value="Belge paylaşımı">Belge paylaşımı</option>
+              <option value="İlan / portföy paylaşımı">İlan / portföy paylaşımı</option>
               <option value="Takip">Takip</option>
               <option value="Diğer">Diğer</option>
             </select>
           </div>
+
+          {topic === 'İlan / portföy paylaşımı' && <ActivityListingFields
+            siteId={listingSiteId}
+            onSiteChange={id => setListingSiteId(id)}
+            rooms={listingRooms}
+            onRoomsChange={setListingRooms}
+            transactionType={listingTransactionType}
+            onTransactionTypeChange={setListingTransactionType}
+            sharingStatus={listingSharingStatus}
+            onSharingStatusChange={setListingSharingStatus}
+            externalListingUrl={externalListingUrl}
+            onExternalListingUrlChange={setExternalListingUrl}
+          />}
 
           {/* Message Content */}
           <div>
