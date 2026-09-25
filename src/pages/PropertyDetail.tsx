@@ -1,5 +1,6 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import EntityTags from '../components/EntityTags';
+import ActivityListingLink from '../components/ActivityListingLink';
 import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2 } from 'lucide-react';
@@ -383,6 +384,7 @@ const PropertyDetail: React.FC = () => {
                                             <time className="text-xs text-gray-400 dark:text-slate-500">{activity.date}</time>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-slate-400 italic">"{activity.description}"</p>
+                                        <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                         <div className="mt-2">
                                             <span className={`text-xs px-2 py-0.5 rounded border ${activity.status === 'Olumlu' ? 'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800 text-green-700 dark:text-green-400' :
                                                 activity.status === 'Olumsuz' ? 'bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800 text-red-700 dark:text-red-400' :

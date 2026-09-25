@@ -1,5 +1,6 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import EntityTags from '../components/EntityTags';
+import ActivityListingLink from '../components/ActivityListingLink';
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Briefcase, Building2, Calendar, CheckCircle, Clock, Dog, Edit, Home, Info, Mail, MapPin, MessageSquare, MoreHorizontal, Phone, PlusCircle, Trash2, User, XCircle } from 'lucide-react';
@@ -91,6 +92,7 @@ const CustomerDetail: React.FC = () => {
                                                     </div>
                                                 )}
                                                 <p className="text-sm text-gray-700 dark:text-slate-300">{activity.description}</p>
+                                                <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                             </div>
                                             <AddToCalendarButton
                                                 title={`Emlak Randevusu: ${activity.type} - ${customer.name}`}
@@ -209,6 +211,7 @@ const CustomerDetail: React.FC = () => {
                                             )}
 
                                             <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">{activity.description}</p>
+                                            <div className="mt-2"><ActivityListingLink url={activity.external_listing_url} /></div>
                                         </div>
                                     </li>
                                 ))}
