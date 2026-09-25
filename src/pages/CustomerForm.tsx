@@ -189,6 +189,8 @@ const CustomerForm: React.FC = () => {
                                     <option value="Web Sitesi">Web Sitesi</option>
                                     <option value="Tavsiye">Tavsiye</option>
                                     <option value="Sosyal Medya">Sosyal Medya</option>
+                                    <option value="sahibinden.com">sahibinden.com</option>
+                                    <option value="emlakjet.com">emlakjet.com</option>
                                     <option value="Diğer">Diğer</option>
                                 </select>
                             </div>

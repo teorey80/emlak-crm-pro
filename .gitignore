@@ -28,3 +28,7 @@ npm-debug.log*
 .vercel
 .env*.local
 ademaslan-website/
+ademaslan-site-deploy-v5/
+site-yayin-araclari/
+.codex/
+supabase/.temp/

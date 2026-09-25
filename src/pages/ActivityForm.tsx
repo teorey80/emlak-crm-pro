@@ -3,7 +3,7 @@ import ActivityListingFields, { isValidListingUrl } from '../components/Activity
 import EntityTags from '../components/EntityTags';
 
 import React, { useState } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Activity, Customer } from '../types';
@@ -14,15 +14,21 @@ type CustomerType = NonNullable<Customer['customerType']>;
 
 const ActivityForm: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { id } = useParams<{ id: string }>();
     const { customers, properties, activities, addActivity, updateActivity, addCustomer } = useData();
 
+    const appointmentPrefill = location.state && typeof location.state === 'object' ? location.state as Partial<Activity> : null;
     const [formData, setFormData] = useState<Partial<Activity>>({
-        type: 'Yer Gösterimi',
-        date: new Date().toISOString().split('T')[0],
+        type: appointmentPrefill?.type || 'Yer Gösterimi',
+        date: new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10),
         time: '09:00',
-        status: 'Düşünüyor',
-        description: ''
+        status: appointmentPrefill ? 'Planlandı' : 'Düşünüyor',
+        description: '',
+        customerId: appointmentPrefill?.customerId,
+        customerName: appointmentPrefill?.customerName,
+        propertyId: appointmentPrefill?.propertyId,
+        propertyTitle: appointmentPrefill?.propertyTitle,
     });
 
     // Modal State
@@ -332,6 +338,7 @@ const ActivityForm: React.FC = () => {
                                 </label>
                             ))}
                         </div>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Planlandı durumundaki randevular bağlı Google Takvim hesabınıza otomatik eklenir.</p>
                     </div>
 
                     <div className="pt-4 flex gap-3">

@@ -1,7 +1,7 @@
 import EntityTags from '../components/EntityTags';
-import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, Send, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
-import { generateRealEstateAdvice } from '../services/geminiService';
+import React, { useMemo } from 'react';
+import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
+import TodayTimeline from '../components/TodayTimeline';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { findMatches } from '../services/matchingService';
@@ -134,21 +134,6 @@ const Dashboard: React.FC = () => {
       .slice(0, 6);
   }, [activities, requests]);
 
-  const [aiInput, setAiInput] = useState('');
-  const [aiResponse, setAiResponse] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-
-  const handleAiAsk = async () => {
-    if (!aiInput.trim()) return;
-    setIsThinking(true);
-    setAiResponse('');
-
-    const response = await generateRealEstateAdvice(aiInput);
-
-    setAiResponse(response);
-    setIsThinking(false);
-  };
-
   return (
     <div className="space-y-6">
       {/* Stats Row - Clickable Cards */}
@@ -245,7 +230,7 @@ const Dashboard: React.FC = () => {
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles className="w-6 h-6 text-yellow-300" />
-                  <h2 className="text-xl font-bold">Yapay Zeka Eşleşmeleri</h2>
+                  <h2 className="text-xl font-bold">Portföy Eşleşmeleri</h2>
                 </div>
                 <div className="space-y-3">
                   {smartMatches.map((match, idx) => (
@@ -275,7 +260,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 transition-colors">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
-              <button className="text-sky-600 dark:text-sky-400 text-sm font-medium hover:underline">Tümünü Gör</button>
+              <button type="button" onClick={() => navigate('/activities')} className="text-sky-600 dark:text-sky-400 text-sm font-medium hover:underline">Tümünü Gör</button>
             </div>
 
             <div className="space-y-4">
@@ -323,45 +308,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* AI Assistant Section - Takes up 1 col */}
-          <div className="bg-gradient-to-b from-sky-50 to-white dark:from-slate-800 dark:to-slate-800 rounded-2xl border border-sky-100 dark:border-slate-700 shadow-sm p-6 flex flex-col transition-colors">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="bg-sky-600 p-1.5 rounded-lg shadow-sm">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Akıllı Asistan</h2>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-              Gününüzü planlamanıza, ilan açıklamaları yazmanıza veya piyasa analizi yapmanıza yardımcı olabilirim.
-            </p>
-
-            <div className="flex-1 overflow-y-auto mb-4 min-h-[200px] max-h-[300px] bg-white/50 dark:bg-slate-900/50 rounded-lg p-3 text-sm border border-sky-50 dark:border-slate-700">
-              {!aiResponse && !isThinking && <span className="text-gray-400 dark:text-slate-500 italic">Nasıl yardımcı olabilirim?</span>}
-              {isThinking && (
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
-                  <span className="animate-pulse">Düşünüyorum...</span>
-                </div>
-              )}
-              {aiResponse && <div className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">{aiResponse}</div>}
-            </div>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={aiInput}
-                onChange={(e) => setAiInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAiAsk()}
-                placeholder="Bir soru sorun..."
-                className="w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-sm"
-              />
-              <button
-                onClick={handleAiAsk}
-                disabled={isThinking}
-                className="absolute right-2 top-2 p-1.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors">
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+          <TodayTimeline />
         </div>
 
         {/* Matching Rates Widget */}

@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import { Document } from '../types';
 import { useData } from '../context/DataContext';
 import { supabase } from '../services/supabaseClient';
-import { DOCUMENT_TYPES } from '../services/googleDriveService';
+import { DOCUMENT_TYPES, pickDriveFile, uploadDriveFile, type DriveFile } from '../services/googleDriveService';
+import { Link as RouterLink } from 'react-router-dom';
 
 interface DocumentManagerProps {
   entityType: 'property' | 'customer' | 'sale';
@@ -23,8 +24,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
   const [showPreview, setShowPreview] = useState<Document | null>(null);
   const [selectedDocType, setSelectedDocType] = useState('');
   const [uploadNotes, setUploadNotes] = useState('');
-  const [manualUrl, setManualUrl] = useState('');
-  const [manualFileName, setManualFileName] = useState('');
+  const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFile | null>(null);
+  const [driveBusy, setDriveBusy] = useState(false);
 
   // Fetch documents for this entity
   useEffect(() => {
@@ -70,35 +71,26 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handlePickDriveFile = async () => {
+    setDriveBusy(true);
     try {
-      await signInToGoogle();
-      setGoogleSignedIn(true);
-      toast.success('Google Drive baglantisi basarili!');
-    } catch (err) {
-      console.error('Google sign in error:', err);
-      toast.error('Google Drive baglantisi basarisiz');
-    }
+      const file = await pickDriveFile();
+      if (file) setSelectedDriveFile(file);
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Drive dosyası seçilemedi.');
+    } finally { setDriveBusy(false); }
   };
 
-  const handleGoogleSignOut = () => {
-    signOutFromGoogle();
-    setGoogleSignedIn(false);
-    toast.success('Google Drive baglantisi kesildi');
-  };
-
-  // Extract file ID from Google Drive URL
-  const extractDriveFileId = (url: string): string | null => {
-    const patterns = [
-      /\/file\/d\/([a-zA-Z0-9_-]+)/,
-      /id=([a-zA-Z0-9_-]+)/,
-      /\/d\/([a-zA-Z0-9_-]+)/
-    ];
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) return match[1];
-    }
-    return null;
+  const handleUploadDriveFile = async (file: File | undefined) => {
+    if (!file) return;
+    setDriveBusy(true);
+    try {
+      const uploaded = await uploadDriveFile(file);
+      setSelectedDriveFile(uploaded);
+      toast.success('Dosya Google Drive’a yüklendi. Belgeyi kaydedin.');
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Dosya Drive’a yüklenemedi.');
+    } finally { setDriveBusy(false); }
   };
 
   const handleAddDocument = async () => {
@@ -106,29 +98,23 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
       toast.error('Lutfen dokuman tipi secin');
       return;
     }
-    if (!manualUrl) {
-      toast.error('Lutfen dokuman linkini girin');
-      return;
-    }
-    if (!manualFileName) {
-      toast.error('Lutfen dosya adini girin');
+    if (!selectedDriveFile) {
+      toast.error('Drive’dan bir dosya seçin veya yükleyin.');
       return;
     }
 
     try {
-      const fileId = extractDriveFileId(manualUrl) || manualUrl;
-
       const docData = {
         entity_type: entityType,
         entity_id: entityId,
         document_type: selectedDocType,
-        file_name: manualFileName,
-        file_id: fileId,
-        mime_type: 'application/octet-stream',
-        web_view_link: manualUrl,
+        file_name: selectedDriveFile.name,
+        file_id: selectedDriveFile.id,
+        mime_type: selectedDriveFile.mimeType,
+        web_view_link: selectedDriveFile.webViewLink,
         web_content_link: null,
-        thumbnail_link: null,
-        file_size: null,
+        thumbnail_link: selectedDriveFile.thumbnailLink || null,
+        file_size: selectedDriveFile.size ? Number(selectedDriveFile.size) : null,
         uploaded_by: session?.user?.id,
         uploaded_by_name: userProfile?.name,
         notes: uploadNotes,
@@ -142,8 +128,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
       setShowUploadModal(false);
       setSelectedDocType('');
       setUploadNotes('');
-      setManualUrl('');
-      setManualFileName('');
+      setSelectedDriveFile(null);
       fetchDocuments();
     } catch (error) {
       console.error('Save error:', error);
@@ -330,32 +315,17 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
                 </select>
               </div>
 
-              {/* File Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Dosya Adi *
-                </label>
-                <input
-                  type="text"
-                  value={manualFileName}
-                  onChange={e => setManualFileName(e.target.value)}
-                  placeholder="ornek: Kira_Sozlesmesi_2024.pdf"
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              {/* URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  Dokuman Linki * <span className="text-xs text-gray-400">(Google Drive, Dropbox, vb.)</span>
-                </label>
-                <input
-                  type="text"
-                  value={manualUrl}
-                  onChange={e => setManualUrl(e.target.value)}
-                  placeholder="https://drive.google.com/file/d/..."
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-gray-900 dark:text-white"
-                />
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={driveBusy} onClick={() => void handlePickDriveFile()} className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm disabled:opacity-50">Drive'dan seç</button>
+                  <label className="px-3 py-2 rounded-lg border border-blue-200 text-blue-700 text-sm cursor-pointer">
+                    Drive'a yükle
+                    <input type="file" className="hidden" disabled={driveBusy} onChange={event => void handleUploadDriveFile(event.target.files?.[0])} />
+                  </label>
+                </div>
+                {driveBusy && <p className="text-xs text-gray-500">Google Drive işlemi sürüyor...</p>}
+                {selectedDriveFile ? <p className="text-sm text-green-700">Seçilen dosya: {selectedDriveFile.name}</p> : <p className="text-xs text-gray-500">Önce <RouterLink to="/settings" className="underline">Ayarlar</RouterLink> bölümünden Google hesabınızı bağlayın.</p>}
+                <p className="text-xs text-gray-500">Ofis üyelerinin dosyayı açabilmesi, Google Drive paylaşım iznine bağlıdır.</p>
               </div>
 
               {/* Notes */}
@@ -375,7 +345,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ entityType, entityId,
               {/* Submit Button */}
               <button
                 onClick={handleAddDocument}
-                disabled={!selectedDocType || !manualFileName || !manualUrl}
+                disabled={!selectedDocType || !selectedDriveFile || driveBusy}
                 className="w-full py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Dokuman Ekle

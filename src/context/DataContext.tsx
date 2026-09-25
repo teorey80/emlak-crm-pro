@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Property, Customer, Site, Activity, Request, WebSiteConfig, UserProfile, Office, Sale, Subscription, PlanLimits } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { syncCalendarActivity, deleteCalendarActivity } from '../services/googleWorkspaceService';
 import { getSubscription, getPlanLimits } from '../services/subscriptionService';
 import toast from 'react-hot-toast';
 
@@ -544,6 +545,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setActivities((prev) => prev.filter(a => a.id !== activityId));
       throw error;
     }
+    if (activityWithUser.status === 'Planlandı') {
+      try { await syncCalendarActivity(activityWithUser); toast.success('Randevu Google Takvim’e eklendi.'); }
+      catch (syncError) { toast.error(`Aktivite kaydedildi; Google Takvim'e eklenemedi: ${syncError instanceof Error ? syncError.message : 'Bağlantı hatası'}`); }
+    }
   };
 
   const updateActivity = async (activity: Activity) => {
@@ -552,6 +557,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error updating activity:', error);
       throw error;
+    }
+    if (activity.status === 'Planlandı') {
+      try { await syncCalendarActivity(activity); toast.success('Randevu Google Takvim’de güncellendi.'); }
+      catch (syncError) { toast.error(`Aktivite güncellendi; Google Takvim güncellenemedi: ${syncError instanceof Error ? syncError.message : 'Bağlantı hatası'}`); }
     }
   };
 
@@ -735,11 +744,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteActivity = async (id: string) => {
+    const activity = activities.find(a => a.id === id);
     setActivities((prev) => prev.filter((a) => a.id !== id));
     const { error } = await supabase.from('activities').delete().eq('id', id);
     if (error) {
       console.error('Error deleting activity:', error);
       throw error;
+    }
+    try { await deleteCalendarActivity(id); }
+    catch (syncError) {
+      if (activity?.status === 'Planlandı') toast.error(`Aktivite silindi; Google Takvim kaydı silinemedi: ${syncError instanceof Error ? syncError.message : 'Bağlantı hatası'}`);
     }
   };
 

@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 import { OfficePerformanceSettings, DEFAULT_PERFORMANCE_SETTINGS } from '../types';
 import { uploadToCloudinary, isCloudinaryConfigured } from '../services/cloudinaryService';
+import GoogleConnectionCard from '../components/GoogleConnectionCard';
 
 const Settings: React.FC = () => {
     const { properties, customers, activities, requests, userProfile, updateUserProfile, session } = useData();
@@ -136,6 +137,8 @@ const Settings: React.FC = () => {
                     <p className="text-gray-500 dark:text-slate-400 text-sm">Uygulama verilerini yönetin ve profilinizi düzenleyin.</p>
                 </div>
             </div>
+
+            <GoogleConnectionCard />
 
             {/* Profile Settings */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
