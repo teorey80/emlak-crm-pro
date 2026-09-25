@@ -69,11 +69,11 @@ function calendarEventId(activityId: string) {
   return `crm${createHash('sha256').update(activityId).digest('hex').slice(0, 32)}`;
 }
 
-export default async function handler(request: Request) {
+async function handler(request: Request) {
   try {
     const cfg = settings();
     const admin = createClient(cfg.supabaseUrl, cfg.serviceKey, { auth: { persistSession: false } });
-    const url = new URL(request.url);
+    const url = new URL(request.url, cfg.appOrigin);
     const action = url.searchParams.get('action');
 
     if (request.method === 'GET' && (action === 'callback' || url.searchParams.has('code') || url.searchParams.has('error'))) {
@@ -212,3 +212,5 @@ export default async function handler(request: Request) {
     return respond({ error: error instanceof Error ? error.message : 'Google işlemi başarısız.' }, 500);
   }
 }
+
+export default { fetch: handler };
