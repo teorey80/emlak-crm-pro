@@ -726,11 +726,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteProperty = async (id: string) => {
+    const previous = properties;
     setProperties((prev) => prev.filter((p) => p.id !== id));
-    const { error } = await supabase.from('properties').delete().eq('id', id);
-    if (error) {
+    // RLS izin vermezse Supabase hata dönmeden 0 satır siler; bunu da hata say
+    const { data, error } = await supabase.from('properties').delete().eq('id', id).select('id');
+    if (error || !data?.length) {
       console.error('Error deleting property:', error);
-      throw error;
+      setProperties(previous);
+      throw error || new Error('İlan silinemedi (yetki yok veya kayıt bulunamadı).');
     }
   };
 

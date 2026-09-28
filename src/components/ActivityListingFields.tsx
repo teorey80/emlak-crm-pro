@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import SitePicker from './SitePicker';
 
 export type ListingTransactionType = 'Satılık' | 'Kiralık';
@@ -41,11 +42,31 @@ export default function ActivityListingFields({
   externalListingUrl,
   onExternalListingUrlChange
 }: ActivityListingFieldsProps) {
+  // Nadiren kullanıldığı için kapalı gelir; kayıtlı bilgi varsa açık başlar
+  const hasValue = Boolean(siteId || rooms || transactionType || sharingStatus || externalListingUrl);
+  const [open, setOpen] = useState(hasValue);
+  // Düzenleme ekranında kayıt sonradan yüklenince de açılsın
+  useEffect(() => { if (hasValue) setOpen(true); }, [hasValue]);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline">
+        <ChevronDown className="w-4 h-4" />
+        Aracıdan gelen ilan bilgisi ekle
+      </button>
+    );
+  }
+
   return (
     <section className="rounded-xl border border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/20 p-4 space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Aracıdan Gelen İlan (opsiyonel)</h3>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Site, ilan türü ve paylaşım bilgileri etiketlerde aranabilir.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Aracıdan Gelen İlan (opsiyonel)</h3>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Site, ilan türü ve paylaşım bilgileri etiketlerde aranabilir.</p>
+        </div>
+        {!hasValue && (
+          <button type="button" onClick={() => setOpen(false)} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 shrink-0">Gizle</button>
+        )}
       </div>
 
       <SitePicker value={siteId} onChange={onSiteChange} />

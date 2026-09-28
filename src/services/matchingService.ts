@@ -31,8 +31,11 @@ export const findMatches = (
         if (request.status !== 'Aktif') return;
 
         properties.forEach(property => {
-            // Skip sold/rented properties
-            if (property.listingStatus === 'Satıldı' || property.listingStatus === 'Kiralandı') return;
+            // Sadece aktif ilanlar eşleşir. DB satırında alan adı listing_status olarak gelir.
+            const listingStatus = property.listing_status || property.listingStatus || 'Aktif';
+            if (listingStatus !== 'Aktif') return;
+            // Fiyatı girilmemiş ilan bütçe kontrolünden geçemez
+            if (!property.price || property.price <= 0) return;
 
             const reasons: string[] = [];
             let score = 0;

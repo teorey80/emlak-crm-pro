@@ -1,6 +1,6 @@
 import EntityTags from '../components/EntityTags';
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
@@ -8,6 +8,8 @@ import { useData } from '../context/DataContext';
 const RequestList: React.FC = () => {
     const { requests, deleteRequest } = useData();
     const [searchTerm, setSearchTerm] = useState('');
+    const [params, setParams] = useSearchParams();
+    const thisMonthOnly = params.get('period') === 'month';
 
     const handleDelete = async (id: string) => {
         if (window.confirm('Bu talebi silmek istediğinize emin misiniz?')) {
@@ -21,15 +23,30 @@ const RequestList: React.FC = () => {
         }
     };
 
-    const filteredRequests = requests.filter(r =>
-        r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.notes?.toLowerCase().includes(searchTerm.toLowerCase())
+    // En yeni talep en üstte: önce kayıt zamanı, yoksa talep tarihi
+    const sortedRequests = useMemo(() => {
+        const time = (r: typeof requests[number]) => new Date(r.created_at || r.date || 0).getTime() || 0;
+        return [...requests].sort((a, b) => time(b) - time(a));
+    }, [requests]);
+
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    const filteredRequests = sortedRequests.filter(r =>
+        (!thisMonthOnly || new Date(r.created_at || r.date || 0).getTime() >= monthStart) &&
+        (r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.notes?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Müşteri Talepleri</h2>
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Müşteri Talepleri</h2>
+                    {thisMonthOnly && (
+                        <button type="button" onClick={() => setParams({})} className="mt-1 inline-flex items-center gap-1 text-xs bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 px-2 py-1 rounded-full hover:bg-sky-100">
+                            Sadece bu ay eklenenler · Filtreyi kaldır ✕
+                        </button>
+                    )}
+                </div>
                 <Link
                     to="/requests/new"
                     className="flex items-center gap-2 bg-[#1193d4] text-white px-4 py-2.5 rounded-lg hover:opacity-90 transition-all shadow-sm font-medium">

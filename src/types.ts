@@ -245,6 +245,8 @@ export interface Property {
   // Listing Status Management
   listingStatus?: 'Aktif' | 'Pasif' | 'Satıldı' | 'Kiralandı' | 'Kapora Alındı';
   listing_status?: string;
+  created_at?: string; // DB field
+  updated_at?: string; // DB field
 
   // Kapora (Deposit) Tracking
   depositAmount?: number;        // Kapora miktarı
@@ -322,6 +324,7 @@ export interface Request {
   minRooms?: string; // e.g. "2+1"
   siteId?: string; // Requested specific site
   siteName?: string; // For display
+  created_at?: string; // DB field
 
   // Office
   office_id?: string;
@@ -336,6 +339,20 @@ export interface Interaction {
   icon: string; // icon name
 }
 
+// Yer gösteriminde gezdirilen tek bir portföy: kendi portföyümüz (propertyId)
+// veya başka bir emlakçının portföyü (emlakçı + site + oda + blok/daire)
+export interface ShownProperty {
+  propertyId?: string | null;
+  title?: string | null;
+  brokerCustomerId?: string | null;
+  brokerName?: string | null;
+  siteId?: string | null;
+  siteName?: string | null;
+  rooms?: string | null;
+  block?: string | null;
+  unit?: string | null;
+}
+
 export interface Activity {
   id: string;
   type: 'Yer Gösterimi' | 'Gelen Arama' | 'Giden Arama' | 'Ofis Toplantısı' | 'Tapu İşlemi' | 'Kapora Alındı' | 'Diğer';
@@ -346,6 +363,7 @@ export interface Activity {
   transaction_type?: 'Satılık' | 'Kiralık' | null;
   sharing_status?: 'open' | 'restricted' | 'unknown' | null;
   external_listing_url?: string | null;
+  shown_properties?: ShownProperty[] | null; // Yer gösteriminde gezdirilen portföyler
   propertyId?: string;
   propertyTitle?: string; // Optional, e.g. just a general meeting
   date: string;

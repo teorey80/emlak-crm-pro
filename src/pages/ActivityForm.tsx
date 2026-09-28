@@ -1,12 +1,13 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import ActivityListingFields, { isValidListingUrl } from '../components/ActivityListingFields';
 import EntityTags from '../components/EntityTags';
+import ShownPropertiesPicker, { shownPropertyLabel } from '../components/ShownPropertiesPicker';
 
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
-import { Activity, Customer } from '../types';
+import { Activity, Customer, ShownProperty } from '../types';
 import { UserPlus, ArrowLeft, X, Mic, StopCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -30,6 +31,13 @@ const ActivityForm: React.FC = () => {
         propertyId: appointmentPrefill?.propertyId,
         propertyTitle: appointmentPrefill?.propertyTitle,
     });
+
+    // Yer gösteriminde gezdirilen portföyler (birden çok olabilir)
+    const [shownProperties, setShownProperties] = useState<ShownProperty[]>(
+        appointmentPrefill?.propertyId ? [{ propertyId: appointmentPrefill.propertyId, title: appointmentPrefill.propertyTitle || null }] : []
+    );
+    const [hadShownProperties, setHadShownProperties] = useState(false);
+    const isShowing = formData.type === 'Yer Gösterimi';
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -86,6 +94,10 @@ const ActivityForm: React.FC = () => {
                     sharing_status: activityToEdit.sharing_status,
                     external_listing_url: activityToEdit.external_listing_url
                 });
+                const saved = Array.isArray(activityToEdit.shown_properties) ? activityToEdit.shown_properties : [];
+                setHadShownProperties(saved.length > 0);
+                setShownProperties(saved.length > 0 ? saved
+                    : activityToEdit.propertyId ? [{ propertyId: activityToEdit.propertyId, title: activityToEdit.propertyTitle || null }] : []);
             }
         }
     }, [id, editRecord]);
@@ -95,7 +107,12 @@ const ActivityForm: React.FC = () => {
         if (!formData.customerId || !formData.type) return;
 
         const selectedCustomer = customers.find(c => c.id === formData.customerId);
-        const selectedProperty = properties.find(p => p.id === formData.propertyId);
+        // Yer gösteriminde ilk kendi portföyümüz ana ilan olarak bağlanır (ilan detayındaki geçmiş için)
+        const propertyId = isShowing ? shownProperties.find(item => item.propertyId)?.propertyId || undefined : formData.propertyId || undefined;
+        const selectedProperty = properties.find(p => p.id === propertyId);
+        const showingTitle = isShowing && shownProperties.length > 0 ? shownProperties.map(shownPropertyLabel).join(', ') : undefined;
+        // Kolon henüz yoksa eski kayıtlar bozulmasın diye boş listeyi hiç göndermiyoruz
+        const shownPayload = isShowing && shownProperties.length > 0 ? shownProperties : hadShownProperties ? null : undefined;
 
         if (!isValidListingUrl(formData.external_listing_url || '')) {
             toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
@@ -107,13 +124,14 @@ const ActivityForm: React.FC = () => {
             type: formData.type as any,
             customerId: formData.customerId,
             customerName: selectedCustomer?.name || formData.customerName || 'Bilinmeyen Müşteri',
-            propertyId: formData.propertyId,
-            site_id: formData.propertyId ? null : formData.site_id || null,
-            rooms: formData.propertyId ? null : formData.rooms || null,
-            transaction_type: formData.propertyId ? null : formData.transaction_type || null,
+            propertyId,
+            site_id: propertyId ? null : formData.site_id || null,
+            rooms: propertyId ? null : formData.rooms || null,
+            transaction_type: propertyId ? null : formData.transaction_type || null,
             sharing_status: formData.sharing_status || null,
             external_listing_url: formData.external_listing_url?.trim() || null,
-            propertyTitle: selectedProperty?.title || formData.propertyTitle,
+            ...(shownPayload !== undefined ? { shown_properties: shownPayload } : {}),
+            propertyTitle: showingTitle || selectedProperty?.title || (isShowing ? undefined : formData.propertyTitle),
             date: formData.date || '',
             time: formData.time,
             description: formData.description || '',
@@ -256,7 +274,7 @@ const ActivityForm: React.FC = () => {
                     </div>
 
                     {/* Property Selection */}
-                    <div>
+                    {isShowing ? <ShownPropertiesPicker value={shownProperties} onChange={setShownProperties} /> : <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">İlgili Emlak (Opsiyonel)</label>
                         <select
                             className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
@@ -269,10 +287,21 @@ const ActivityForm: React.FC = () => {
                                 <option key={p.id} value={p.id}>#{p.id.slice(-4)} - {p.title}</option>
                             ))}
                         </select>
-                    </div>
+                    </div>}
 
                     {id && <EntityTags type="activity" id={id} editable/>}
-                    {formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site ve satılık/kiralık etiketleri bu aktiviteye otomatik eklenir.</p> : <ActivityListingFields
+                    {isShowing ? (formData.site_id || formData.rooms || formData.transaction_type || formData.sharing_status || formData.external_listing_url) && <ActivityListingFields
+                        siteId={formData.site_id}
+                        onSiteChange={site_id => setFormData(prev => ({ ...prev, site_id }))}
+                        rooms={formData.rooms}
+                        onRoomsChange={rooms => setFormData(prev => ({ ...prev, rooms }))}
+                        transactionType={formData.transaction_type}
+                        onTransactionTypeChange={transaction_type => setFormData(prev => ({ ...prev, transaction_type: transaction_type || null }))}
+                        sharingStatus={formData.sharing_status}
+                        onSharingStatusChange={sharing_status => setFormData(prev => ({ ...prev, sharing_status: sharing_status || null }))}
+                        externalListingUrl={formData.external_listing_url}
+                        onExternalListingUrlChange={external_listing_url => setFormData(prev => ({ ...prev, external_listing_url }))}
+                    /> : formData.propertyId ? <p className="text-xs text-slate-500 dark:text-slate-400">Seçilen ilanın site ve satılık/kiralık etiketleri bu aktiviteye otomatik eklenir.</p> : <ActivityListingFields
                         siteId={formData.site_id}
                         onSiteChange={site_id => setFormData(prev => ({ ...prev, site_id }))}
                         rooms={formData.rooms}

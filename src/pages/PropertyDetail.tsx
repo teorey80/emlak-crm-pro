@@ -3,7 +3,7 @@ import EntityTags from '../components/EntityTags';
 import ActivityListingLink from '../components/ActivityListingLink';
 import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2 } from 'lucide-react';
+import { MapPin, Maximize, Bed, Bath, Thermometer, ArrowLeft, Edit, Share2, Clock, DollarSign, FileCheck, Layout, User, Map, SearchCheck, TrendingUp, Eye, Phone, Calendar, Activity, Target, BarChart3, X, Banknote, Ban, ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import SaleForm from '../components/SaleForm';
@@ -15,7 +15,7 @@ import { compressImage, isCloudinaryConfigured, uploadMultipleToCloudinary } fro
 const PropertyDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, addSale, deleteSale, addActivity, sales } = useData();
+    const { properties, activities, requests, session, userProfile, teamMembers, customers, updateProperty, deleteProperty, addSale, deleteSale, addActivity, sales } = useData();
     const { record: property, loading: recordLoading, error: recordError } = useCrmRecord('properties', id, properties);
     const [showSaleForm, setShowSaleForm] = useState(false);
     const [showRentalForm, setShowRentalForm] = useState(false);
@@ -37,6 +37,21 @@ const PropertyDetail: React.FC = () => {
 
     // Privacy Check
     const isOwner = session?.user?.id === property?.user_id || userProfile?.role === 'broker';
+    const [deleting, setDeleting] = useState(false);
+    const handleDeleteProperty = async () => {
+        if (!property || deleting) return;
+        if (!window.confirm(`"${property.title}" ilanını kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) return;
+        setDeleting(true);
+        try {
+            await deleteProperty(property.id);
+            toast.success('İlan silindi.');
+            navigate('/properties');
+        } catch (error) {
+            console.error('İlan silme hatası:', error);
+            toast.error('İlan silinemedi. Bağlı satış/kiralama kaydı varsa önce onu iptal edin.');
+            setDeleting(false);
+        }
+    };
 
     if (recordLoading || recordError) return <p role="status" className="p-8">{recordError || 'Kayıt yükleniyor…'}</p>;
     if (!property) {
@@ -120,7 +135,7 @@ const PropertyDetail: React.FC = () => {
     };
 
     // Filter activities related to this property
-    const propertyActivities = activities.filter(a => a.propertyId === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const propertyActivities = activities.filter(a => a.propertyId === id || a.shown_properties?.some(item => item.propertyId === id)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Calculate Performance Metrics
     const calculatePerformanceMetrics = () => {
@@ -601,6 +616,15 @@ const PropertyDetail: React.FC = () => {
                                         <Edit className="w-4 h-4" />
                                         Emlağı Düzenle
                                     </Link>
+                                    <button
+                                        type="button"
+                                        onClick={handleDeleteProperty}
+                                        disabled={deleting}
+                                        className="w-full bg-white dark:bg-slate-700 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 py-3 rounded-xl font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        {deleting ? 'Siliniyor...' : 'İlanı Sil'}
+                                    </button>
                                     <input
                                         ref={imageInputRef}
                                         type="file"

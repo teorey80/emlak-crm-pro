@@ -1,352 +1,437 @@
-import EntityTags from '../components/EntityTags';
-import React, { useMemo } from 'react';
-import { Calendar, Clock, MapPin, ChevronRight, MoreVertical, Sparkles, TrendingUp, TrendingDown, Users, Home as HomeIcon, Check, X, DollarSign } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  Calendar, MapPin, ChevronRight, Sparkles, Users, Home as HomeIcon, DollarSign, Plus,
+  AlertTriangle, Phone, ClipboardList, UserPlus, Building2, X, CheckCircle2, Clock, Tag
+} from 'lucide-react';
 import TodayTimeline from '../components/TodayTimeline';
 import { useData } from '../context/DataContext';
-import { useNavigate } from 'react-router-dom';
+import { supabase } from '../services/supabaseClient';
 import { findMatches } from '../services/matchingService';
+import type { Activity, Property } from '../types';
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// YYYY-MM-DD (yerel saat)
+const localDateString = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// DB satırları hem camelCase hem snake_case alan taşıyabiliyor
+const timeOf = (...values: (string | null | undefined)[]) => {
+  for (const value of values) {
+    if (!value) continue;
+    const t = new Date(value).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return 0;
+};
+
+const listingStatusOf = (p: Property) => p.listing_status || p.listingStatus || 'Aktif';
+const isActiveListing = (p: Property) => ['Aktif', 'Kapora Alındı'].includes(listingStatusOf(p));
+
+const daysAgoLabel = (time: number) => {
+  const days = Math.floor((Date.now() - time) / DAY);
+  if (days <= 0) return 'bugün';
+  if (days === 1) return 'dün';
+  return `${days} gün önce`;
+};
+
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Günaydın';
+  if (h < 18) return 'İyi günler';
+  return 'İyi akşamlar';
+};
+
+interface FollowUp {
+  id: string;
+  kind: 'thinking' | 'silent' | 'price' | 'stale-request';
+  title: string;
+  detail: string;
+  action: string;
+  path: string;
+}
+
+const followUpStyle: Record<FollowUp['kind'], { icon: React.ReactNode; className: string }> = {
+  thinking: { icon: <Clock className="w-4 h-4" />, className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  silent: { icon: <Phone className="w-4 h-4" />, className: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' },
+  price: { icon: <Tag className="w-4 h-4" />, className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  'stale-request': { icon: <ClipboardList className="w-4 h-4" />, className: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' },
+};
+
+const card = 'bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm';
 
 const Dashboard: React.FC = () => {
-  const { customers, properties, activities, requests, sales } = useData();
+  const { customers, properties, activities, requests, sales, session, userProfile } = useData();
   const navigate = useNavigate();
+  const me = session?.user.id;
 
-  // Calculate real statistics
-  const stats = useMemo(() => {
-    const today = new Date();
-    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
+  // İlan sayıları: bağlamda en fazla 50 ilan yüklü olduğu için sayım doğrudan DB'den alınır
+  const [listingCounts, setListingCounts] = useState<{ mine: number; office: number } | null>(null);
+  useEffect(() => {
+    if (!me) return;
+    let cancelled = false;
+    const activeFilter = 'listing_status.is.null,listing_status.in.("Aktif","Kapora Alındı")';
+    Promise.all([
+      supabase.from('properties').select('id', { count: 'exact', head: true }).eq('user_id', me).or(activeFilter),
+      supabase.from('properties').select('id', { count: 'exact', head: true }).or(activeFilter),
+    ]).then(([mine, office]) => {
+      if (cancelled || mine.error || office.error) return;
+      setListingCounts({ mine: mine.count ?? 0, office: office.count ?? 0 });
+    });
+    return () => { cancelled = true; };
+  }, [me, properties.length]);
 
-    // Recent requests (last 7 days)
-    const recentRequests = requests.filter(r => {
-      if (!r.date) return false;
-      const reqDate = new Date(r.date);
-      return reqDate >= sevenDaysAgo;
-    }).length;
+  const myProperties = useMemo(() => properties.filter(p => p.user_id === me), [properties, me]);
+  const myRequests = useMemo(() => requests.filter(r => !r.user_id || r.user_id === me), [requests, me]);
+  const myActivities = useMemo(() => activities.filter(a => !a.user_id || a.user_id === me), [activities, me]);
 
-    // Active customers
-    const activeCustomers = customers.filter(c => c.status === 'Aktif').length;
+  const todayStr = localDateString(new Date());
 
-    // Previous month active customers for trend
-    const previousMonthCustomers = customers.filter(c => {
-      if (!c.createdAt) return false;
-      const created = new Date(c.createdAt);
-      return created >= sixtyDaysAgo && created < thirtyDaysAgo;
-    }).length;
+  // --- Bugünün planı ---
+  const todayPlan = useMemo(() => {
+    const overdue = myActivities
+      .filter(a => a.status === 'Planlandı' && a.date && a.date < todayStr)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+    const today = myActivities
+      .filter(a => a.date === todayStr)
+      .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+    const upcoming = myActivities
+      .filter(a => a.status === 'Planlandı' && a.date > todayStr)
+      .sort((a, b) => `${a.date}${a.time || ''}`.localeCompare(`${b.date}${b.time || ''}`))
+      .slice(0, 3);
+    return { overdue, today, upcoming };
+  }, [myActivities, todayStr]);
 
-    const currentMonthCustomers = customers.filter(c => {
-      if (!c.createdAt) return false;
-      const created = new Date(c.createdAt);
-      return created >= thirtyDaysAgo;
-    }).length;
-
-    const customerTrend = previousMonthCustomers > 0
-      ? Math.round(((currentMonthCustomers - previousMonthCustomers) / previousMonthCustomers) * 100)
-      : currentMonthCustomers > 0 ? 100 : 0;
-
-    // Sales this month
-    const monthlySales = sales?.filter(s => {
-      if (!s.saleDate) return false;
-      const saleDate = new Date(s.saleDate);
-      return saleDate >= thirtyDaysAgo;
-    }) || [];
-
-    const totalMonthlySalesValue = monthlySales.reduce((sum, s) => sum + (s.salePrice || 0), 0);
-
-    // Properties for sale
-    const forSaleProperties = properties.filter(p => p.listingStatus !== 'Satıldı' && p.listingStatus !== 'Kiralandı').length;
-
-    // Total portfolio value
-    const totalPortfolioValue = properties.reduce((acc, curr) => acc + curr.price, 0);
-
-    // Completed activities this week
-    const completedActivities = activities.filter(a => {
-      if (!a.date) return false;
-      const actDate = new Date(a.date);
-      return actDate >= sevenDaysAgo && (a.status === 'Tamamlandı' || a.status === 'Olumlu');
-    }).length;
-
+  // --- Bu ayın özeti ---
+  const month = useMemo(() => {
+    const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    const monthStartStr = localDateString(new Date(start));
+    const mySales = sales.filter(s => !s.user_id || s.user_id === me);
     return {
-      recentRequests,
-      activeCustomers,
-      customerTrend,
-      totalPortfolioValue,
-      forSaleProperties,
-      monthlySalesCount: monthlySales.length,
-      totalMonthlySalesValue,
-      completedActivities
+      requests: myRequests.filter(r => timeOf(r.created_at, r.date) >= start).length,
+      customers: customers.filter(c => timeOf(c.createdAt, (c as { created_at?: string }).created_at) >= start).length,
+      showings: myActivities.filter(a => a.type === 'Yer Gösterimi' && a.date >= monthStartStr && a.status !== 'Planlandı').length,
+      sales: mySales.filter(s => timeOf(s.saleDate, s.sale_date) >= start).length,
     };
-  }, [customers, properties, activities, requests, sales]);
+  }, [myRequests, customers, myActivities, sales, me]);
 
-  // Calculate Matches
-  const smartMatches = React.useMemo(() => {
-    return findMatches(properties, requests).slice(0, 3);
-  }, [properties, requests]);
+  // --- Takip edilmesi gerekenler ---
+  const followUps = useMemo<FollowUp[]>(() => {
+    const now = Date.now();
+    const items: FollowUp[] = [];
+    const lastContact = new Map<string, number>();
+    for (const a of myActivities) {
+      if (!a.customerId || a.status === 'Planlandı') continue;
+      const t = timeOf(a.date);
+      if (t > (lastContact.get(a.customerId) || 0)) lastContact.set(a.customerId, t);
+    }
 
-  // Combined Schedule: Upcoming appointments + Today's requests
-  const dailySchedule = React.useMemo(() => {
-    // Helper to get local date string YYYY-MM-DD
-    const getLocalDateString = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
+    // 1) "Düşünüyor" denilen ve sonrasında temas olmayan yer gösterimleri
+    for (const a of myActivities) {
+      if (a.type !== 'Yer Gösterimi' || a.status !== 'Düşünüyor') continue;
+      const t = timeOf(a.date);
+      if (now - t > 45 * DAY || now - t < DAY) continue;
+      if ((lastContact.get(a.customerId) || 0) > t) continue;
+      items.push({
+        id: `thinking-${a.id}`, kind: 'thinking',
+        title: `${a.customerName} düşünüyor`,
+        detail: `${a.propertyTitle ? `${a.propertyTitle} · ` : ''}${daysAgoLabel(t)} gösterildi, dönüş yapılmadı`,
+        action: 'Ara', path: `/customers/${a.customerId}`,
+      });
+    }
 
-    const todayStr = getLocalDateString(new Date());
+    // 2) Uzun süredir temas kurulmayan aktif müşteriler.
+    // Aktivitelerin yalnız son 50'si yüklü; son 30 günü tam kapsamıyorsa yanlış uyarı vermemek için atla.
+    const oldestLoaded = Math.min(...myActivities.map(a => timeOf(a.date)).filter(Boolean), now);
+    const coversLast30 = activities.length < 50 || now - oldestLoaded > 30 * DAY;
+    if (coversLast30) {
+      const silent = customers
+        .filter(c => c.status === 'Aktif' && c.customerType !== 'Emlakçı')
+        .filter(c => now - timeOf(c.createdAt, (c as { created_at?: string }).created_at) > 14 * DAY)
+        .map(c => ({ c, last: lastContact.get(c.id) || 0 }))
+        .filter(({ last }) => now - last > 30 * DAY)
+        .sort((a, b) => b.last - a.last)
+        .slice(0, 4);
+      for (const { c, last } of silent) {
+        items.push({
+          id: `silent-${c.id}`, kind: 'silent',
+          title: `${c.name} ile 30+ gündür konuşulmadı`,
+          detail: last ? `Son temas ${daysAgoLabel(last)}` : 'Henüz hiç aktivite girilmemiş',
+          action: 'Ara', path: `/customers/${c.id}`,
+        });
+      }
+    }
 
-    // 1. Map Appointments
-    const appointments = activities
-      .filter(a => a.status === 'Planlandı' && new Date(a.date) >= new Date(new Date().setHours(0, 0, 0, 0)))
-      .map(a => ({
-        id: a.id,
-        type: 'activity',
-        subtype: a.type,
-        title: a.customerName,
-        date: a.date,
-        time: a.time,
-        customerId: a.customerId,
-        description: a.description
-      }));
+    // 3) Fiyatı girilmemiş aktif ilanlar
+    for (const p of myProperties.filter(isActiveListing).filter(p => !p.price || p.price <= 0)) {
+      items.push({
+        id: `price-${p.id}`, kind: 'price',
+        title: `Fiyatı girilmemiş ilan`,
+        detail: p.title || 'Başlıksız ilan',
+        action: 'Düzelt', path: `/properties/${p.id}`,
+      });
+    }
 
-    // 2. Map Today's Requests
-    // Compare dates robustly (handle 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm:ss...')
-    const todayRequests = requests
-      .filter(r => (r.date && r.date.startsWith(todayStr)))
-      .map(r => ({
-        id: r.id,
-        type: 'request',
-        subtype: 'Müşteri Talebi',
-        title: r.customerName,
-        date: r.date,
-        time: 'Yeni',
-        customerId: r.customerId,
-        description: `${r.requestType} ${r.type} - Max ${(r.maxPrice ?? 0).toLocaleString()} ₺`
-      }));
+    // 4) 60 günden eski aktif talepler
+    for (const r of myRequests.filter(r => r.status === 'Aktif')) {
+      const t = timeOf(r.created_at, r.date);
+      if (!t || now - t < 60 * DAY) continue;
+      if ((lastContact.get(r.customerId) || 0) > now - 30 * DAY) continue;
+      items.push({
+        id: `request-${r.id}`, kind: 'stale-request',
+        title: `${r.customerName} talebi hâlâ güncel mi?`,
+        detail: `${r.requestType} ${r.type} · ${daysAgoLabel(t)} eklendi`,
+        action: 'Kontrol et', path: `/requests/${r.id}`,
+      });
+    }
+    return items;
+  }, [myActivities, activities.length, customers, myProperties, myRequests]);
 
-    // Combine and sort by date/time
-    return [...appointments, ...todayRequests]
-      .sort((a, b) => {
-        const dateA = new Date(`${a.date}T${a.time === 'Yeni' ? '00:00' : (a.time || '00:00')}`).getTime();
-        const dateB = new Date(`${b.date}T${b.time === 'Yeni' ? '00:00' : (b.time || '00:00')}`).getTime();
-        return dateA - dateB;
-      })
-      .slice(0, 6);
-  }, [activities, requests]);
+  // --- Yeni eşleşmeler (son 30 gün, "Geç" denilenler hariç) ---
+  // Gizlenenler DB'de (dismissed_matches) tutulur, böylece her cihazda aynı görünür.
+  // Tablo henüz yoksa (migration uygulanmadıysa) tarayıcı hafızasına düşülür.
+  const legacyKey = `dashboard:dismissedMatches:${me || 'anon'}`;
+  const readLocal = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(legacyKey) || '[]'); } catch { return []; }
+  };
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [dismissStore, setDismissStore] = useState<'db' | 'local'>('db');
+  useEffect(() => {
+    if (!me) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from('dismissed_matches').select('request_id,property_id');
+      if (cancelled) return;
+      if (error) {
+        setDismissStore('local');
+        setDismissed(readLocal());
+        return;
+      }
+      const keys = (data || []).map(row => `${row.request_id}:${row.property_id}`);
+      // Bu cihazda önceden gizlenmiş olanları bir kerelik DB'ye taşı
+      const pending = readLocal().filter(key => !keys.includes(key));
+      if (pending.length > 0) {
+        const rows = pending.map(key => { const [request_id, property_id] = key.split(':'); return { request_id, property_id }; });
+        const { error: moveError } = await supabase.from('dismissed_matches').upsert(rows, { ignoreDuplicates: true });
+        if (!moveError) {
+          keys.push(...pending);
+          try { localStorage.removeItem(legacyKey); } catch { /* yoksay */ }
+        }
+      }
+      if (!cancelled) { setDismissStore('db'); setDismissed(keys); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me]);
+  const dismissMatch = async (requestId: string, propertyId: string) => {
+    const key = `${requestId}:${propertyId}`;
+    setDismissed(prev => [...prev, key]);
+    if (dismissStore === 'db') {
+      const { error } = await supabase.from('dismissed_matches').upsert({ request_id: requestId, property_id: propertyId }, { ignoreDuplicates: true });
+      if (!error) return;
+      console.error('Eşleşme gizlenemedi:', error);
+    }
+    try { localStorage.setItem(legacyKey, JSON.stringify([...readLocal(), key].slice(-500))); } catch { /* yalnız bu oturumda gizli kalır */ }
+  };
+
+  const newMatches = useMemo(() => {
+    const cutoff = Date.now() - 30 * DAY;
+    return findMatches(properties, requests)
+      .filter(m => m.request.user_id === me || m.property.user_id === me)
+      .filter(m => timeOf(m.request.created_at, m.request.date) >= cutoff || timeOf(m.property.created_at, m.property.updated_at) >= cutoff)
+      .filter(m => !dismissed.includes(`${m.request.id}:${m.property.id}`))
+      .slice(0, 4);
+  }, [properties, requests, me, dismissed]);
+
+  const firstName = (userProfile?.name || '').split(' ')[0];
+  const myActiveListings = listingCounts?.mine ?? myProperties.filter(isActiveListing).length;
+  const todayCount = todayPlan.today.length + todayPlan.overdue.length;
+
+  const quickActions = [
+    { label: 'Yer Gösterimi', icon: <MapPin className="w-5 h-5" />, path: '/activities/new', className: 'bg-indigo-600 hover:bg-indigo-700 text-white' },
+    { label: 'Yeni Talep', icon: <ClipboardList className="w-5 h-5" />, path: '/requests/new', className: 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 hover:border-sky-300' },
+    { label: 'Yeni Müşteri', icon: <UserPlus className="w-5 h-5" />, path: '/customers/new', className: 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 hover:border-sky-300' },
+    { label: 'Yeni İlan', icon: <Building2 className="w-5 h-5" />, path: '/properties/new', className: 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 hover:border-sky-300' },
+  ];
+
+  const renderActivityRow = (a: Activity, variant: 'overdue' | 'today' | 'upcoming') => (
+    <button
+      key={a.id}
+      type="button"
+      onClick={() => navigate(`/activities/edit/${a.id}`)}
+      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left border transition-colors ${variant === 'overdue'
+        ? 'bg-red-50/70 dark:bg-red-900/10 border-red-100 dark:border-red-900/40 hover:border-red-300'
+        : 'bg-gray-50 dark:bg-slate-700/40 border-gray-100 dark:border-slate-700 hover:border-sky-200 dark:hover:border-sky-800'}`}
+    >
+      <div className="w-14 shrink-0 text-center">
+        <p className={`text-sm font-bold ${variant === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}>{a.time?.slice(0, 5) || '—'}</p>
+        {variant !== 'today' && <p className="text-[10px] text-gray-500 dark:text-slate-400">{new Date(a.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</p>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{a.type} · {a.customerName}</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{a.propertyTitle || a.description || '—'}</p>
+      </div>
+      {variant === 'overdue'
+        ? <span className="text-[11px] font-semibold text-red-600 dark:text-red-400 shrink-0">Sonucu gir</span>
+        : a.status !== 'Planlandı'
+          ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+    </button>
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Stats Row - Clickable Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Aktif Müşteri */}
-        <div
-          onClick={() => navigate('/customers')}
-          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 hover:scale-[1.02]"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aktif Müşteri</p>
-              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{stats.activeCustomers}</h3>
-            </div>
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
-              <Users className="w-6 h-6" />
-            </div>
-          </div>
-          <div className={`flex items-center text-xs font-medium ${stats.customerTrend >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-            {stats.customerTrend >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-            <span>Bu ay %{Math.abs(stats.customerTrend)} {stats.customerTrend >= 0 ? 'artış' : 'azalış'}</span>
-          </div>
+    <div className="space-y-6 animate-fade-in">
+      {/* Karşılama + hızlı işlemler */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-white mt-1">{greeting()}{firstName ? `, ${firstName}` : ''} 👋</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+            {todayCount > 0 ? `Bugün ${todayPlan.today.length} planın var` : 'Bugün için planlanmış iş yok'}
+            {followUps.length > 0 ? ` · ${followUps.length} takip seni bekliyor` : ''}
+          </p>
         </div>
-
-        {/* Portföy İlanları */}
-        <div
-          onClick={() => navigate('/properties')}
-          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 hover:scale-[1.02]"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Portföy İlanları</p>
-              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">{stats.forSaleProperties}</h3>
-            </div>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600 dark:text-indigo-400">
-              <HomeIcon className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="flex items-center text-xs text-gray-500 dark:text-slate-500 font-medium">
-            <span>Toplam {(stats.totalPortfolioValue / 1000000).toFixed(1)}M TL</span>
-          </div>
-        </div>
-
-        {/* Yeni Talepler */}
-        <div
-          onClick={() => navigate('/requests')}
-          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-sky-200 dark:hover:border-sky-800 hover:scale-[1.02]"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Yeni Talep (7 Gün)</p>
-              <h3 className="text-3xl font-bold text-sky-600 dark:text-sky-400 mt-1">{stats.recentRequests}</h3>
-            </div>
-            <div className="p-2 bg-sky-50 dark:bg-sky-900/20 rounded-lg text-sky-600 dark:text-sky-400">
-              <Calendar className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="flex items-center text-xs text-gray-500 dark:text-slate-500 font-medium">
-            <span>Toplam {requests.length} talep</span>
-          </div>
-        </div>
-
-        {/* Aylık Satış */}
-        <div
-          onClick={() => navigate('/reports')}
-          className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm transition-all cursor-pointer hover:shadow-md hover:border-green-200 dark:hover:border-green-800 hover:scale-[1.02]"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">Aylık Satış</p>
-              <h3 className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.monthlySalesCount}</h3>
-            </div>
-            <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg text-green-600 dark:text-green-400">
-              <DollarSign className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
-            <span>{stats.totalMonthlySalesValue > 0 ? `${(stats.totalMonthlySalesValue / 1000000).toFixed(1)}M TL` : 'Satış bekleniyor'}</span>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {quickActions.map(q => (
+            <button key={q.label} type="button" onClick={() => navigate(q.path)} className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shadow-sm transition-colors ${q.className}`}>
+              {q.icon}{q.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 animate-fade-in">
-
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
-
-          {/* Smart Matches Banner */}
-          {smartMatches.length > 0 && (
-            <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-              <div className="absolute right-0 top-0 opacity-10 transform translate-x-10 -translate-y-10">
-                <Sparkles className="w-40 h-40" />
-              </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-6 h-6 text-yellow-300" />
-                  <h2 className="text-xl font-bold">Portföy Eşleşmeleri</h2>
-                </div>
-                <div className="space-y-3">
-                  {smartMatches.map((match, idx) => (
-                    <div key={idx} className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/20 flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold">{match.request.customerName}</p>
-                        <p className="text-sm text-indigo-100">Arıyor: {match.request.type} (Max {match.request.maxPrice ? match.request.maxPrice.toLocaleString() : '?'} ₺)</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-yellow-300">Bulundu: {match.property.title}</p>
-                        <p className="text-sm text-indigo-100">{match.property.price != null ? `${match.property.price.toLocaleString()} ₺` : '—'}</p>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/properties/${match.property.id}`)}
-                        className="ml-4 px-3 py-1.5 bg-white text-indigo-600 rounded-lg text-xs font-bold hover:bg-gray-100"
-                      >
-                        İncele
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Schedule Section - Takes up 2 cols */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 transition-colors">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Günlük Program</h2>
-              <button type="button" onClick={() => navigate('/activities')} className="text-sky-600 dark:text-sky-400 text-sm font-medium hover:underline">Tümünü Gör</button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Bugünün planı */}
+          <section className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar className="w-5 h-5 text-sky-600" /> Bugünün Planı</h2>
+              <Link to="/calendar" className="text-sm text-sky-600 dark:text-sky-400 font-medium hover:underline">Takvim</Link>
             </div>
 
-            <div className="space-y-4">
-              {dailySchedule.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/50 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
-                  <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Planlanmış randevu veya yeni talep bulunmuyor.</p>
-                  <button
-                    onClick={() => navigate('/activities/new')}
-                    className="mt-3 text-xs text-[#1193d4] font-medium hover:underline"
-                  >
-                    Randevu Ekle
-                  </button>
-                </div>
-              ) : (
-                dailySchedule.map((item) => (
-                  <div key={item.id} className="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-700 hover:border-sky-100 dark:hover:border-sky-800 transition-colors">
-                    <div className={`p-3 rounded-full ${item.subtype === 'Yer Gösterimi' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' :
-                      item.subtype === 'Telefon Görüşmesi' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                        item.subtype === 'Tapu İşlemi' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
-                          item.type === 'request' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
-                            'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400'
-                      }`}>
-                      {item.subtype === 'Yer Gösterimi' ? <MapPin className="w-5 h-5" /> :
-                        item.subtype === 'Tapu İşlemi' ? <Clock className="w-5 h-5" /> :
-                          item.type === 'request' ? <Sparkles className="w-5 h-5" /> :
-                            <Calendar className="w-5 h-5" />}
+            {todayPlan.overdue.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400 mb-2 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Geciken randevular — sonucu girilmedi</p>
+                <div className="space-y-2">{todayPlan.overdue.map(a => renderActivityRow(a, 'overdue'))}</div>
+              </div>
+            )}
+
+            {todayPlan.today.length > 0 ? (
+              <div className="space-y-2">{todayPlan.today.map(a => renderActivityRow(a, 'today'))}</div>
+            ) : (
+              <div className="p-6 text-center rounded-xl border border-dashed border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-700/20">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Bugün için randevu yok. Takip listesindeki müşterileri aramak için iyi bir gün.</p>
+                <button type="button" onClick={() => navigate('/activities/new')} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#1193d4] hover:underline"><Plus className="w-4 h-4" /> Randevu ekle</button>
+              </div>
+            )}
+
+            {todayPlan.upcoming.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Yaklaşan</p>
+                <div className="space-y-2">{todayPlan.upcoming.map(a => renderActivityRow(a, 'upcoming'))}</div>
+              </div>
+            )}
+          </section>
+
+          {/* Takip edilmesi gerekenler */}
+          <section className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><Phone className="w-5 h-5 text-amber-500" /> Takip Edilmesi Gerekenler</h2>
+              {followUps.length > 0 && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{followUps.length}</span>}
+            </div>
+            {followUps.length === 0 ? (
+              <div className="p-6 text-center rounded-xl bg-emerald-50/70 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/40">
+                <CheckCircle2 className="w-7 h-7 mx-auto text-emerald-500" />
+                <p className="mt-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">Harika, bekleyen takip yok.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-slate-700">
+                {followUps.slice(0, 8).map(item => (
+                  <li key={item.id} className="flex items-center gap-3 py-3">
+                    <span className={`p-2 rounded-lg shrink-0 ${followUpStyle[item.kind].className}`}>{followUpStyle[item.kind].icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{item.detail}</p>
                     </div>
-                    <div className="ml-4 flex-1">
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.subtype} - {item.title}</h4><EntityTags type={item.type} id={item.id}/>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        {item.date} • {item.time === 'Yeni' ? <span className="text-orange-600 dark:text-orange-400 font-bold">YENİ TALEP</span> : item.time || 'Saat Yok'}
-                        {item.description ? ` • ${item.description}` : ''}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => navigate(item.type === 'activity' ? `/customers/${item.customerId}` : `/requests/edit/${item.id}`)}
-                      className="p-2 text-gray-400 dark:text-slate-500 hover:text-[#1193d4] hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors"
-                    >
-                      <ChevronRight className="w-4 h-4" />
+                    <button type="button" onClick={() => navigate(item.path)} className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50">
+                      {item.action}
                     </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {followUps.length > 8 && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">+{followUps.length - 8} takip daha</p>}
+          </section>
 
           <TodayTimeline />
         </div>
 
-        {/* Matching Rates Widget */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 transition-colors">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-slate-800 dark:text-white">Eşleşme Oranları</h3>
-          </div>
-          {smartMatches.length > 0 ? (
-            <div className="space-y-4">
-              {smartMatches.slice(0, 3).map((match, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1 text-sm">
-                      <span className="text-slate-600 dark:text-slate-300 font-medium">{match.request.customerName}</span>
-                      <span className="text-sky-600 dark:text-sky-400 font-bold">{match.score}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
-                      <div className="bg-sky-600 dark:bg-sky-500 h-2 rounded-full" style={{ width: `${match.score}%` }}></div>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      {match.property.title} - {match.property.price != null ? `${match.property.price.toLocaleString('tr-TR')} TL` : '—'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate(`/properties/${match.property.id}`)}
-                    className="px-3 py-1.5 bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 text-xs font-medium rounded-lg hover:bg-sky-200 dark:hover:bg-sky-900/50"
-                  >
-                    Görüntüle
-                  </button>
-                </div>
+        <div className="space-y-6">
+          {/* Aktif ilanlarım */}
+          <button type="button" onClick={() => navigate('/properties?scope=mine&listing_status=Aktif')} className={`${card} w-full p-5 text-left hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Aktif İlanlarım</p>
+                <p className="text-4xl font-bold text-slate-800 dark:text-white mt-1">{myActiveListings}</p>
+              </div>
+              <span className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"><HomeIcon className="w-6 h-6" /></span>
+            </div>
+            <p className="mt-3 text-xs text-gray-500 dark:text-slate-400">Aktif + kaporası alınmış{listingCounts ? ` · Ofiste toplam ${listingCounts.office}` : ''}</p>
+          </button>
+
+          {/* Bu ay */}
+          <section className={`${card} p-5`}>
+            <h2 className="text-base font-bold text-slate-800 dark:text-white mb-3">Bu Ay</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: 'Yeni Talep', value: month.requests, icon: <ClipboardList className="w-4 h-4" />, path: '/requests?period=month', tone: 'text-sky-600 bg-sky-50 dark:bg-sky-900/30 dark:text-sky-400' },
+                { label: 'Yeni Müşteri', value: month.customers, icon: <Users className="w-4 h-4" />, path: '/customers', tone: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400' },
+                { label: 'Yer Gösterimi', value: month.showings, icon: <MapPin className="w-4 h-4" />, path: '/activities?type=Yer Gösterimi', tone: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400' },
+                { label: 'Satış / Kira', value: month.sales, icon: <DollarSign className="w-4 h-4" />, path: '/reports', tone: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400' },
+              ].map(item => (
+                <button key={item.label} type="button" onClick={() => navigate(item.path)} className="p-3 rounded-xl border border-gray-100 dark:border-slate-700 text-left hover:border-sky-200 dark:hover:border-sky-800 transition-colors">
+                  <span className={`inline-flex p-1.5 rounded-lg ${item.tone}`}>{item.icon}</span>
+                  <p className="text-2xl font-bold text-slate-800 dark:text-white mt-2">{item.value}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{item.label}</p>
+                </button>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-6 text-gray-400 dark:text-slate-500">
-              <p className="text-sm">Henüz eşleşme bulunamadı</p>
-              <p className="text-xs mt-1">Talep ve portföy ekledikçe eşleşmeler görünecek</p>
+          </section>
+
+          {/* Yeni eşleşmeler */}
+          <section className={`${card} p-5`}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-violet-500" /> Yeni Eşleşmeler</h2>
+              <Link to="/matches" className="text-xs text-sky-600 dark:text-sky-400 font-medium hover:underline">Tümü</Link>
             </div>
-          )}
+            {newMatches.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-slate-400 py-4 text-center">Son 30 günde yeni eşleşme yok.</p>
+            ) : (
+              <ul className="space-y-2">
+                {newMatches.map(m => {
+                  const key = `${m.request.id}:${m.property.id}`;
+                  return (
+                    <li key={key} className="p-3 rounded-xl bg-violet-50/60 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/40">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{m.request.customerName}</p>
+                          <p className="text-xs text-gray-600 dark:text-slate-300 truncate">{m.property.title}</p>
+                          <p className="text-xs text-violet-700 dark:text-violet-300 mt-0.5">{m.property.price.toLocaleString('tr-TR')} ₺ · %{m.score} uyum</p>
+                        </div>
+                        <button type="button" aria-label="Gördüm, geç" title="Gördüm, geç" onClick={() => void dismissMatch(m.request.id, m.property.id)} className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 shrink-0"><X className="w-4 h-4" /></button>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => navigate(`/properties/${m.property.id}`)} className="flex-1 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700">İncele</button>
+                        <button type="button" onClick={() => void dismissMatch(m.request.id, m.property.id)} className="flex-1 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-900 text-violet-700 dark:text-violet-300 text-xs font-semibold">Gördüm, geç</button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
     </div>

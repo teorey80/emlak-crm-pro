@@ -11,7 +11,7 @@ type SortColumn = 'title' | 'type' | 'price' | 'status' | 'owner' | null;
 type SortDirection = 'asc' | 'desc';
 
 const PropertyList: React.FC = () => {
-    const { properties, updateProperty, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore, propertiesLoadError, refetchData, loading } = useData();
+    const { properties, updateProperty, deleteProperty, session, userProfile, teamMembers, hasMoreProperties, loadMoreProperties, loadingMore, propertiesLoadError, refetchData, loading } = useData();
     const [isRefetching, setIsRefetching] = useState(false);
 
     const handleRefetch = async () => {
@@ -33,6 +33,16 @@ const PropertyList: React.FC = () => {
             toast.success(newValue ? 'İlan ademaslan.com\'da yayında' : 'İlan ademaslan.com\'dan kaldırıldı');
         } catch (err: any) {
             toast.error('Hata: ' + (err?.message || 'bilinmeyen hata'));
+        }
+    };
+    const handleDeleteProperty = async (property: Property) => {
+        if (!window.confirm(`"${property.title}" ilanını kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) return;
+        try {
+            await deleteProperty(property.id);
+            toast.success('İlan silindi.');
+        } catch (err) {
+            console.error('İlan silme hatası:', err);
+            toast.error('İlan silinemedi. Bağlı satış/kiralama kaydı varsa önce onu iptal edin.');
         }
     };
     const [searchParams, setSearchParams] = useSearchParams();
@@ -468,6 +478,8 @@ const PropertyList: React.FC = () => {
                                                         <>
                                                             <span className="text-gray-300 dark:text-slate-600">|</span>
                                                             <Link to={`/properties/edit/${property.id}`} className="text-[#1193d4] hover:text-sky-800 dark:hover:text-sky-300 font-medium text-sm">Düzenle</Link>
+                                                            <span className="text-gray-300 dark:text-slate-600">|</span>
+                                                            <button type="button" onClick={() => handleDeleteProperty(property)} className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium text-sm">Sil</button>
                                                         </>
                                                     )}
                                                 </div>

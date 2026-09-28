@@ -45,7 +45,7 @@ const ActivityList: React.FC = () => {
     const generation = useRef(0);
     const moreBusy = useRef(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentFilterType, setCurrentFilterType] = useState('all');
+    const [currentFilterType, setCurrentFilterType] = useState(params.get('type') || 'all');
 
     const filters = useMemo(() => ({ search: searchTerm, type: currentFilterType, date, source, record }), [searchTerm, currentFilterType, date, source, record]);
     useEffect(() => {
