@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { syncCalendarActivity } from '../services/googleWorkspaceService';
 import DocumentManager from '../components/DocumentManager';
 import { useData } from '../context/DataContext';
+import { isInternationalPhone, toWhatsAppNumber } from '../utils/validation';
 
 const CustomerDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -257,7 +258,18 @@ const CustomerDetail: React.FC = () => {
                             <div className="flex items-center gap-3 text-gray-600 dark:text-slate-400">
                                 <Phone className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                                 <span className="text-sm">{customer.phone}</span>
+                                {isInternationalPhone(customer.phone) && <span className="text-xs rounded-full px-2 py-0.5 bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">Yurt dışı</span>}
                             </div>
+                            {customer.phone && (
+                                <div className="flex gap-2">
+                                    <a href={`tel:${customer.phone.replace(/[^\d+]/g, '')}`} className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700">
+                                        <Phone className="w-4 h-4" /> Ara
+                                    </a>
+                                    <a href={`https://wa.me/${toWhatsAppNumber(customer.phone)}`} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                                        <MessageSquare className="w-4 h-4" /> WhatsApp
+                                    </a>
+                                </div>
+                            )}
                             <div className="flex items-center gap-3 text-gray-600 dark:text-slate-400">
                                 <Mail className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                                 <span className="text-sm">{customer.email}</span>
@@ -266,6 +278,12 @@ const CustomerDetail: React.FC = () => {
                                 <Calendar className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                                 <span className="text-sm">Kayıt: {customer.createdAt}</span>
                             </div>
+                            {customer.source && (
+                                <div className="flex items-center gap-3 text-gray-600 dark:text-slate-400">
+                                    <Info className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+                                    <span className="text-sm">Kaynak: {customer.source}</span>
+                                </div>
+                            )}
 
                             {/* Professional Info */}
                             {(customer.occupation || customer.company) && (

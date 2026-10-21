@@ -93,6 +93,18 @@ const Reports: React.FC = () => {
   });
   const totalProps = properties.length || 1;
 
+  // Müşteri kaynakları — "Diğer"e elle yazılan ChatGPT/yapay zeka varyasyonları tek başlıkta toplanır
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    customers.forEach(c => {
+      const raw = (c.source || '').trim();
+      const source = !raw ? 'Belirtilmemiş' : /chat\s*gpt|yapay\s*zeka|gemini|claude|perplexity|copilot|\bai\b/i.test(raw) ? 'Yapay Zeka (ChatGPT vb.)' : raw;
+      counts[source] = (counts[source] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [customers]);
+  const totalCustomers = customers.length || 1;
+
   // Activity Status Distribution
   const activityCounts: Record<string, number> = {};
   activities.forEach(a => {
@@ -357,6 +369,31 @@ const Reports: React.FC = () => {
                             </div>
                             <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5">
                                 <div className="bg-[#1193d4] h-2.5 rounded-full" style={{ width: `${percent}%` }}></div>
+                            </div>
+                        </div>
+                      );
+                  })}
+              </div>
+          </div>
+
+          {/* Customer Sources */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 transition-colors">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+                  Müşteri Kaynakları
+              </h3>
+              <div className="space-y-4">
+                  {sourceCounts.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">Henüz müşteri kaydı yok.</p>}
+                  {sourceCounts.map(([source, count]) => {
+                      const percent = Math.round((count / totalCustomers) * 100);
+                      return (
+                        <div key={source}>
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="text-gray-700 dark:text-slate-300 font-medium">{source}</span>
+                                <span className="text-gray-500 dark:text-slate-400">{percent}% ({count})</span>
+                            </div>
+                            <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5">
+                                <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${percent}%` }}></div>
                             </div>
                         </div>
                       );

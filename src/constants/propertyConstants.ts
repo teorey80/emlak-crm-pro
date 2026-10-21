@@ -603,3 +603,7 @@ export const DEFAULT_PROPERTY_VALUES = {
   landLocation: [],
   landGeneralFeatures: [],
 };
+
+// Müşteri kaynakları — "Diğer" seçilince kaynak serbest metin olarak yazılır
+export const CUSTOMER_SOURCES = ['Web Sitesi', 'Tavsiye', 'Sosyal Medya', 'Yapay Zeka (ChatGPT vb.)', 'sahibinden.com', 'emlakjet.com'];
+export const OTHER_CUSTOMER_SOURCE = 'Diğer';

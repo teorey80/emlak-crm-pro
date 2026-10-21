@@ -1,12 +1,14 @@
 import { useCrmRecord } from '../utils/useCrmRecord';
 import EntityTags from '../components/EntityTags';
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Customer } from '../types';
-import { isValidPhoneNumber, isValidEmail, formatPhoneNumber } from '../utils/validation';
+import { isValidPhoneNumber, isValidEmail, formatPhoneNumber, isInternationalPhone, phoneComparisonKey } from '../utils/validation';
+import { addCustomTag } from '../services/tagService';
+import { CUSTOMER_SOURCES, OTHER_CUSTOMER_SOURCE as OTHER_SOURCE } from '../constants/propertyConstants';
 
 const CustomerForm: React.FC = () => {
     const navigate = useNavigate();
@@ -31,6 +33,8 @@ const CustomerForm: React.FC = () => {
     });
 
     const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
+    // "Diğer" seçilince kaynak serbest metin olarak yazılır
+    const [isOtherSource, setIsOtherSource] = useState(false);
 
   const {record: editRecord, loading: editLoading, error: editError} = useCrmRecord('customers',id,customers);
     useEffect(() => {
@@ -38,6 +42,7 @@ const CustomerForm: React.FC = () => {
             const customer = editRecord;
             if (customer) {
                 setFormData(customer);
+                setIsOtherSource(!!customer.source && !CUSTOMER_SOURCES.includes(customer.source));
             }
         }
     }, [id, editRecord]);
@@ -62,6 +67,12 @@ const CustomerForm: React.FC = () => {
         if (errors.phone) setErrors({ ...errors, phone: undefined });
     };
 
+    const duplicateCustomer = (() => {
+        const key = phoneComparisonKey(formData.phone || '');
+        if (key.length < 10) return undefined;
+        return customers.find(c => c.id !== id && c.phone && phoneComparisonKey(c.phone) === key);
+    })();
+
     const handleEmailChange = (value: string) => {
         setFormData({ ...formData, email: value });
         if (errors.email) setErrors({ ...errors, email: undefined });
@@ -85,7 +96,7 @@ const CustomerForm: React.FC = () => {
             phone: formData.phone || '',
             status: formData.status || 'Aktif',
             customerType: formData.customerType,
-            source: formData.source || 'Web Sitesi',
+            source: (isOtherSource ? formData.source?.trim() || OTHER_SOURCE : formData.source) || 'Web Sitesi',
             notes: formData.notes,
             hasPets: formData.hasPets,
             petDetails: formData.petDetails,
@@ -98,12 +109,17 @@ const CustomerForm: React.FC = () => {
         };
 
         try {
+            let savedId = customer.id;
             if (id) {
                 await updateCustomer(customer);
                 toast.success('Müşteri bilgileri güncellendi!');
             } else {
-                await addCustomer(customer);
+                savedId = (await addCustomer(customer)).id;
                 toast.success('Yeni müşteri eklendi!');
+            }
+            // Yurt dışı numaralı müşteriler otomatik "Yurt dışı" etiketi alır (etiket hatası kaydı engellemez)
+            if (isInternationalPhone(customer.phone)) {
+                addCustomTag('customer', savedId, 'Yurt dışı').catch(err => console.warn('Yurt dışı etiketi eklenemedi:', err));
             }
             navigate('/customers');
         } catch (error: any) {
@@ -142,13 +158,19 @@ const CustomerForm: React.FC = () => {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Telefon Numarasi</label>
                                 <input
                                     type="tel"
-                                    placeholder="Örn: 555 123 4567"
+                                    placeholder="Örn: 555 123 4567 veya +49 151 2345 6789"
                                     className={`w-full rounded-lg bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4] ${errors.phone ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'}`}
                                     value={formData.phone}
                                     onChange={e => handlePhoneChange(e.target.value)}
                                     required
                                 />
                                 {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
+                                {!errors.phone && isInternationalPhone(formData.phone || '') && <p className="mt-1 text-xs text-sky-700 dark:text-sky-300">Yurt dışı numarası — kayıtta "Yurt dışı" etiketi eklenecek.</p>}
+                                {duplicateCustomer && (
+                                    <p role="alert" className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                                        Bu numara <Link to={`/customers/${duplicateCustomer.id}`} className="underline font-medium">{duplicateCustomer.name}</Link> adlı müşteride kayıtlı.
+                                    </p>
+                                )}
                             </div>
                             <div className="sm:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">E-posta Adresi (Istege Bagli)</label>
@@ -183,16 +205,28 @@ const CustomerForm: React.FC = () => {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Kaynak</label>
                                 <select
                                     className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
-                                    value={formData.source}
-                                    onChange={e => setFormData({ ...formData, source: e.target.value })}
+                                    value={isOtherSource ? OTHER_SOURCE : formData.source}
+                                    onChange={e => {
+                                        const other = e.target.value === OTHER_SOURCE;
+                                        setIsOtherSource(other);
+                                        setFormData({ ...formData, source: other ? '' : e.target.value });
+                                    }}
                                 >
-                                    <option value="Web Sitesi">Web Sitesi</option>
-                                    <option value="Tavsiye">Tavsiye</option>
-                                    <option value="Sosyal Medya">Sosyal Medya</option>
-                                    <option value="sahibinden.com">sahibinden.com</option>
-                                    <option value="emlakjet.com">emlakjet.com</option>
-                                    <option value="Diğer">Diğer</option>
+                                    {CUSTOMER_SOURCES.map(source => <option key={source} value={source}>{source}</option>)}
+                                    <option value={OTHER_SOURCE}>{OTHER_SOURCE}</option>
                                 </select>
+                                {isOtherSource && (
+                                    <input
+                                        type="text"
+                                        aria-label="Kaynak açıklaması"
+                                        placeholder="Kaynağı yazın (örn: Instagram reklamı, fuar)"
+                                        maxLength={80}
+                                        className="mt-2 w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white focus:ring-[#1193d4] focus:border-[#1193d4]"
+                                        value={formData.source || ''}
+                                        onChange={e => setFormData({ ...formData, source: e.target.value })}
+                                        autoFocus
+                                    />
+                                )}
                             </div>
 
                             <fieldset className="border-t border-gray-200 dark:border-slate-700 pt-6">

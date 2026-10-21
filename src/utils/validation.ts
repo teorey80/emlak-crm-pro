@@ -1,9 +1,33 @@
 // Validation utilities for Turkish CRM forms
 
-// Turkish phone number validation
-// Accepts: 5XX XXX XX XX, 05XX XXX XX XX, +90 5XX XXX XX XX
+// International (non-Turkish) number: starts with + or 00 and a country code other than 90
+// Example: +49 151 2345 6789, 0049 151 23456789
+export const isInternationalPhone = (phone: string): boolean => {
+  if (!phone) return false;
+  const cleaned = phone.replace(/[\s\-\(\)\.\/]/g, '');
+  const digits = cleaned.startsWith('+') ? cleaned.slice(1) : cleaned.startsWith('00') ? cleaned.slice(2) : null;
+  return digits !== null && /^[1-9][0-9]{7,14}$/.test(digits) && !digits.startsWith('90');
+};
+
+// Digits used to compare two numbers regardless of formatting (last 10 digits for Turkish numbers)
+export const phoneComparisonKey = (phone: string): string => {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (isInternationalPhone(phone)) return digits.replace(/^00/, '');
+  return digits.slice(-10);
+};
+
+// WhatsApp needs the full number with country code, digits only
+export const toWhatsAppNumber = (phone: string): string => {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (isInternationalPhone(phone)) return digits.replace(/^00/, '');
+  return digits.length >= 10 ? `90${digits.slice(-10)}` : digits;
+};
+
+// Turkish phone number validation (international numbers with country code are also accepted)
+// Accepts: 5XX XXX XX XX, 05XX XXX XX XX, +90 5XX XXX XX XX, +49 151 2345 6789
 export const isValidPhoneNumber = (phone: string): boolean => {
   if (!phone) return false;
+  if (isInternationalPhone(phone)) return true;
 
   // Remove all spaces, dashes, and parentheses
   const cleaned = phone.replace(/[\s\-\(\)]/g, '');
@@ -29,6 +53,7 @@ export const isValidPhoneNumber = (phone: string): boolean => {
 // Format phone number for display
 export const formatPhoneNumber = (phone: string): string => {
   if (!phone) return '';
+  if (isInternationalPhone(phone)) return phone;
 
   // Remove all non-digits
   const cleaned = phone.replace(/\D/g, '');
@@ -83,7 +108,7 @@ export const parsePrice = (formattedPrice: string): number => {
 // Get validation error messages
 export const getPhoneErrorMessage = (phone: string): string | null => {
   if (!phone) return 'Telefon numarasi zorunludur';
-  if (!isValidPhoneNumber(phone)) return 'Gecerli bir telefon numarasi giriniz (5XX XXX XX XX)';
+  if (!isValidPhoneNumber(phone)) return 'Gecerli bir telefon numarasi giriniz (5XX XXX XX XX veya +49... gibi ulke kodlu)';
   return null;
 };
 
