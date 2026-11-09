@@ -6,7 +6,7 @@ import { Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { Customer } from '../types';
-import { isValidPhoneNumber, isValidEmail, formatPhoneNumber, isInternationalPhone, phoneComparisonKey } from '../utils/validation';
+import { isValidPhoneNumber, isValidEmail, formatPhoneNumber, isInternationalPhone, phoneComparisonKey, sanitizePhoneInput } from '../utils/validation';
 import { addCustomTag } from '../services/tagService';
 import { CUSTOMER_SOURCES, OTHER_CUSTOMER_SOURCE as OTHER_SOURCE } from '../constants/propertyConstants';
 
@@ -63,7 +63,7 @@ const CustomerForm: React.FC = () => {
     };
 
     const handlePhoneChange = (value: string) => {
-        setFormData({ ...formData, phone: value });
+        setFormData({ ...formData, phone: sanitizePhoneInput(value) });
         if (errors.phone) setErrors({ ...errors, phone: undefined });
     };
 
@@ -93,7 +93,7 @@ const CustomerForm: React.FC = () => {
             interactions: formData.interactions || [],
             name: formData.name || '',
             email: formData.email || '',
-            phone: formData.phone || '',
+            phone: sanitizePhoneInput(formData.phone || '').trim(),
             status: formData.status || 'Aktif',
             customerType: formData.customerType,
             source: (isOtherSource ? formData.source?.trim() || OTHER_SOURCE : formData.source) || 'Web Sitesi',

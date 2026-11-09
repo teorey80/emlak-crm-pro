@@ -1,10 +1,17 @@
 // Validation utilities for Turkish CRM forms
 
+// Invisible direction/zero-width marks that come along when a number is copied from Contacts or WhatsApp
+const INVISIBLE_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+
+// Removes invisible marks and turns non-breaking spaces into normal spaces
+export const sanitizePhoneInput = (phone: string): string =>
+  (phone || '').replace(INVISIBLE_CHARS, '').replace(/[\u00A0\u202F]/g, ' ');
+
 // International (non-Turkish) number: starts with + or 00 and a country code other than 90
 // Example: +49 151 2345 6789, 0049 151 23456789
 export const isInternationalPhone = (phone: string): boolean => {
   if (!phone) return false;
-  const cleaned = phone.replace(/[\s\-\(\)\.\/]/g, '');
+  const cleaned = sanitizePhoneInput(phone).replace(/[\s\-\(\)\.\/]/g, '');
   const digits = cleaned.startsWith('+') ? cleaned.slice(1) : cleaned.startsWith('00') ? cleaned.slice(2) : null;
   return digits !== null && /^[1-9][0-9]{7,14}$/.test(digits) && !digits.startsWith('90');
 };
@@ -30,7 +37,7 @@ export const isValidPhoneNumber = (phone: string): boolean => {
   if (isInternationalPhone(phone)) return true;
 
   // Remove all spaces, dashes, and parentheses
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  const cleaned = sanitizePhoneInput(phone).replace(/[\s\-\(\)]/g, '');
 
   // Remove leading +90 or 0
   let normalized = cleaned;
