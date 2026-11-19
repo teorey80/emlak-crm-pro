@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, DollarSign, Calculator, Users, UserCheck, ArrowRightLeft, CheckCircle, UserPlus, Wallet } from 'lucide-react';
 import { Property, Sale, SaleExpense, Customer } from '../types';
 import { useData } from '../context/DataContext';
+import MoneyInput from './MoneyInput';
+import QuickCustomerAdd from './QuickCustomerAdd';
+import CustomerSearchSelect from './CustomerSearchSelect';
 import toast from 'react-hot-toast';
 
 interface SaleFormProps {
@@ -106,16 +109,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
     // Remove expense
     const removeExpense = (id: string) => {
         setExpenses(expenses.filter(e => e.id !== id));
-    };
-
-    // Handle buyer selection
-    const handleBuyerChange = (customerId: string) => {
-        const customer = customers.find(c => c.id === customerId);
-        setFormData({
-            ...formData,
-            buyerId: customerId,
-            buyerName: customer?.name || ''
-        });
     };
 
     // Submit
@@ -229,18 +222,17 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                             <Users className="w-4 h-4 inline mr-1" />
-                            Alıcı (CRM'den seç)
+                            Alıcı (opsiyonel)
                         </label>
-                        <select
-                            className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 border p-3 text-gray-900 dark:text-white"
+                        <CustomerSearchSelect
+                            customers={customers}
                             value={formData.buyerId}
-                            onChange={e => handleBuyerChange(e.target.value)}
-                        >
-                            <option value="">Alıcı Seçin (opsiyonel)</option>
-                            {customers.filter(c => c.customerType === 'Alıcı').map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
+                            onChange={(c) => setFormData(prev => ({ ...prev, buyerId: c?.id || '', buyerName: c?.name || '' }))}
+                        />
+                        <QuickCustomerAdd
+                            customerType="Alıcı"
+                            onCreated={(c) => setFormData(prev => ({ ...prev, buyerId: c.id, buyerName: c.name }))}
+                        />
                     </div>
 
                     {/* Commission - Ayrı Alıcı/Satıcı */}
@@ -367,12 +359,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ property, onClose, onSave }) => {
                                     <option key={t} value={t}>{t}</option>
                                 ))}
                             </select>
-                            <input
-                                type="number"
+                            <MoneyInput
                                 placeholder="Tutar"
                                 className="w-32 rounded-lg border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 border p-2 text-sm text-gray-900 dark:text-white"
-                                value={newExpenseAmount || ''}
-                                onChange={e => setNewExpenseAmount(parseInt(e.target.value) || 0)}
+                                value={newExpenseAmount}
+                                onChange={setNewExpenseAmount}
                             />
                             <button
                                 type="button"

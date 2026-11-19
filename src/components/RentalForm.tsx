@@ -3,6 +3,9 @@ import { X, Plus, Trash2, Home, Calculator, Users, UserCheck, Calendar, Banknote
 import { Property, Sale, SaleExpense } from '../types';
 import { useData } from '../context/DataContext';
 import toast from 'react-hot-toast';
+import MoneyInput from './MoneyInput';
+import QuickCustomerAdd from './QuickCustomerAdd';
+import CustomerSearchSelect from './CustomerSearchSelect';
 
 interface RentalFormProps {
     property: Property;
@@ -103,20 +106,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         setExpenses(expenses.filter(e => e.id !== id));
     };
 
-    // Handle tenant selection
-    const handleTenantChange = (customerId: string) => {
-        const customer = customers.find(c => c.id === customerId);
-        setFormData({
-            ...formData,
-            tenantId: customerId,
-            tenantName: customer?.name || ''
-        });
-    };
-
     // Submit
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (saving) return;
+        if (!formData.tenantId) {
+            toast.error('Lütfen kiracıyı seçin veya yeni müşteri olarak ekleyin');
+            return;
+        }
         if (!leaseEndDate) {
             toast.error('Lütfen geçerli bir kira başlangıç tarihi girin');
             return;
@@ -182,16 +179,6 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
         }
     };
 
-    // Filter customers for tenant selection (prefer tenants/buyers)
-    const potentialTenants = useMemo(() => {
-        return customers.filter(c =>
-            c.customerType === 'Kiracı Adayı' ||
-            c.customerType === 'Kiracı' ||
-            c.customerType === 'Alıcı' ||
-            c.status === 'Aktif'
-        );
-    }, [customers]);
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -226,10 +213,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                     Aylık Kira (₺)
                                 </label>
-                                <input
-                                    type="number"
+                                <MoneyInput
                                     value={formData.monthlyRent}
-                                    onChange={(e) => setFormData({ ...formData, monthlyRent: Number(e.target.value) })}
+                                    onChange={(v) => setFormData({ ...formData, monthlyRent: v })}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                                     required
                                 />
@@ -238,10 +224,9 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                     Depozito (₺)
                                 </label>
-                                <input
-                                    type="number"
+                                <MoneyInput
                                     value={formData.depositAmount}
-                                    onChange={(e) => setFormData({ ...formData, depositAmount: Number(e.target.value) })}
+                                    onChange={(v) => setFormData({ ...formData, depositAmount: v })}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                                 />
                             </div>
@@ -307,19 +292,15 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                                     Kiracı Seçin
                                 </label>
-                                <select
+                                <CustomerSearchSelect
+                                    customers={customers}
                                     value={formData.tenantId}
-                                    onChange={(e) => handleTenantChange(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                                    required
-                                >
-                                    <option value="">Kiracı Seçiniz...</option>
-                                    {potentialTenants.map(c => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name} - {c.phone} ({c.customerType || 'Müşteri'})
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(c) => setFormData(prev => ({ ...prev, tenantId: c?.id || '', tenantName: c?.name || '' }))}
+                                />
+                                <QuickCustomerAdd
+                                    customerType="Kiracı"
+                                    onCreated={(c) => setFormData(prev => ({ ...prev, tenantId: c.id, tenantName: c.name }))}
+                                />
                             </div>
                         </div>
                     </div>
@@ -461,11 +442,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
                                     <option key={type} value={type}>{type}</option>
                                 ))}
                             </select>
-                            <input
-                                type="number"
+                            <MoneyInput
                                 placeholder="Tutar"
-                                value={newExpenseAmount || ''}
-                                onChange={(e) => setNewExpenseAmount(Number(e.target.value))}
+                                value={newExpenseAmount}
+                                onChange={setNewExpenseAmount}
                                 className="w-28 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white text-sm"
                             />
                             <button
