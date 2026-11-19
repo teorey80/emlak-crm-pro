@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Home, Calculator, Users, UserCheck, Calendar, Banknote } from 'lucide-react';
 import { Property, Sale, SaleExpense } from '../types';
 import { useData } from '../context/DataContext';
+import toast from 'react-hot-toast';
 
 interface RentalFormProps {
     property: Property;
@@ -33,7 +34,7 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
     const [formData, setFormData] = useState({
         monthlyRent: property.price || 0,
         depositAmount: (property.price || 0) * 2, // Default: 2 months deposit
-        leaseStartDate: new Date().toISOString().split('T')[0],
+        leaseStartDate: new Date().toLocaleDateString('sv-SE'), // yerel tarih (UTC değil)
         leaseDuration: 12, // Default: 1 year
         tenantId: '',
         tenantName: '',
@@ -55,9 +56,14 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
 
     // Calculate lease end date
     const leaseEndDate = useMemo(() => {
-        const start = new Date(formData.leaseStartDate);
-        start.setMonth(start.getMonth() + formData.leaseDuration);
-        return start.toISOString().split('T')[0];
+        // Tarih alanı silinir/yarım yazılırsa geçersiz tarih oluşur; toISOString() o zaman
+        // RangeError fırlatıp tüm ekranı çökertiyordu. Geçersizse boş döndür.
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(formData.leaseStartDate || '');
+        if (!match || !Number.isFinite(formData.leaseDuration)) return '';
+        const end = new Date(Number(match[1]), Number(match[2]) - 1 + formData.leaseDuration, Number(match[3]));
+        if (Number.isNaN(end.getTime())) return '';
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
     }, [formData.leaseStartDate, formData.leaseDuration]);
 
     // Calculated values - Commission is based on monthly rent
@@ -111,6 +117,10 @@ const RentalForm: React.FC<RentalFormProps> = ({ property, onClose, onSave }) =>
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (saving) return;
+        if (!leaseEndDate) {
+            toast.error('Lütfen geçerli bir kira başlangıç tarihi girin');
+            return;
+        }
 
         const sale: Sale = {
             id: `rental-${Date.now()}`,
