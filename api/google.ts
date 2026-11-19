@@ -134,10 +134,20 @@ async function handler(request: Request) {
     const { data: connection, error: connectionError } = await admin.from('google_connections').select('refresh_token_encrypted').eq('user_id', userId).maybeSingle();
     if (connectionError) throw connectionError;
     if (!connection) return respond({ error: 'Google hesabınızı Ayarlar sayfasından bağlayın.' }, 409);
-    const refreshed = await googleToken(new URLSearchParams({
-      refresh_token: decrypt(connection.refresh_token_encrypted, cfg.encryptionSecret),
-      client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: 'refresh_token',
-    }));
+    let refreshed: Awaited<ReturnType<typeof googleToken>>;
+    try {
+      refreshed = await googleToken(new URLSearchParams({
+        refresh_token: decrypt(connection.refresh_token_encrypted, cfg.encryptionSecret),
+        client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: 'refresh_token',
+      }));
+    } catch (refreshError) {
+      // Google izni iptal edilmiş/süresi dolmuş: ölü bağlantıyı sil ki Ayarlar "bağla" göstersin
+      if (refreshError instanceof Error && refreshError.message === 'invalid_grant') {
+        await admin.from('google_connections').delete().eq('user_id', userId);
+        return respond({ error: 'Google bağlantınızın süresi doldu. Ayarlar sayfasından Google hesabınızı yeniden bağlayın.' }, 409);
+      }
+      throw refreshError;
+    }
     const token = refreshed.access_token!;
     if (refreshed.refresh_token) {
       const { error: rotateError } = await admin.from('google_connections')
