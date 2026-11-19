@@ -38,6 +38,11 @@ const ActivityForm: React.FC = () => {
     );
     const [hadShownProperties, setHadShownProperties] = useState(false);
     const isShowing = formData.type === 'Yer Gösterimi';
+    const isCall = formData.type === 'Gelen Arama' || formData.type === 'Giden Arama';
+
+    // Aramada ayarlanan randevu: aramayla birlikte ayrı bir "Planlandı" kaydı olarak açılır
+    const [followUp, setFollowUp] = useState({ enabled: false, type: 'Yer Gösterimi' as Activity['type'], date: '', time: '11:00', note: '' });
+    const canPlanFollowUp = !id && isCall;
 
     // Modal State
     const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -114,6 +119,12 @@ const ActivityForm: React.FC = () => {
         // Kolon henüz yoksa eski kayıtlar bozulmasın diye boş listeyi hiç göndermiyoruz
         const shownPayload = isShowing && shownProperties.length > 0 ? shownProperties : hadShownProperties ? null : undefined;
 
+        const planFollowUp = canPlanFollowUp && followUp.enabled;
+        if (planFollowUp && !followUp.date) {
+            toast.error('Lütfen randevu tarihini seçin.');
+            return;
+        }
+
         if (!isValidListingUrl(formData.external_listing_url || '')) {
             toast.error('İlan bağlantısı http:// veya https:// ile başlayan geçerli bir adres olmalı.');
             return;
@@ -144,7 +155,31 @@ const ActivityForm: React.FC = () => {
                 toast.success('Aktivite güncellendi!');
             } else {
                 await addActivity(activityData);
-                toast.success('Aktivite eklendi!');
+                if (planFollowUp) {
+                    try {
+                        await addActivity({
+                            id: (Date.now() + 1).toString(),
+                            type: followUp.type,
+                            customerId: activityData.customerId,
+                            customerName: activityData.customerName,
+                            propertyId,
+                            propertyTitle: selectedProperty?.title || activityData.propertyTitle,
+                            ...(followUp.type === 'Yer Gösterimi' && propertyId
+                                ? { shown_properties: [{ propertyId, title: selectedProperty?.title || null }] }
+                                : {}),
+                            date: followUp.date,
+                            time: followUp.time,
+                            description: [followUp.note.trim(), `${activityData.date} tarihli ${activityData.type.toLowerCase()} sırasında planlandı.`].filter(Boolean).join('\n'),
+                            status: 'Planlandı',
+                        });
+                        toast.success('Arama ve randevu kaydedildi!');
+                    } catch (followUpError) {
+                        console.error('Randevu kaydı hatası:', followUpError);
+                        toast.error('Arama kaydedildi ama randevu kaydedilemedi. Randevuyu ayrıca ekleyin.');
+                    }
+                } else {
+                    toast.success('Aktivite eklendi!');
+                }
             }
             navigate('/activities');
         } catch (error) {
@@ -369,6 +404,69 @@ const ActivityForm: React.FC = () => {
                         </div>
                         <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Planlandı durumundaki randevular bağlı Google Takvim hesabınıza otomatik eklenir.</p>
                     </div>
+
+                    {canPlanFollowUp && (
+                        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-4 space-y-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={followUp.enabled}
+                                    onChange={(e) => setFollowUp({ ...followUp, enabled: e.target.checked })}
+                                    className="w-4 h-4 text-[#1193d4] border-gray-300 rounded"
+                                />
+                                <span className="text-sm font-medium text-slate-800 dark:text-white">Bu görüşmede randevu ayarlandı</span>
+                            </label>
+                            {followUp.enabled && (
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Randevu tipi</label>
+                                            <select
+                                                value={followUp.type}
+                                                onChange={(e) => setFollowUp({ ...followUp, type: e.target.value as Activity['type'] })}
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                            >
+                                                <option>Yer Gösterimi</option>
+                                                <option>Ofis Toplantısı</option>
+                                                <option>Giden Arama</option>
+                                                <option>Diğer</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Randevu tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={followUp.date}
+                                                min={formData.date}
+                                                onChange={(e) => setFollowUp({ ...followUp, date: e.target.value })}
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Saat</label>
+                                            <input
+                                                type="time"
+                                                value={followUp.time}
+                                                onChange={(e) => setFollowUp({ ...followUp, time: e.target.value })}
+                                                className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Randevu notu (opsiyonel)"
+                                        value={followUp.note}
+                                        onChange={(e) => setFollowUp({ ...followUp, note: e.target.value })}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        className="w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 border p-2.5 text-gray-900 dark:text-white"
+                                    />
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                                        Arama bugünün kaydı olarak kalır; randevu aynı müşteri ve portföye bağlı, "Planlandı" durumunda ayrı bir kayıt olarak takvime düşer.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     <div className="pt-4 flex gap-3">
                         <button
